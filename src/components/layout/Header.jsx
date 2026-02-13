@@ -59,7 +59,7 @@ export default function Header() {
 
                     {/* Center — Logo */}
                     <Link to="/" className="header__logo">
-                        <img src="/images/stryingclothing.png" alt="Stryng Clothing" className="header__logo-img" />
+                        <img src="/images/stryingclothing.png" alt="Stryng Clothing" className="header__logo-img" width="120" height="36" />
                     </Link>
 
                     {/* Right — Search + Icons */}
@@ -106,7 +106,7 @@ export default function Header() {
                 <div className="mobile-menu__content">
                     <div className="mobile-menu__header">
                         <span className="header__logo">
-                            <img src="/images/stryingclothing.png" alt="Stryng Clothing" className="mobile-menu__logo-img" />
+                            <img src="/images/stryingclothing.png" alt="Stryng Clothing" className="mobile-menu__logo-img" width="100" height="28" />
                         </span>
                         <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
                             <X size={22} />

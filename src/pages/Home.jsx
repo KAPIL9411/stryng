@@ -56,7 +56,7 @@ function HeroBanner() {
                 {marqueeSlides.map((slide, index) => (
                     <div key={`${slide.id}-${index}`} className="hero-marquee__item">
                         <Link to={slide.link} className="hero-marquee__link">
-                            <img src={slide.image} alt={slide.title} className="hero-marquee__image" />
+                            <img src={slide.image} alt={slide.title} className="hero-marquee__image" width="600" height="800" />
                             <div className="hero-marquee__overlay">
                                 <h2 className="hero-marquee__title">{slide.title}</h2>
                                 <p className="hero-marquee__tag">{slide.tag}</p>
@@ -74,7 +74,7 @@ function ProductCard({ product }) {
     return (
         <Link to={`/products/${product.slug}`} className="product-card">
             <div className="product-card__image-wrapper">
-                <img src={product.images[0]} alt={product.name} className="product-card__image" loading="lazy" />
+                <img src={product.images[0]} alt={product.name} className="product-card__image" loading="lazy" width="300" height="400" />
                 {product.images[1] && (
                     <img src={product.images[1]} alt={product.name} className="product-card__hover-image" loading="lazy" />
                 )}
@@ -167,7 +167,7 @@ function CategorySection() {
                 <div className="category-cards">
                     {displayCategories.map((cat) => (
                         <Link to={`/products?category=${cat.slug}`} key={cat.id} className="category-card">
-                            <img src={cat.image} alt={cat.name} className="category-card__image" loading="lazy" />
+                            <img src={cat.image} alt={cat.name} className="category-card__image" loading="lazy" width="400" height="500" />
                             <div className="category-card__overlay">
                                 <h3 className="category-card__title">{cat.name}</h3>
                                 <p className="category-card__count">{getCategoryCount(cat.slug)} Products</p>
@@ -330,7 +330,7 @@ function ManufacturingProcess() {
                     {steps.map((step, index) => (
                         <div key={index} className="process-card">
                             <div className="process-card__image-wrapper">
-                                <img src={step.img} alt={step.title} className="process-card__image" loading="lazy" />
+                                <img src={step.img} alt={step.title} className="process-card__image" loading="lazy" width="600" height="400" />
                             </div>
                             <h3 className="h4" style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-2)' }}>{step.title}</h3>
                             <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>{step.desc}</p>
@@ -376,6 +376,8 @@ function ValueProposition() {
                             src="/images/3.png"
                             alt="Premium Streetwear Model"
                             className="value-prop__image"
+                            width="600"
+                            height="750"
                         />
                         <div className="value-prop__badge">
                             <span style={{ fontSize: 'var(--text-2xl)', fontWeight: 'bold' }}>50%</span>
