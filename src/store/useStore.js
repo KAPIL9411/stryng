@@ -560,7 +560,20 @@ const useStore = create(
                         .insert([productData])
                         .select();
 
-                    if (error) throw error;
+                    if (error) {
+                        // Provide user-friendly error messages
+                        if (error.code === '23505') {
+                            // Unique constraint violation
+                            if (error.message.includes('products_slug_key')) {
+                                error.message = 'A product with this slug already exists. Please use a different product name.';
+                            } else if (error.message.includes('products_sku_key')) {
+                                error.message = 'A product with this SKU already exists. Please use a different SKU.';
+                            } else {
+                                error.message = 'This product already exists. Please check the slug and SKU fields.';
+                            }
+                        }
+                        throw error;
+                    }
 
                     // Note: React Query cache invalidation handled in component
                     return { data, error: null };

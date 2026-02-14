@@ -133,9 +133,22 @@ export default function ProductForm() {
 
         setSubmitting(true);
 
+        // Generate unique SKU if not provided
+        const sku = data.sku || `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        
+        // Ensure unique slug by appending timestamp if needed (only for new products)
+        let slug = data.slug;
+        if (!isEditing) {
+            const existingProduct = products.find(p => p.slug === slug);
+            if (existingProduct) {
+                slug = `${slug}-${Date.now()}`;
+                showToast('Slug was modified to ensure uniqueness', 'info');
+            }
+        }
+
         const productData = {
             name: data.name,
-            slug: data.slug,
+            slug: slug,
             description: data.description,
             price: parseInt(data.price),
             original_price: parseInt(data.original_price) || parseInt(data.price),
@@ -150,7 +163,7 @@ export default function ProductForm() {
             is_new: data.is_new || false,
             is_trending: data.is_trending || false,
             // Inventory fields
-            sku: data.sku || null,
+            sku: sku,
             stock: parseInt(data.stock) || 0,
             low_stock_threshold: parseInt(data.low_stock_threshold) || 10,
             track_inventory: data.track_inventory !== false,
@@ -165,6 +178,17 @@ export default function ProductForm() {
             }
 
             if (result.error) {
+                // Handle specific error types
+                if (result.error.code === '23505') {
+                    // Unique constraint violation
+                    if (result.error.message.includes('slug')) {
+                        throw new Error('A product with this slug already exists. Please use a different name.');
+                    } else if (result.error.message.includes('sku')) {
+                        throw new Error('A product with this SKU already exists. Please use a different SKU.');
+                    } else {
+                        throw new Error('This product already exists. Please check slug and SKU.');
+                    }
+                }
                 throw result.error;
             }
 
@@ -181,8 +205,9 @@ export default function ProductForm() {
             navigate('/admin/products');
         } catch (error) {
             console.error('Error saving product:', error);
+            const errorMessage = error.message || error.toString();
             showToast(
-                `Failed to ${isEditing ? 'update' : 'create'} product: ${error.message}`,
+                `Failed to ${isEditing ? 'update' : 'create'} product: ${errorMessage}`,
                 'error'
             );
         } finally {
