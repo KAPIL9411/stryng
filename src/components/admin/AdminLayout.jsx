@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Search, Bell, Image, Menu, X, Users, Settings, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Search, Bell, Image, Menu, X, Users, Settings, BarChart3, MapPin } from 'lucide-react';
 import useStore from '../../store/useStore';
 import { useState } from 'react';
 
@@ -8,6 +8,7 @@ const sidebarItems = [
     { icon: <Package size={20} />, label: 'Products', path: '/admin/products' },
     { icon: <ShoppingCart size={20} />, label: 'Orders', path: '/admin/orders' },
     { icon: <Image size={20} />, label: 'Banners', path: '/admin/banners' },
+    { icon: <MapPin size={20} />, label: 'Pincodes', path: '/admin/pincodes' },
 ];
 
 export default function AdminLayout({ children }) {
@@ -17,8 +18,17 @@ export default function AdminLayout({ children }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+        try {
+            await logout();
+            // Clear any local storage if needed
+            localStorage.removeItem('stryng-storage');
+            // Force navigation to login
+            navigate('/login', { replace: true });
+            // Force page reload to clear all state
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     const closeMobileMenu = () => {

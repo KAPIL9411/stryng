@@ -15,12 +15,14 @@ const Home = lazy(() => import('./pages/Home'));
 const ProductListing = lazy(() => import('./pages/ProductListing'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/Checkout'));
+const CheckoutNew = lazy(() => import('./pages/CheckoutNew'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Account = lazy(() => import('./pages/Account'));
+const Addresses = lazy(() => import('./pages/Addresses'));
 const OrderTracking = lazy(() => import('./pages/OrderTracking'));
+const OrderHistory = lazy(() => import('./pages/OrderHistory'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
@@ -33,6 +35,7 @@ const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
 const AdminOrderDetails = lazy(() => import('./pages/admin/AdminOrderDetails'));
 const AdminBanners = lazy(() => import('./pages/admin/AdminBanners'));
+const AdminPincodes = lazy(() => import('./pages/admin/AdminPincodes'));
 const ProductForm = lazy(() => import('./pages/admin/ProductForm'));
 
 // Auth
@@ -64,11 +67,29 @@ function App() {
   const { initializeAuth } = useStore();
 
   useEffect(() => {
+    // Make queryClient available globally for logout
+    window.queryClient = queryClient;
+    
     // Initialize analytics
     initAnalytics();
     
     // Initialize performance monitoring
     initPerformanceMonitoring();
+    
+    // Prefetch banners immediately for faster home page load
+    queryClient.prefetchQuery({
+      queryKey: ['banners', 'active'],
+      queryFn: async () => {
+        const { supabase } = await import('./lib/supabaseClient');
+        const { data } = await supabase
+          .from('banners')
+          .select('*')
+          .eq('active', true)
+          .order('sort_order', { ascending: true });
+        return data || [];
+      },
+      staleTime: 5 * 60 * 1000,
+    });
     
     // Initialize auth only (React Query handles data fetching)
     const initialize = async () => {
@@ -108,7 +129,9 @@ function App() {
 
               {/* Protected Routes */}
               <Route path="account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-              <Route path="checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+              <Route path="addresses" element={<ProtectedRoute><Addresses /></ProtectedRoute>} />
+              <Route path="checkout" element={<ProtectedRoute><CheckoutNew /></ProtectedRoute>} />
+              <Route path="orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
               <Route path="order/:id" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
 
               {/* Admin Routes */}
@@ -119,6 +142,7 @@ function App() {
               <Route path="admin/orders" element={<AdminRoute><AdminLayout><AdminOrders /></AdminLayout></AdminRoute>} />
               <Route path="admin/orders/:id" element={<AdminRoute><AdminLayout><AdminOrderDetails /></AdminLayout></AdminRoute>} />
               <Route path="admin/banners" element={<AdminRoute><AdminLayout><AdminBanners /></AdminLayout></AdminRoute>} />
+              <Route path="admin/pincodes" element={<AdminRoute><AdminLayout><AdminPincodes /></AdminLayout></AdminRoute>} />
 
               {/* Fallback */}
               <Route path="*" element={<NotFound />} />

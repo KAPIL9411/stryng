@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { Package, ChevronRight, MapPin, Phone, MessageCircle, CheckCircle } from 'lucide-react';
 import { formatPrice } from '../lib/dummyData';
-import { supabase } from '../lib/supabaseClient';
+import { getOrderById } from '../api/orders.api';
 import useStore from '../store/useStore';
 
 const MERCHANT_PHONE = '919411867984';
@@ -20,25 +20,12 @@ export default function OrderTracking() {
         if (!order && user) {
             const fetchOrder = async () => {
                 try {
-                    const { data, error } = await supabase
-                        .from('orders')
-                        .select('*, order_items(*, product:products(*))')
-                        .eq('id', id)
-                        .eq('user_id', user.id) // Security: Only fetch user's own orders
-                        .single();
+                    const result = await getOrderById(id);
 
-                    if (error) {
-                        console.error('Error fetching order:', error);
-                        setError('Order not found or access denied.');
+                    if (result.success) {
+                        setOrder(result.data);
                     } else {
-                        const normalizedOrder = {
-                            ...data,
-                            items: data.order_items ? data.order_items.map(item => ({
-                                ...item,
-                                product: item.product
-                            })) : []
-                        };
-                        setOrder(normalizedOrder);
+                        setError(result.error || 'Order not found or access denied.');
                     }
                 } catch (err) {
                     console.error('Unexpected error:', err);
@@ -155,12 +142,12 @@ export default function OrderTracking() {
 
                         {/* Items */}
                         <h3 className="section-title" style={{ marginTop: 'var(--space-10)' }}>Items in this Order</h3>
-                        {order.items.map((item, i) => {
-                            const product = item.product || item;
+                        {order.order_items?.map((item, i) => {
+                            const product = item.product || {};
                             return (
                                 <div key={i} className="order-item">
                                     <img
-                                        src={product?.images?.[0] || product?.image}
+                                        src={product?.images?.[0]}
                                         alt={product?.name}
                                         className="order-item__image"
                                         loading="lazy"
@@ -168,7 +155,7 @@ export default function OrderTracking() {
                                     <div className="order-item__info">
                                         <h4 className="order-item__name">{product?.name}</h4>
                                         <p className="order-item__meta">
-                                            Size: {item.selectedSize || item.size} | Color: {item.selectedColor?.name || item.color?.name || item.color} | Qty: {item.quantity}
+                                            Size: {item.size} | Color: {item.color?.name || item.color} | Qty: {item.quantity}
                                         </p>
                                         <p className="order-item__price">{formatPrice(item.price)}</p>
                                     </div>
@@ -185,12 +172,13 @@ export default function OrderTracking() {
                                 <MapPin size={16} /> Delivery Address
                             </h3>
                             <p className="info-card__text">
-                                {order.address.name}<br />
-                                {order.address.street}<br />
-                                {order.address.city}, {order.address.state} — {order.address.pin}
+                                {order.address?.name}<br />
+                                {order.address?.address_line1}<br />
+                                {order.address?.address_line2 && <>{order.address.address_line2}<br /></>}
+                                {order.address?.city}, {order.address?.state} — {order.address?.pincode}
                             </p>
                             <p className="info-card__has-icon">
-                                <Phone size={14} /> {order.address.phone}
+                                <Phone size={14} /> {order.address?.phone}
                             </p>
                         </div>
 

@@ -35,8 +35,17 @@ export default function Account() {
     }, [user, navigate, fetchUserOrders]);
 
     const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+        try {
+            await logout();
+            // Clear any local storage if needed
+            localStorage.removeItem('stryng-storage');
+            // Force navigation to login
+            navigate('/login', { replace: true });
+            // Force page reload to clear all state
+            window.location.href = '/login';
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     if (!user) return null;
@@ -98,9 +107,16 @@ export default function Account() {
 
                         {activeTab === 'orders' && (
                             <>
-                                <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-semibold)', marginBottom: 'var(--space-6)', fontFamily: 'var(--font-primary)' }}>
-                                    Order History
-                                </h2>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+                                    <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-semibold)', margin: 0, fontFamily: 'var(--font-primary)' }}>
+                                        Order History
+                                    </h2>
+                                    {userOrders.length > 0 && (
+                                        <Link to="/orders" className="btn btn--secondary btn--sm">
+                                            View All Orders
+                                        </Link>
+                                    )}
+                                </div>
                                 {userOrders.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: 'var(--space-12) 0', color: 'var(--color-text-muted)' }}>
                                         <Package size={48} style={{ marginBottom: 'var(--space-4)', opacity: 0.3 }} />
@@ -110,7 +126,7 @@ export default function Account() {
                                         </Link>
                                     </div>
                                 ) : (
-                                    userOrders.map((order) => (
+                                    userOrders.slice(0, 3).map((order) => (
                                         <div key={order.id} style={{
                                             border: 'var(--border-thin)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)',
                                             marginBottom: 'var(--space-4)'

@@ -7,6 +7,7 @@ import SEO, { generateProductSchema, injectStructuredData } from '../components/
 import { trackProductView } from '../lib/analytics';
 import { useProduct, useProducts } from '../hooks/useProducts';
 import { getStockStatus } from '../lib/inventory';
+import PincodeChecker from '../components/PincodeChecker';
 
 function StarRating({ rating, size = 16 }) {
     return (
@@ -301,6 +302,9 @@ export default function ProductDetail() {
                                 <span className="pdp__feature-text">Genuine Product</span>
                             </div>
                         </div>
+
+                        {/* Pincode Checker */}
+                        <PincodeChecker productId={product.id} />
                     </div>
                 </div>
 

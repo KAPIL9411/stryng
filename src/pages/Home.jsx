@@ -9,10 +9,21 @@ import { getStockStatus } from '../lib/inventory';
 
 /* ---- Hero Carousel (Marquee) ---- */
 function HeroBanner() {
-    const { data: banners = [], isLoading } = useBanners();
+    const { data: banners = [], isLoading, error } = useBanners();
     const activeBanners = banners.filter(b => b.active);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    // Debug logging
+    useEffect(() => {
+        console.log('🎨 HeroBanner - Banners data:', {
+            isLoading,
+            error,
+            totalBanners: banners.length,
+            activeBanners: activeBanners.length,
+            banners: banners
+        });
+    }, [banners, activeBanners, isLoading, error]);
 
     // Handle window resize
     useEffect(() => {
@@ -32,19 +43,45 @@ function HeroBanner() {
         return () => clearInterval(interval);
     }, [isMobile, activeBanners.length]);
 
-    // Show placeholder during initial load to prevent layout shift
+    // Show skeleton loader during initial load
     if (isLoading) {
         return (
-            <section className="hero-marquee" style={{ minHeight: '500px', backgroundColor: 'var(--color-bg-secondary)' }}>
-                <div className="hero-marquee__track" style={{ opacity: 0 }}>
-                    {/* Invisible placeholder to maintain layout */}
+            <section className="hero-marquee hero-skeleton">
+                <div className="hero-skeleton__container">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="hero-skeleton__item">
+                            <div className="hero-skeleton__shimmer"></div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    // Show error if fetch failed
+    if (error) {
+        console.error('❌ Error loading banners:', error);
+        return (
+            <section className="hero-marquee" style={{ minHeight: '300px', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <p style={{ color: 'var(--color-text-secondary)' }}>Unable to load banners</p>
                 </div>
             </section>
         );
     }
 
     // After load, hide if no banners
-    if (!isLoading && activeBanners.length === 0) return null;
+    if (!isLoading && activeBanners.length === 0) {
+        console.warn('⚠️ No active banners found');
+        return (
+            <section className="hero-marquee" style={{ minHeight: '300px', backgroundColor: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                    <p style={{ color: 'var(--color-text-secondary)' }}>No banners available</p>
+                    <small style={{ color: 'var(--color-text-muted)' }}>Add banners from the admin panel</small>
+                </div>
+            </section>
+        );
+    }
 
     // Map dynamic banners to slide structure
     const formattedSlides = activeBanners.map(b => ({

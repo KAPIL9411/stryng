@@ -505,9 +505,32 @@ const useStore = create(
             },
 
             logout: async () => {
-                await supabase.auth.signOut();
-                set({ user: null });
-                get().showToast('Logged out successfully', 'success');
+                try {
+                    // Sign out from Supabase
+                    const { error } = await supabase.auth.signOut();
+                    
+                    if (error) {
+                        console.error('Logout error:', error);
+                        throw error;
+                    }
+                    
+                    // Clear all user-related state
+                    set({ 
+                        user: null,
+                        cart: [], // Clear cart on logout
+                        wishlist: [] // Clear wishlist on logout
+                    });
+                    
+                    // Clear React Query cache
+                    if (typeof window !== 'undefined' && window.queryClient) {
+                        window.queryClient.clear();
+                    }
+                    
+                    get().showToast('Logged out successfully', 'success');
+                } catch (error) {
+                    console.error('Logout failed:', error);
+                    get().showToast('Logout failed. Please try again.', 'error');
+                }
             },
 
             // Check if current user is admin

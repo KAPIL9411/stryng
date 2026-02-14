@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Filter, Eye, ShoppingBag, Clock, CheckCircle, Truck, RefreshCw } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import { getAllOrders, updateOrderStatus, verifyPayment } from '../../api/orders.api';
 
 const formatPrice = (price) => `₹${Number(price).toLocaleString('en-IN')}`;
 
@@ -13,15 +13,12 @@ export default function AdminOrders() {
 
     const fetchOrders = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, profiles(full_name, email), order_items(count)')
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching orders:', error);
+        const result = await getAllOrders();
+        
+        if (result.success) {
+            setOrders(result.data || []);
         } else {
-            setOrders(data || []);
+            console.error('Error fetching orders:', result.error);
         }
         setLoading(false);
     };
@@ -31,17 +28,27 @@ export default function AdminOrders() {
     }, []);
 
     // Handle Status Update
-    const updateStatus = async (orderId, newStatus) => {
-        const { error } = await supabase
-            .from('orders')
-            .update({ status: newStatus })
-            .eq('id', orderId);
-
-        if (error) {
-            alert('Failed to update status');
-        } else {
+    const handleUpdateStatus = async (orderId, newStatus) => {
+        const result = await updateOrderStatus(orderId, newStatus);
+        
+        if (result.success) {
             // Optimistic update
             setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        } else {
+            alert('Failed to update status: ' + result.error);
+        }
+    };
+
+    // Handle Payment Verification
+    const handleVerifyPayment = async (orderId) => {
+        if (confirm('Mark this payment as RECEIVED?')) {
+            const result = await verifyPayment(orderId);
+            
+            if (result.success) {
+                fetchOrders(); // Refresh to get updated data
+            } else {
+                alert('Failed to verify payment: ' + result.error);
+            }
         }
     };
 
@@ -168,7 +175,7 @@ export default function AdminOrders() {
                                                 <div className="action-buttons">
                                                     <select
                                                         value={order.status}
-                                                        onChange={(e) => updateStatus(order.id, e.target.value)}
+                                                        onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                                                         className="status-dropdown"
                                                     >
                                                         <option value="pending">Pending</option>
@@ -187,12 +194,7 @@ export default function AdminOrders() {
                                                     {order.payment_method === 'upi' && order.payment_status === 'verification_pending' && (
                                                         <button
                                                             className="btn btn--primary btn--xs"
-                                                            onClick={async () => {
-                                                                if (confirm('Mark this payment as RECEIVED?')) {
-                                                                    const { error } = await supabase.from('orders').update({ payment_status: 'paid', status: 'processing' }).eq('id', order.id);
-                                                                    if (!error) fetchOrders();
-                                                                }
-                                                            }}
+                                                            onClick={() => handleVerifyPayment(order.id)}
                                                             title="Confirm Payment Received"
                                                         >
                                                             <CheckCircle size={14} /> Mark Paid

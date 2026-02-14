@@ -133,6 +133,7 @@ export default function Header() {
                                     <Link to="/admin" className="mobile-menu__link" style={{ color: 'var( --color-primary)' }}>Admin Dashboard</Link>
                                 )}
                                 <Link to="/account" className="mobile-menu__link">My Account</Link>
+                                <Link to="/addresses" className="mobile-menu__link">My Addresses</Link>
                             </>
                         ) : (
                             <Link to="/login" className="mobile-menu__link">Sign In</Link>

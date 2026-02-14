@@ -11,13 +11,18 @@ import useStore from '../store/useStore';
 
 /**
  * Hook to fetch active banners
+ * Optimized for fast initial load
  */
 export const useBanners = (options = {}) => {
     return useQuery({
         queryKey: queryKeys.banners.active(),
         queryFn: bannersApi.fetchBanners,
-        staleTime: 10 * 60 * 1000, // 10 minutes
-        cacheTime: 15 * 60 * 1000, // 15 minutes
+        staleTime: 5 * 60 * 1000, // 5 minutes - reduced for fresher data
+        cacheTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
+        refetchOnWindowFocus: false, // Don't refetch on focus for better performance
+        refetchOnMount: false, // Don't refetch if data exists
+        retry: 2, // Retry failed requests
+        retryDelay: 1000, // Wait 1s between retries
         ...options,
     });
 };

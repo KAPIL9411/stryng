@@ -1922,3 +1922,366 @@
 .filter-sidebar__color--active {
     box-shadow: 0 0 0 2px var(--color-bg-primary), 0 0 0 4px var(--color-primary);
 }
+
+
+/* ========================================
+   ADDRESSES PAGE
+   ======================================== */
+
+.page-container {
+    min-height: calc(100vh - var(--header-height) - 200px);
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-title {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: var(--font-bold);
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.addresses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.address-card {
+    position: relative;
+    padding: 1.5rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 0;
+    transition: all 0.3s ease;
+}
+
+.address-card:hover {
+    border-color: var(--color-text-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.address-card--default {
+    border-color: var(--color-accent);
+    background: rgba(201, 169, 110, 0.02);
+}
+
+.address-card__badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.75rem;
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.address-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.address-card__type {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    font-weight: var(--font-medium);
+    text-transform: capitalize;
+}
+
+.address-card__actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.address-card__content {
+    margin-bottom: 1rem;
+}
+
+.address-card__name {
+    font-size: 1.125rem;
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+    margin: 0 0 0.5rem 0;
+}
+
+.address-card__address,
+.address-card__landmark,
+.address-card__location,
+.address-card__phone {
+    font-size: 0.9375rem;
+    color: var(--color-text-secondary);
+    margin: 0.25rem 0;
+    line-height: 1.5;
+}
+
+.address-card__phone {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.address-card__set-default {
+    width: 100%;
+    padding: 0.75rem;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 0;
+    font-size: 0.875rem;
+    font-weight: var(--font-medium);
+    font-family: var(--font-primary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.address-card__set-default:hover {
+    background: var(--color-text-primary);
+    border-color: var(--color-text-primary);
+    color: white;
+}
+
+.address-form {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    padding: 2rem;
+    border-radius: 0;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--color-text-secondary);
+}
+
+.empty-state svg {
+    color: var(--color-text-secondary);
+    opacity: 0.5;
+    margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+    font-size: 1.25rem;
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+    margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+    margin: 0 0 1.5rem 0;
+}
+
+/* ========================================
+   ADMIN PINCODES PAGE
+   ======================================== */
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0;
+    background: var(--color-bg-primary);
+}
+
+.search-box svg {
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 0.9375rem;
+    font-family: var(--font-primary);
+    background: transparent;
+    color: var(--color-text-primary);
+}
+
+.search-input::placeholder {
+    color: var(--color-text-secondary);
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table thead {
+    background: var(--color-bg-secondary);
+}
+
+.data-table th {
+    padding: 1rem;
+    text-align: left;
+    font-size: 0.875rem;
+    font-weight: var(--font-semibold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.data-table td {
+    padding: 1rem;
+    font-size: 0.9375rem;
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table tbody tr:hover {
+    background: var(--color-bg-secondary);
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .addresses-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .address-form {
+        padding: 1.5rem;
+    }
+
+    .data-table {
+        font-size: 0.875rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.75rem 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 1.5rem;
+    }
+
+    .address-card {
+        padding: 1.25rem;
+    }
+
+    .address-form {
+        padding: 1.25rem;
+    }
+}
+
+
+/* =====================================================
+   HERO SKELETON LOADER
+   ===================================================== */
+
+.hero-skeleton {
+    min-height: 500px;
+    background: var(--color-bg-secondary);
+    overflow: hidden;
+    position: relative;
+}
+
+.hero-skeleton__container {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    height: 500px;
+}
+
+.hero-skeleton__item {
+    flex: 0 0 600px;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        #f0f0f0 0%,
+        #e0e0e0 20%,
+        #f0f0f0 40%,
+        #f0f0f0 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-skeleton__shimmer {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.6) 50%,
+        transparent 100%
+    );
+    animation: shimmer-slide 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes shimmer-slide {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Mobile skeleton */
+@media (max-width: 768px) {
+    .hero-skeleton__container {
+        height: 500px;
+    }
+    
+    .hero-skeleton__item {
+        flex: 0 0 100%;
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-skeleton__container {
+        height: 400px;
+    }
+}

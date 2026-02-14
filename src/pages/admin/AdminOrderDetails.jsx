@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronLeft, MapPin, Phone, Mail, Package, CreditCard, Calendar, CheckCircle, Clock, Truck, User } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
+import { getOrderById, updateOrderStatus, verifyPayment } from '../../api/orders.api';
 
 const formatPrice = (price) => `₹${Number(price).toLocaleString('en-IN')}`;
 
@@ -12,24 +12,12 @@ export default function AdminOrderDetails() {
 
     const fetchOrder = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, profiles(full_name, email), order_items(*, product:products(*))')
-            .eq('id', id)
-            .single();
+        const result = await getOrderById(id);
 
-        if (error) {
-            console.error('Error fetching order:', error);
+        if (result.success) {
+            setOrder(result.data);
         } else {
-            // Normalize items similar to OrderTracking
-            const normalizedOrder = {
-                ...data,
-                items: data.order_items ? data.order_items.map(item => ({
-                    ...item,
-                    product: item.product
-                })) : []
-            };
-            setOrder(normalizedOrder);
+            console.error('Error fetching order:', result.error);
         }
         setLoading(false);
     };
@@ -38,22 +26,26 @@ export default function AdminOrderDetails() {
         fetchOrder();
     }, [id]);
 
-    const updateStatus = async (newStatus) => {
-        const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', id);
-        if (!error) {
+    const handleUpdateStatus = async (newStatus) => {
+        const result = await updateOrderStatus(id, newStatus);
+        
+        if (result.success) {
             setOrder({ ...order, status: newStatus });
             alert('Order status updated!');
+        } else {
+            alert('Failed to update status: ' + result.error);
         }
     };
 
-    const markPaid = async () => {
+    const handleVerifyPayment = async () => {
         if (confirm('Confirm payment received?')) {
-            const { error } = await supabase
-                .from('orders')
-                .update({ payment_status: 'paid', status: 'processing' })
-                .eq('id', id);
-
-            if (!error) fetchOrder();
+            const result = await verifyPayment(id);
+            
+            if (result.success) {
+                fetchOrder(); // Refresh to get updated data
+            } else {
+                alert('Failed to verify payment: ' + result.error);
+            }
         }
     };
 
@@ -100,7 +92,7 @@ export default function AdminOrderDetails() {
                             className="input"
                             style={{ width: 'auto' }}
                             value={order.status}
-                            onChange={(e) => updateStatus(e.target.value)}
+                            onChange={(e) => handleUpdateStatus(e.target.value)}
                         >
                             <option value="pending">Pending</option>
                             <option value="processing">Processing</option>
@@ -110,7 +102,7 @@ export default function AdminOrderDetails() {
                         </select>
 
                         {order.payment_status === 'verification_pending' && (
-                            <button className="btn btn--primary" onClick={markPaid}>
+                            <button className="btn btn--primary" onClick={handleVerifyPayment}>
                                 <CheckCircle size={16} style={{ marginRight: '8px' }} /> Verify Payment
                             </button>
                         )}
@@ -120,9 +112,9 @@ export default function AdminOrderDetails() {
                 <div className="grid grid--2" style={{ alignItems: 'start' }}>
                     {/* Left Column: Items */}
                     <div className="panel">
-                        <h3 className="panel__title">Order Items ({order.items.length})</h3>
+                        <h3 className="panel__title">Order Items ({order.order_items?.length || 0})</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                            {order.items.map((item, i) => {
+                            {order.order_items?.map((item, i) => {
                                 const product = item.product || {};
                                 return (
                                     <div key={i} style={{ display: 'flex', gap: 'var(--space-4)', paddingBottom: 'var(--space-4)', borderBottom: 'var(--border-thin)' }}>
@@ -190,10 +182,12 @@ export default function AdminOrderDetails() {
                         <div className="panel">
                             <h3 className="panel__title"><Truck size={18} /> Shipping Address</h3>
                             <div className="text-sm text-muted leading-relaxed">
-                                <p className="font-semibold text-primary mb-1">{order.address?.name}</p>
-                                <p>{order.address?.street}</p>
+                                <p className="font-semibold text-primary mb-1">{order.address?.name || order.address?.full_name}</p>
+                                <p>{order.address?.address_line1 || order.address?.street}</p>
+                                {order.address?.address_line2 && <p>{order.address.address_line2}</p>}
+                                {order.address?.landmark && <p>Landmark: {order.address.landmark}</p>}
                                 <p>{order.address?.city}, {order.address?.state}</p>
-                                <p>{order.address?.pin}</p>
+                                <p>{order.address?.pincode || order.address?.pin}</p>
                             </div>
                         </div>
 

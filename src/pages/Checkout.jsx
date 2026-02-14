@@ -15,16 +15,6 @@ export default function Checkout() {
     const navigate = useNavigate();
     const { cart, getCartTotal, clearCart, showToast, createOrder, user } = useStore();
 
-    // Redirect if empty cart
-    useEffect(() => {
-        if (cart.length === 0) {
-            navigate('/cart');
-        } else {
-            // Track begin checkout
-            trackBeginCheckout(cart, total);
-        }
-    }, [cart, navigate, total]);
-
     // State
     const [currentStep, setCurrentStep] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -41,6 +31,16 @@ export default function Checkout() {
     const shippingCost = formData.shippingMethod === 'Express Shipping' ? 149 : formData.shippingMethod === 'Same Day Delivery' ? 299 : 0;
     const tax = Math.round(subtotal * 0.18);
     const total = subtotal + shippingCost + tax;
+
+    // Redirect if empty cart
+    useEffect(() => {
+        if (cart.length === 0) {
+            navigate('/cart');
+        } else {
+            // Track begin checkout
+            trackBeginCheckout(cart, total);
+        }
+    }, [cart, navigate, total]);
 
     // UPI Links
     // upi://pay?pa=ADDRESS&pn=NAME&am=AMOUNT&tn=NOTE
