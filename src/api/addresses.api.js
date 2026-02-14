@@ -54,9 +54,13 @@ async function logPincodeCheck(pincode, isServiceable, productId = null) {
  */
 export async function getUserAddresses() {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
         const { data, error } = await supabase
             .from('customer_addresses')
             .select('*')
+            .eq('user_id', user.id)
             .eq('is_active', true)
             .order('is_default', { ascending: false })
             .order('created_at', { ascending: false });
@@ -75,9 +79,13 @@ export async function getUserAddresses() {
  */
 export async function getDefaultAddress() {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
         const { data, error } = await supabase
             .from('customer_addresses')
             .select('*')
+            .eq('user_id', user.id)
             .eq('is_active', true)
             .eq('is_default', true)
             .single();
@@ -131,6 +139,9 @@ export async function addAddress(addressData) {
  */
 export async function updateAddress(addressId, addressData) {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
         // If pincode is being updated, check serviceability
         if (addressData.pincode) {
             const serviceabilityCheck = await checkPincodeServiceability(addressData.pincode);
@@ -146,6 +157,7 @@ export async function updateAddress(addressId, addressData) {
             .from('customer_addresses')
             .update(addressData)
             .eq('id', addressId)
+            .eq('user_id', user.id)
             .select()
             .single();
 
@@ -163,10 +175,14 @@ export async function updateAddress(addressId, addressData) {
  */
 export async function deleteAddress(addressId) {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
         const { error } = await supabase
             .from('customer_addresses')
             .update({ is_active: false })
-            .eq('id', addressId);
+            .eq('id', addressId)
+            .eq('user_id', user.id);
 
         if (error) throw error;
 
@@ -182,10 +198,14 @@ export async function deleteAddress(addressId) {
  */
 export async function setDefaultAddress(addressId) {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not authenticated');
+
         const { data, error } = await supabase
             .from('customer_addresses')
             .update({ is_default: true })
             .eq('id', addressId)
+            .eq('user_id', user.id)
             .select()
             .single();
 

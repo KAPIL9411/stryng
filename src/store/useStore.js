@@ -31,7 +31,13 @@ const useStore = create(
             cart: [],
 
             addToCart: (product, size, color, quantity = 1) => {
-                const { cart, products } = get();
+                const { cart, products, user } = get();
+                
+                // Check if user is logged in
+                if (!user) {
+                    get().showToast('Please login to add items to cart', 'error');
+                    return;
+                }
                 
                 // Check stock availability (only if stock is tracked)
                 const currentProduct = products.find(p => p.id === product.id);
@@ -133,7 +139,14 @@ const useStore = create(
             wishlist: [],
 
             toggleWishlist: (product) => {
-                const { wishlist } = get();
+                const { wishlist, user } = get();
+                
+                // Check if user is logged in
+                if (!user) {
+                    get().showToast('Please login to add items to wishlist', 'error');
+                    return;
+                }
+                
                 const isInWishlist = wishlist.some((item) => item.id === product.id);
 
                 if (isInWishlist) {

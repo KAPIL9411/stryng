@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MapPin, Plus, Edit, Check, Loader, QrCode, Copy, ExternalLink } from 'lucide-react';
+import { MapPin, Plus, Check, Loader, Copy, ExternalLink } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../lib/dummyData';
 import { trackBeginCheckout } from '../lib/analytics';
-import { getUserAddresses, getDefaultAddress } from '../api/addresses.api';
+import { getUserAddresses } from '../api/addresses.api';
 import { createOrder, markPaymentAsPaid } from '../api/orders.api';
 import SEO from '../components/SEO';
 
@@ -29,6 +29,7 @@ export default function CheckoutNew() {
     const [orderId, setOrderId] = useState(null);
     const [transactionId, setTransactionId] = useState('');
     const [copiedUPI, setCopiedUPI] = useState(false);
+    const [countdown, setCountdown] = useState(5);
 
     // Cart Calculations
     const subtotal = getCartTotal();
@@ -48,17 +49,39 @@ export default function CheckoutNew() {
             return;
         }
 
-        if (cart.length === 0) {
+        if (cart.length === 0 && currentStep !== 3) {
             navigate('/cart');
             return;
         }
 
         // Track begin checkout
-        trackBeginCheckout(cart, total);
+        if (cart.length > 0) {
+            trackBeginCheckout(cart, total);
+        }
 
         // Fetch addresses
-        fetchAddresses();
-    }, [cart, user, navigate, total]);
+        if (currentStep === 1) {
+            fetchAddresses();
+        }
+    }, [cart, user, navigate, total, currentStep]);
+
+    // Countdown and redirect after order success
+    useEffect(() => {
+        if (currentStep === 3) {
+            const timer = setInterval(() => {
+                setCountdown((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        navigate('/');
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            return () => clearInterval(timer);
+        }
+    }, [currentStep, navigate]);
 
     const fetchAddresses = async () => {
         setLoading(true);
@@ -371,17 +394,19 @@ export default function CheckoutNew() {
                             {currentStep === 3 && (
                                 <div className="checkout-section">
                                     <div className="order-success">
-                                        <div className="success-icon">
-                                            <Check size={48} />
+                                        <div className="success-icon-animated">
+                                            <div className="success-checkmark">
+                                                <Check size={48} />
+                                            </div>
                                         </div>
-                                        <h2>Order Placed Successfully!</h2>
+                                        <h2 className="success-title">Order Placed Successfully!</h2>
                                         <p className="order-id">Order ID: <strong>{orderId}</strong></p>
                                         <p className="success-message">
                                             Thank you for your order! We'll verify your payment and send you a confirmation email shortly.
                                         </p>
 
                                         <div className="success-actions">
-                                            <Link to={`/order/${orderId}`} className="btn btn--primary">
+                                            <Link to={`/order-tracking?id=${orderId}`} className="btn btn--primary">
                                                 Track Order
                                             </Link>
                                             <Link to="/products" className="btn btn--secondary">
@@ -398,6 +423,10 @@ export default function CheckoutNew() {
                                                 <li>✓ Track your order anytime from your account</li>
                                             </ul>
                                         </div>
+
+                                        <p className="redirect-message">
+                                            Redirecting to home page in <span className="countdown">{countdown}</span> seconds...
+                                        </p>
                                     </div>
                                 </div>
                             )}
@@ -688,25 +717,75 @@ export default function CheckoutNew() {
                     padding: 3rem 2rem;
                 }
 
-                .success-icon {
-                    width: 80px;
-                    height: 80px;
+                .success-icon-animated {
+                    width: 100px;
+                    height: 100px;
+                    margin: 0 auto 2rem;
+                    position: relative;
+                    animation: scaleIn 0.5s ease-out;
+                }
+
+                @keyframes scaleIn {
+                    0% {
+                        transform: scale(0);
+                        opacity: 0;
+                    }
+                    50% {
+                        transform: scale(1.1);
+                    }
+                    100% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                }
+
+                .success-checkmark {
+                    width: 100px;
+                    height: 100px;
                     border-radius: 50%;
                     background: var(--color-accent);
                     color: var(--color-text-primary);
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    margin: 0 auto 2rem;
+                    position: relative;
+                    box-shadow: 0 0 0 0 rgba(201, 169, 110, 0.7);
+                    animation: pulse 2s infinite;
                 }
 
-                .order-success h2 {
+                @keyframes pulse {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(201, 169, 110, 0.7);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 20px rgba(201, 169, 110, 0);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(201, 169, 110, 0);
+                    }
+                }
+
+                .success-title {
+                    font-size: 2rem;
                     margin-bottom: 1rem;
+                    animation: fadeInUp 0.6s ease-out 0.2s both;
+                }
+
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
                 .order-id {
                     font-size: 1.125rem;
                     margin-bottom: 1rem;
+                    animation: fadeInUp 0.6s ease-out 0.3s both;
                 }
 
                 .success-message {
@@ -715,6 +794,8 @@ export default function CheckoutNew() {
                     max-width: 500px;
                     margin-left: auto;
                     margin-right: auto;
+                    line-height: 1.6;
+                    animation: fadeInUp 0.6s ease-out 0.4s both;
                 }
 
                 .success-actions {
@@ -722,19 +803,22 @@ export default function CheckoutNew() {
                     gap: 1rem;
                     justify-content: center;
                     margin-bottom: 3rem;
+                    animation: fadeInUp 0.6s ease-out 0.5s both;
                 }
 
                 .success-info {
                     text-align: left;
                     max-width: 500px;
-                    margin: 0 auto;
+                    margin: 0 auto 2rem;
                     padding: 2rem;
                     background: var(--color-bg-secondary);
                     border: 1px solid var(--color-border);
+                    animation: fadeInUp 0.6s ease-out 0.6s both;
                 }
 
                 .success-info h4 {
                     margin: 0 0 1rem 0;
+                    font-size: 1.125rem;
                 }
 
                 .success-info ul {
@@ -746,6 +830,20 @@ export default function CheckoutNew() {
                 .success-info li {
                     padding: 0.5rem 0;
                     color: var(--color-text-secondary);
+                    line-height: 1.6;
+                }
+
+                .redirect-message {
+                    color: var(--color-text-secondary);
+                    font-size: 0.9375rem;
+                    margin-top: 2rem;
+                    animation: fadeInUp 0.6s ease-out 0.7s both;
+                }
+
+                .countdown {
+                    font-weight: var(--font-bold);
+                    color: var(--color-accent);
+                    font-size: 1.125rem;
                 }
 
                 .order-summary {
