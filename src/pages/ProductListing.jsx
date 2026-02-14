@@ -12,6 +12,7 @@ import useDebounce from '../hooks/useDebounce';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { useProducts, usePrefetchProducts } from '../hooks/useProducts';
 import { PRODUCTS_PER_PAGE } from '../config/constants';
+import { getStockStatus } from '../lib/inventory';
 
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const colorOptions = [
@@ -32,8 +33,12 @@ function ProductCard({ product, priority = false }) {
     // Get optimized image props
     const imageProps = getProductCardImageProps(product.images[0]);
     
+    // Get stock status
+    const stockStatus = getStockStatus(product.stock, product.low_stock_threshold);
+    const isOutOfStock = product.stock !== undefined && product.stock === 0;
+    
     return (
-        <Link to={`/products/${product.slug}`} className="product-card">
+        <Link to={`/products/${product.slug}`} className="product-card" style={{ opacity: isOutOfStock ? 0.7 : 1 }}>
             <div className="product-card__image-wrapper">
                 <img
                     {...imageProps}
@@ -41,19 +46,31 @@ function ProductCard({ product, priority = false }) {
                     className="product-card__image"
                     loading={priority ? "eager" : imageProps.loading}
                     fetchPriority={priority ? "high" : "auto"}
+                    style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
                 />
                 {product.images[1] && (
                     <img 
                         src={product.images[1]} 
                         alt={`${product.name} alternate view`} 
                         className="product-card__hover-image" 
-                        loading="lazy" 
+                        loading="lazy"
+                        style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
                     />
                 )}
                 <div className="product-card__badges">
-                    {product.isNew && <span className="badge badge--new" role="status" aria-label="New arrival">New</span>}
-                    {product.isTrending && <span className="badge badge--trending" role="status" aria-label="Trending product">Trending</span>}
-                    {product.discount > 0 && <span className="badge badge--sale" role="status" aria-label={`${product.discount}% discount`}>-{product.discount}%</span>}
+                    {isOutOfStock && (
+                        <span className="badge" style={{ backgroundColor: '#dc2626', color: 'white' }} role="status" aria-label="Out of stock">
+                            Out of Stock
+                        </span>
+                    )}
+                    {!isOutOfStock && stockStatus.status === 'critical_low' && (
+                        <span className="badge" style={{ backgroundColor: '#ea580c', color: 'white' }} role="status" aria-label={stockStatus.label}>
+                            {stockStatus.label}
+                        </span>
+                    )}
+                    {!isOutOfStock && product.isNew && <span className="badge badge--new" role="status" aria-label="New arrival">New</span>}
+                    {!isOutOfStock && product.isTrending && <span className="badge badge--trending" role="status" aria-label="Trending product">Trending</span>}
+                    {!isOutOfStock && product.discount > 0 && <span className="badge badge--sale" role="status" aria-label={`${product.discount}% discount`}>-{product.discount}%</span>}
                 </div>
                 <div className="product-card__actions">
                     <button 
@@ -70,10 +87,12 @@ function ProductCard({ product, priority = false }) {
                         <Eye size={16} />
                     </button>
                 </div>
-                <div className="product-card__quick-add" onClick={(e) => e.preventDefault()} role="button" tabIndex={0}>
-                    <ShoppingBag size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                    Quick Add
-                </div>
+                {!isOutOfStock && (
+                    <div className="product-card__quick-add" onClick={(e) => e.preventDefault()} role="button" tabIndex={0}>
+                        <ShoppingBag size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                        Quick Add
+                    </div>
+                )}
             </div>
             <div className="product-card__info">
                 <p className="product-card__brand">{product.brand}</p>

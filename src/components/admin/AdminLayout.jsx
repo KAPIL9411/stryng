@@ -45,7 +45,9 @@ export default function AdminLayout({ children }) {
             {/* Sidebar */}
             <aside className={`admin-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
                 <div className="admin-sidebar__header">
-                    <img src="/images/stryingclothing.png" alt="Stryng" className="admin-logo" />
+                    <Link to="/" onClick={closeMobileMenu}>
+                        <img src="/images/logo2.webp" alt="Stryng" className="admin-logo" />
+                    </Link>
                     <span className="admin-badge">Admin</span>
                 </div>
 

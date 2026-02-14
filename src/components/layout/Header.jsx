@@ -58,7 +58,15 @@ export default function Header() {
                     </div>
 
                     {/* Center — Logo */}
-                    <Link to="/" className="header__logo">
+                    <Link 
+                        to="/" 
+                        className="header__logo"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            navigate('/');
+                            window.scrollTo(0, 0);
+                        }}
+                    >
                         <img src="/images/logo2.webp" alt="Stryng Clothing" className="header__logo-img" width="120" height="36" />
                     </Link>
 

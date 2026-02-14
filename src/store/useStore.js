@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabaseClient';
 import { validatePassword } from '../components/auth/PasswordStrength';
 import { trackAddToCart, trackRemoveFromCart, trackAddToWishlist, trackSignUp, trackLogin } from '../lib/analytics';
-import { validateCartStock, getStockStatus } from '../lib/inventoryManagement';
+import { validateCartStock, getStockStatus } from '../lib/inventory';
 
 // Map Supabase error messages to user-friendly messages
 const getAuthErrorMessage = (error) => {
@@ -33,12 +33,24 @@ const useStore = create(
             addToCart: (product, size, color, quantity = 1) => {
                 const { cart, products } = get();
                 
-                // Check stock availability
+                // Check stock availability (only if stock is tracked)
                 const currentProduct = products.find(p => p.id === product.id);
-                if (currentProduct) {
-                    const stockStatus = getStockStatus(currentProduct, size);
+                if (currentProduct && currentProduct.stock !== undefined) {
+                    const stockStatus = getStockStatus(currentProduct.stock, currentProduct.low_stock_threshold);
                     if (!stockStatus.available) {
                         get().showToast('This product is out of stock', 'error');
+                        return;
+                    }
+                    
+                    // Check if requested quantity exceeds available stock
+                    const existingItem = cart.find(
+                        (item) => item.id === product.id && item.selectedSize === size && item.selectedColor.name === color.name
+                    );
+                    const currentCartQty = existingItem ? existingItem.quantity : 0;
+                    const totalQty = currentCartQty + quantity;
+                    
+                    if (totalQty > currentProduct.stock) {
+                        get().showToast(`Only ${currentProduct.stock} items available in stock`, 'error');
                         return;
                     }
                 }
@@ -514,13 +526,10 @@ const useStore = create(
 
                     if (error) throw error;
 
-                    // Refresh products list
-                    await get().fetchProducts();
-                    get().showToast('Product created successfully', 'success');
+                    // Note: React Query cache invalidation handled in component
                     return { data, error: null };
                 } catch (error) {
                     console.error('Error creating product:', error);
-                    get().showToast('Failed to create product', 'error');
                     return { data: null, error };
                 }
             },
@@ -535,13 +544,10 @@ const useStore = create(
 
                     if (error) throw error;
 
-                    // Refresh products list
-                    await get().fetchProducts();
-                    get().showToast('Product updated successfully', 'success');
+                    // Note: React Query cache invalidation handled in component
                     return { data, error: null };
                 } catch (error) {
                     console.error('Error updating product:', error);
-                    get().showToast('Failed to update product', 'error');
                     return { data: null, error };
                 }
             },
@@ -555,13 +561,10 @@ const useStore = create(
 
                     if (error) throw error;
 
-                    // Refresh products list
-                    await get().fetchProducts();
-                    get().showToast('Product deleted successfully', 'success');
+                    // Note: React Query cache invalidation handled in component
                     return { error: null };
                 } catch (error) {
                     console.error('Error deleting product:', error);
-                    get().showToast('Failed to delete product', 'error');
                     return { error };
                 }
             },

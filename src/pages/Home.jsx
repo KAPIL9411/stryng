@@ -1,16 +1,36 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Heart, ShoppingBag, Eye, ArrowRight, Star, Truck, RotateCcw, Shield } from 'lucide-react';
-import { categories, formatPrice } from '../lib/dummyData';
-import useStore from '../store/useStore';
+import { Heart, ShoppingBag, Eye, Star, Truck, RotateCcw, Shield } from 'lucide-react';
+import { formatPrice } from '../lib/dummyData';
 import SEO from '../components/SEO';
 import { useBanners } from '../hooks/useBanners';
 import { useAllProducts } from '../hooks/useProducts';
+import { getStockStatus } from '../lib/inventory';
 
 /* ---- Hero Carousel (Marquee) ---- */
 function HeroBanner() {
     const { data: banners = [], isLoading } = useBanners();
     const activeBanners = banners.filter(b => b.active);
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    // Handle window resize
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Auto-advance slides on mobile
+    useEffect(() => {
+        if (!isMobile || activeBanners.length === 0) return;
+        
+        const interval = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
+        }, 4000);
+        
+        return () => clearInterval(interval);
+    }, [isMobile, activeBanners.length]);
 
     // Show placeholder during initial load to prevent layout shift
     if (isLoading) {
@@ -30,16 +50,60 @@ function HeroBanner() {
     const formattedSlides = activeBanners.map(b => ({
         id: b.id,
         image: b.image_url || b.image,
-        title: b.title,
-        tag: b.description || b.tag,
-        link: b.cta_link || b.link
+        link: b.cta_link || b.link,
+        title: b.title // Keep for alt text only
     }));
 
-    // Duplicate slides to create seamless loop
+    // Duplicate slides to create seamless loop for desktop
     const marqueeSlides = [...formattedSlides, ...formattedSlides];
 
     if (marqueeSlides.length === 0) return null;
 
+    // Mobile carousel view
+    if (isMobile) {
+        return (
+            <section className="hero-carousel-mobile">
+                <div 
+                    className="hero-carousel-mobile__container"
+                    style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+                >
+                    {formattedSlides.map((slide) => (
+                        <div 
+                            key={slide.id} 
+                            className="hero-carousel-mobile__slide"
+                        >
+                            <Link to={slide.link} className="hero-carousel-mobile__link">
+                                <img
+                                    src={slide.image}
+                                    alt={slide.title}
+                                    className="hero-carousel-mobile__image"
+                                    loading="eager"
+                                    fetchPriority="high"
+                                    decoding="async"
+                                />
+                            </Link>
+                        </div>
+                    ))}
+                </div>
+                
+                {/* Navigation Dots */}
+                {formattedSlides.length > 1 && (
+                    <div className="hero-carousel-mobile__dots">
+                        {formattedSlides.map((_, index) => (
+                            <button
+                                key={index}
+                                className={`hero-carousel-mobile__dot ${index === currentSlide ? 'active' : ''}`}
+                                onClick={() => setCurrentSlide(index)}
+                                aria-label={`Go to slide ${index + 1}`}
+                            />
+                        ))}
+                    </div>
+                )}
+            </section>
+        );
+    }
+
+    // Desktop marquee view
     return (
         <section className="hero-marquee">
             <div className="hero-marquee__track">
@@ -56,10 +120,6 @@ function HeroBanner() {
                                 fetchPriority="high"
                                 decoding="async"
                             />
-                            <div className="hero-marquee__overlay">
-                                <h2 className="hero-marquee__title">{slide.title}</h2>
-                                <p className="hero-marquee__tag">{slide.tag}</p>
-                            </div>
                         </Link>
                     </div>
                 ))}
@@ -70,18 +130,42 @@ function HeroBanner() {
 
 /* ---- Product Card ---- */
 function ProductCard({ product }) {
+    // Get stock status
+    const stockStatus = getStockStatus(product.stock, product.low_stock_threshold);
+    const isOutOfStock = product.stock !== undefined && product.stock === 0;
+    
     return (
-        <Link to={`/products/${product.slug}`} className="product-card">
+        <Link to={`/products/${product.slug}`} className="product-card" style={{ opacity: isOutOfStock ? 0.7 : 1 }}>
             <div className="product-card__image-wrapper">
-                <img src={product.images[0]} alt={product.name} className="product-card__image" loading="lazy" width="300" height="400" />
+                <img 
+                    src={product.images[0]} 
+                    alt={product.name} 
+                    className="product-card__image" 
+                    loading="lazy" 
+                    width="300" 
+                    height="400"
+                    style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
+                />
                 {product.images[1] && (
-                    <img src={product.images[1]} alt={product.name} className="product-card__hover-image" loading="lazy" />
+                    <img 
+                        src={product.images[1]} 
+                        alt={product.name} 
+                        className="product-card__hover-image" 
+                        loading="lazy"
+                        style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
+                    />
                 )}
 
                 <div className="product-card__badges">
-                    {product.isNew && <span className="badge badge--new">New</span>}
-                    {product.isTrending && <span className="badge badge--trending">Trending</span>}
-                    {product.discount > 0 && <span className="badge badge--sale">-{product.discount}%</span>}
+                    {isOutOfStock && (
+                        <span className="badge" style={{ backgroundColor: '#dc2626', color: 'white' }}>Out of Stock</span>
+                    )}
+                    {!isOutOfStock && stockStatus.status === 'critical_low' && (
+                        <span className="badge" style={{ backgroundColor: '#ea580c', color: 'white' }}>{stockStatus.label}</span>
+                    )}
+                    {!isOutOfStock && product.isNew && <span className="badge badge--new">New</span>}
+                    {!isOutOfStock && product.isTrending && <span className="badge badge--trending">Trending</span>}
+                    {!isOutOfStock && product.discount > 0 && <span className="badge badge--sale">-{product.discount}%</span>}
                 </div>
 
                 <div className="product-card__actions">
@@ -93,10 +177,12 @@ function ProductCard({ product }) {
                     </button>
                 </div>
 
-                <div className="product-card__quick-add" onClick={(e) => e.preventDefault()}>
-                    <ShoppingBag size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                    Quick Add
-                </div>
+                {!isOutOfStock && (
+                    <div className="product-card__quick-add" onClick={(e) => e.preventDefault()}>
+                        <ShoppingBag size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                        Quick Add
+                    </div>
+                )}
             </div>
 
             <div className="product-card__info">
@@ -296,7 +382,7 @@ function Features() {
         <section className="features-section">
             <div className="container">
                 <div className="features-grid">
-                    {feats.map((f, i) => (
+                    {feats.map((f) => (
                         <div key={f.title} className="feature-item">
                             <div className="feature-item__icon">{f.icon}</div>
                             <div className="feature-item__content">

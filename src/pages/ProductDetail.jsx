@@ -6,6 +6,7 @@ import useStore from '../store/useStore';
 import SEO, { generateProductSchema, injectStructuredData } from '../components/SEO';
 import { trackProductView } from '../lib/analytics';
 import { useProduct, useProducts } from '../hooks/useProducts';
+import { getStockStatus } from '../lib/inventory';
 
 function StarRating({ rating, size = 16 }) {
     return (
@@ -84,12 +85,28 @@ export default function ProductDetail() {
     const productReviews = allReviews.filter((r) => r.productId === product.id);
 
     const isWishlisted = wishlist.some((item) => item.id === product.id);
+    
+    // Get stock status
+    const stockStatus = getStockStatus(product.stock, product.low_stock_threshold);
+    const isOutOfStock = product.stock !== undefined && product.stock === 0;
 
     const handleAddToCart = () => {
+        if (isOutOfStock) {
+            showToast('This product is out of stock', 'error');
+            return;
+        }
+        
         if (!selectedSize && product.sizes.length > 0) {
             showToast('Please select a size', 'error');
             return;
         }
+        
+        // Check if quantity exceeds available stock
+        if (product.stock !== undefined && quantity > product.stock) {
+            showToast(`Only ${product.stock} items available in stock`, 'error');
+            return;
+        }
+        
         const colorObj = product.colors.find(c => c.name === selectedColor) || { name: selectedColor };
         addToCart(product, selectedSize, colorObj, quantity);
     };
@@ -162,6 +179,26 @@ export default function ProductDetail() {
                             <span>{product.rating}</span>
                             <span>({product.reviewCount} reviews)</span>
                         </div>
+                        
+                        {/* Stock Status */}
+                        {product.stock !== undefined && (
+                            <div style={{ marginBottom: 'var(--space-4)' }}>
+                                <span 
+                                    style={{ 
+                                        display: 'inline-block',
+                                        padding: '6px 14px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        backgroundColor: `${stockStatus.color}15`,
+                                        color: stockStatus.color,
+                                        border: `1px solid ${stockStatus.color}40`
+                                    }}
+                                >
+                                    {stockStatus.label}
+                                </span>
+                            </div>
+                        )}
 
                         <p className="pdp__description">{product.description}</p>
 
@@ -209,15 +246,35 @@ export default function ProductDetail() {
                         {/* Quantity + Actions */}
                         <div className="pdp__actions">
                             <div className="qty-stepper">
-                                <button className="qty-stepper__btn" onClick={() => setQuantity((q) => Math.max(1, q - 1))}><Minus size={16} /></button>
+                                <button 
+                                    className="qty-stepper__btn" 
+                                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                                    disabled={isOutOfStock}
+                                >
+                                    <Minus size={16} />
+                                </button>
                                 <span className="qty-stepper__value">{quantity}</span>
-                                <button className="qty-stepper__btn" onClick={() => setQuantity((q) => q + 1)}><Plus size={16} /></button>
+                                <button 
+                                    className="qty-stepper__btn" 
+                                    onClick={() => {
+                                        if (product.stock !== undefined && quantity >= product.stock) {
+                                            showToast(`Only ${product.stock} items available`, 'error');
+                                            return;
+                                        }
+                                        setQuantity((q) => q + 1);
+                                    }}
+                                    disabled={isOutOfStock || (product.stock !== undefined && quantity >= product.stock)}
+                                >
+                                    <Plus size={16} />
+                                </button>
                             </div>
                             <button
                                 className="btn btn--primary pdp__add-to-cart btn--lg"
                                 onClick={handleAddToCart}
+                                disabled={isOutOfStock}
+                                style={{ opacity: isOutOfStock ? 0.5 : 1, cursor: isOutOfStock ? 'not-allowed' : 'pointer' }}
                             >
-                                <ShoppingBag size={18} /> Add to Cart
+                                <ShoppingBag size={18} /> {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
                             </button>
                             <button
                                 className={`pdp__wishlist-btn ${isWishlisted ? 'active' : ''}`}

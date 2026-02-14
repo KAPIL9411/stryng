@@ -4,65 +4,16 @@ import {
     Twitter, 
     Facebook, 
     Youtube, 
-    Phone, 
-    MapPin,
-    Heart,
-    CreditCard,
-    Truck,
-    Shield,
-    ArrowRight,
-    Sparkles,
-    Zap,
-    TrendingUp
+    Mail,
+    Phone,
+    MapPin
 } from 'lucide-react';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
 
     return (
-        <footer className="footer-new">
-            {/* Gen Z Hero Section */}
-            <div className="footer-hero">
-                <div className="container">
-                    <div className="footer-hero__content">
-                        <div className="footer-hero__badge">
-                            <Sparkles size={16} />
-                            <span>Your Vibe, Your Style</span>
-                        </div>
-                        <h2 className="footer-hero__title">
-                            Fits That Hit Different 🔥
-                        </h2>
-                        <p className="footer-hero__subtitle">
-                            No cap, we're serving looks that'll have everyone asking "where'd you get that?" 
-                            Fresh drops, unmatched quality, and vibes that just get you.
-                        </p>
-                        <div className="footer-hero__stats">
-                            <div className="footer-hero__stat">
-                                <TrendingUp size={20} />
-                                <div>
-                                    <strong>10K+</strong>
-                                    <span>Happy Customers</span>
-                                </div>
-                            </div>
-                            <div className="footer-hero__stat">
-                                <Zap size={20} />
-                                <div>
-                                    <strong>24/7</strong>
-                                    <span>Fast Delivery</span>
-                                </div>
-                            </div>
-                            <div className="footer-hero__stat">
-                                <Sparkles size={20} />
-                                <div>
-                                    <strong>100%</strong>
-                                    <span>Authentic Drip</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+        <footer className="footer">
             {/* Main Footer Content */}
             <div className="footer-main">
                 <div className="container">
@@ -86,7 +37,7 @@ export default function Footer() {
                                     className="footer-social__link"
                                     aria-label="Instagram"
                                 >
-                                    <Instagram size={20} />
+                                    <Instagram size={18} />
                                 </a>
                                 <a 
                                     href="https://twitter.com" 
@@ -95,7 +46,7 @@ export default function Footer() {
                                     className="footer-social__link"
                                     aria-label="Twitter"
                                 >
-                                    <Twitter size={20} />
+                                    <Twitter size={18} />
                                 </a>
                                 <a 
                                     href="https://facebook.com" 
@@ -104,7 +55,7 @@ export default function Footer() {
                                     className="footer-social__link"
                                     aria-label="Facebook"
                                 >
-                                    <Facebook size={20} />
+                                    <Facebook size={18} />
                                 </a>
                                 <a 
                                     href="https://youtube.com" 
@@ -113,7 +64,7 @@ export default function Footer() {
                                     className="footer-social__link"
                                     aria-label="YouTube"
                                 >
-                                    <Youtube size={20} />
+                                    <Youtube size={18} />
                                 </a>
                             </div>
                         </div>
@@ -122,30 +73,12 @@ export default function Footer() {
                         <div className="footer-column">
                             <h4 className="footer-column__title">Shop</h4>
                             <nav className="footer-links">
-                                <Link to="/products?category=t-shirts" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    T-Shirts
-                                </Link>
-                                <Link to="/products?category=shirts" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Shirts
-                                </Link>
-                                <Link to="/products?category=trousers" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Trousers
-                                </Link>
-                                <Link to="/products?category=jackets" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Jackets
-                                </Link>
-                                <Link to="/products" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    New Arrivals
-                                </Link>
-                                <Link to="/products" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Best Sellers
-                                </Link>
+                                <Link to="/products?category=t-shirts" className="footer-link">T-Shirts</Link>
+                                <Link to="/products?category=shirts" className="footer-link">Shirts</Link>
+                                <Link to="/products?category=trousers" className="footer-link">Trousers</Link>
+                                <Link to="/products?category=jackets" className="footer-link">Jackets</Link>
+                                <Link to="/products" className="footer-link">New Arrivals</Link>
+                                <Link to="/products" className="footer-link">Best Sellers</Link>
                             </nav>
                         </div>
 
@@ -153,93 +86,33 @@ export default function Footer() {
                         <div className="footer-column">
                             <h4 className="footer-column__title">Customer Service</h4>
                             <nav className="footer-links">
-                                <Link to="/account" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    My Account
-                                </Link>
-                                <Link to="/cart" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Shopping Cart
-                                </Link>
-                                <Link to="/wishlist" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Wishlist
-                                </Link>
-                                <a href="#track-order" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Track Order
-                                </a>
-                                <a href="#size-guide" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Size Guide
-                                </a>
-                                <a href="#returns" className="footer-link">
-                                    <ArrowRight size={14} />
-                                    Returns & Exchanges
-                                </a>
+                                <Link to="/account" className="footer-link">My Account</Link>
+                                <Link to="/order-tracking" className="footer-link">Track Order</Link>
+                                <Link to="/wishlist" className="footer-link">Wishlist</Link>
+                                <a href="#size-guide" className="footer-link">Size Guide</a>
+                                <a href="#shipping" className="footer-link">Shipping Info</a>
+                                <a href="#returns" className="footer-link">Returns & Exchanges</a>
                             </nav>
                         </div>
 
                         {/* Contact Column */}
                         <div className="footer-column">
-                            <h4 className="footer-column__title">Get In Touch</h4>
+                            <h4 className="footer-column__title">Contact Us</h4>
                             <div className="footer-contact">
-                                <a href="tel:+911234567890" className="footer-contact__item">
-                                    <Phone size={18} />
-                                    <span>+91 123 456 7890</span>
-                                </a>
                                 <a href="mailto:support@stryng.com" className="footer-contact__item">
-                                    <Phone size={18} />
-                                    <span>support@stryng.com</span>
+                                    <Mail size={16} />
+                                    <span>stryngclothing@gmail.com</span>
+                                </a>
+                                <a href="tel:+911234567890" className="footer-contact__item">
+                                    <Phone size={16} />
+                                    <span>+91 9411867984</span>
                                 </a>
                                 <div className="footer-contact__item">
-                                    <MapPin size={18} />
-                                    <span>Mumbai, Maharashtra, India</span>
+                                    <MapPin size={16} />
+                                    <span>Bareilly, Uttar Pradesh, India</span>
                                 </div>
                             </div>
-
-                            {/* Business Hours */}
-                            <div className="footer-hours">
-                                <h5 className="footer-hours__title">Business Hours</h5>
-                                <p className="footer-hours__text">Mon - Sat: 9:00 AM - 8:00 PM</p>
-                                <p className="footer-hours__text">Sunday: 10:00 AM - 6:00 PM</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Trust Badges */}
-            <div className="footer-trust">
-                <div className="container">
-                    <div className="footer-trust__grid">
-                        <div className="footer-trust__item">
-                            <Truck size={24} />
-                            <div>
-                                <h5>Free Shipping</h5>
-                                <p>On orders above ₹999</p>
-                            </div>
-                        </div>
-                        <div className="footer-trust__item">
-                            <Shield size={24} />
-                            <div>
-                                <h5>Secure Payment</h5>
-                                <p>100% secure transactions</p>
-                            </div>
-                        </div>
-                        <div className="footer-trust__item">
-                            <Heart size={24} />
-                            <div>
-                                <h5>Easy Returns</h5>
-                                <p>15-day return policy</p>
-                            </div>
-                        </div>
-                        <div className="footer-trust__item">
-                            <CreditCard size={24} />
-                            <div>
-                                <h5>Multiple Payments</h5>
-                                <p>UPI, Cards, COD accepted</p>
-                            </div>
+                            <p className="footer-hours">Mon - Sat: 9 AM - 8 PM<br />Sunday: 10 AM - 6 PM</p>
                         </div>
                     </div>
                 </div>
@@ -254,14 +127,9 @@ export default function Footer() {
                         </p>
                         <div className="footer-bottom__links">
                             <a href="#privacy" className="footer-bottom__link">Privacy Policy</a>
-                            <span className="footer-bottom__separator">•</span>
                             <a href="#terms" className="footer-bottom__link">Terms of Service</a>
-                            <span className="footer-bottom__separator">•</span>
                             <a href="#cookies" className="footer-bottom__link">Cookie Policy</a>
                         </div>
-                        <p className="footer-bottom__credit">
-                            Made with <Heart size={14} className="footer-bottom__heart" /> in India
-                        </p>
                     </div>
                 </div>
             </div>

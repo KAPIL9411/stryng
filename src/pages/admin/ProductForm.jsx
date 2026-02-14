@@ -4,11 +4,16 @@ import { useForm } from 'react-hook-form';
 import { ArrowLeft, Save } from 'lucide-react';
 import useStore from '../../store/useStore';
 import ImageUpload from '../../components/admin/ImageUpload';
+import { useAllProducts } from '../../hooks/useProducts';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryClient';
 
 export default function ProductForm() {
-    const { id } = useParams(); // If editing
+    const { id } = useParams();
     const navigate = useNavigate();
-    const { products, createProduct, updateProduct } = useStore();
+    const { createProduct, updateProduct, showToast } = useStore();
+    const { data: products = [], isLoading: isLoadingProducts } = useAllProducts();
+    const queryClient = useQueryClient();
     const [images, setImages] = useState([]);
     const [colors, setColors] = useState([{ name: '', hex: '#000000' }]);
     const [sizes, setSizes] = useState([]);
@@ -20,28 +25,48 @@ export default function ProductForm() {
 
     // Load existing product data if editing
     useEffect(() => {
-        if (isEditing) {
+        if (isEditing && products.length > 0) {
             const product = products.find(p => p.id === id);
-            if (product) {
-                setValue('name', product.name);
-                setValue('slug', product.slug);
-                setValue('description', product.description);
-                setValue('price', product.price);
-                setValue('original_price', product.originalPrice || product.original_price);
-                setValue('discount', product.discount);
-                setValue('category', product.category);
-                setValue('brand', product.brand || 'FASHION STORE');
-                setValue('rating', product.rating || 0);
-                setValue('reviews_count', product.reviewCount || product.reviews_count || 0);
-                setValue('is_new', product.isNew || product.is_new || false);
-                setValue('is_trending', product.isTrending || product.is_trending || false);
-
-                setImages(product.images || []);
-                setColors(product.colors || [{ name: '', hex: '#000000' }]);
-                setSizes(product.sizes || []);
+            
+            if (!product) {
+                console.error('Product not found:', id);
+                showToast('Product not found', 'error');
+                navigate('/admin/products');
+                return;
             }
+
+            console.log('Loading product for edit:', product);
+
+            // Basic info
+            setValue('name', product.name || '');
+            setValue('slug', product.slug || '');
+            setValue('description', product.description || '');
+            setValue('category', product.category || '');
+            setValue('brand', product.brand || 'FASHION STORE');
+
+            // Pricing
+            setValue('price', product.price || 0);
+            setValue('original_price', product.originalPrice || product.original_price || product.price || 0);
+            setValue('discount', product.discount || 0);
+
+            // Inventory
+            setValue('sku', product.sku || '');
+            setValue('stock', product.stock !== undefined ? product.stock : 0);
+            setValue('low_stock_threshold', product.low_stock_threshold || 10);
+            setValue('track_inventory', product.track_inventory !== false);
+
+            // Additional info
+            setValue('rating', product.rating || 0);
+            setValue('reviews_count', product.reviewCount || product.reviews_count || 0);
+            setValue('is_new', product.isNew || product.is_new || false);
+            setValue('is_trending', product.isTrending || product.is_trending || false);
+
+            // Complex fields
+            setImages(product.images || []);
+            setColors(product.colors && product.colors.length > 0 ? product.colors : [{ name: '', hex: '#000000' }]);
+            setSizes(product.sizes || []);
         }
-    }, [isEditing, id, products, setValue]);
+    }, [isEditing, id, products, setValue, navigate, showToast]);
 
     // Auto-generate slug from name
     const productName = watch('name');
@@ -54,6 +79,20 @@ export default function ProductForm() {
             setValue('slug', slug);
         }
     }, [productName, isEditing, setValue]);
+
+    // Show loading state while fetching products for edit (AFTER all hooks)
+    if (isEditing && isLoadingProducts) {
+        return (
+            <div className="admin-page">
+                <div className="admin-container">
+                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                        <div className="spinner" style={{ margin: '0 auto 20px' }}></div>
+                        <p style={{ color: '#666' }}>Loading product...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const handleColorChange = (index, field, value) => {
         const newColors = [...colors];
@@ -76,18 +115,19 @@ export default function ProductForm() {
     };
 
     const onSubmit = async (data) => {
+        // Validation
         if (images.length === 0) {
-            alert('Please upload at least one image');
+            showToast('Please upload at least one image', 'error');
             return;
         }
 
         if (colors.some(c => !c.name || !c.hex)) {
-            alert('Please fill in all color fields');
+            showToast('Please fill in all color fields', 'error');
             return;
         }
 
         if (sizes.length === 0) {
-            alert('Please select at least one size');
+            showToast('Please select at least one size', 'error');
             return;
         }
 
@@ -98,28 +138,53 @@ export default function ProductForm() {
             slug: data.slug,
             description: data.description,
             price: parseInt(data.price),
-            original_price: parseInt(data.original_price),
-            discount: parseInt(data.discount),
+            original_price: parseInt(data.original_price) || parseInt(data.price),
+            discount: parseInt(data.discount) || 0,
             category: data.category,
-            brand: data.brand,
+            brand: data.brand || 'FASHION STORE',
             images,
             colors,
             sizes,
             rating: parseFloat(data.rating) || 0,
             reviews_count: parseInt(data.reviews_count) || 0,
-            is_new: data.is_new,
-            is_trending: data.is_trending,
+            is_new: data.is_new || false,
+            is_trending: data.is_trending || false,
+            // Inventory fields
+            sku: data.sku || null,
+            stock: parseInt(data.stock) || 0,
+            low_stock_threshold: parseInt(data.low_stock_threshold) || 10,
+            track_inventory: data.track_inventory !== false,
         };
 
         try {
+            let result;
             if (isEditing) {
-                await updateProduct(id, productData);
+                result = await updateProduct(id, productData);
             } else {
-                await createProduct(productData);
+                result = await createProduct(productData);
             }
+
+            if (result.error) {
+                throw result.error;
+            }
+
+            // Invalidate React Query cache
+            queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+            
+            // Show success message
+            showToast(
+                isEditing ? 'Product updated successfully' : 'Product created successfully',
+                'success'
+            );
+
+            // Navigate back to products list
             navigate('/admin/products');
         } catch (error) {
             console.error('Error saving product:', error);
+            showToast(
+                `Failed to ${isEditing ? 'update' : 'create'} product: ${error.message}`,
+                'error'
+            );
         } finally {
             setSubmitting(false);
         }
@@ -203,7 +268,7 @@ export default function ProductForm() {
 
                     {/* Pricing */}
                     <div className="form-section">
-                        <h2>Pricing</h2>
+                        <h2>Pricing & Inventory</h2>
                         <div className="form-grid">
                             <div className="form-group">
                                 <label>Price (₹) *</label>
@@ -230,6 +295,52 @@ export default function ProductForm() {
                                     {...register('discount', { min: 0, max: 100 })}
                                     className="form-input"
                                 />
+                            </div>
+
+                            <div className="form-group">
+                                <label>SKU (Stock Keeping Unit)</label>
+                                <input
+                                    type="text"
+                                    {...register('sku')}
+                                    className="form-input"
+                                    placeholder="Auto-generated if empty"
+                                />
+                                <small style={{ color: '#666', fontSize: '0.8125rem' }}>
+                                    Leave empty to auto-generate
+                                </small>
+                            </div>
+
+                            <div className="form-group">
+                                <label>Stock Quantity *</label>
+                                <input
+                                    type="number"
+                                    {...register('stock', { required: true, min: 0 })}
+                                    className="form-input"
+                                    defaultValue="0"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Low Stock Threshold</label>
+                                <input
+                                    type="number"
+                                    {...register('low_stock_threshold', { min: 0 })}
+                                    className="form-input"
+                                    defaultValue="10"
+                                />
+                                <small style={{ color: '#666', fontSize: '0.8125rem' }}>
+                                    Alert when stock falls below this number
+                                </small>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="checkbox-label">
+                                    <input type="checkbox" {...register('track_inventory')} defaultChecked />
+                                    <span>Track Inventory</span>
+                                </label>
+                                <small style={{ color: '#666', fontSize: '0.8125rem', display: 'block', marginTop: '0.5rem' }}>
+                                    Uncheck if this product has unlimited stock
+                                </small>
                             </div>
                         </div>
                     </div>
