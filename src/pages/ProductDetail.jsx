@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Heart, ShoppingBag, Star, Truck, RotateCcw, Shield, ChevronRight, Minus, Plus } from 'lucide-react';
 import { reviews as allReviews, formatPrice, sizeGuide } from '../lib/dummyData';
 import useStore from '../store/useStore';
+import SEO, { generateProductSchema, injectStructuredData } from '../components/SEO';
+import { trackProductView } from '../lib/analytics';
+import { useProduct, useProducts } from '../hooks/useProducts';
 
 function StarRating({ rating, size = 16 }) {
     return (
@@ -21,23 +24,64 @@ function StarRating({ rating, size = 16 }) {
 
 export default function ProductDetail() {
     const { slug } = useParams();
-    const { products, addToCart, toggleWishlist, wishlist, showToast } = useStore();
-    const product = products.find((p) => p.slug === slug) || products[0];
-
+    const { addToCart, toggleWishlist, wishlist, showToast } = useStore();
+    
+    // Fetch single product by slug using React Query
+    const { data: product, isLoading: isLoadingProduct, isError } = useProduct(slug);
+    
+    // Fetch related products (first 4 products for simplicity)
+    const { data: relatedData } = useProducts(1, 4, {});
+    const relatedProducts = relatedData?.products || [];
+    
     // All hooks must be called unconditionally (before any early returns)
     const [selectedImage, setSelectedImage] = useState(0);
     const [selectedSize, setSelectedSize] = useState('');
-    const [selectedColor, setSelectedColor] = useState(product?.colors?.[0]?.name || '');
     const [quantity, setQuantity] = useState(1);
     const [activeTab, setActiveTab] = useState('description');
     const [showSizeGuide, setShowSizeGuide] = useState(false);
+    const [selectedColor, setSelectedColor] = useState('');
 
-    // Handle loading state or missing product
-    if (!product) return <div className="page container">Loading...</div>;
+    // Update selectedColor when product loads
+    useEffect(() => {
+        if (product?.colors?.[0]?.name) {
+            setSelectedColor(product.colors[0].name);
+        }
+    }, [product]);
+
+    // Inject structured data for SEO
+    useEffect(() => {
+        if (product) {
+            const schema = generateProductSchema(product);
+            injectStructuredData(schema);
+            
+            // Track product view
+            trackProductView(product);
+        }
+    }, [product]);
+
+    // Handle loading state
+    if (isLoadingProduct) {
+        return (
+            <div className="page container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <div className="spinner" />
+            </div>
+        );
+    }
+
+    // Handle missing product or error
+    if (isError || !product) {
+        return (
+            <div className="page container" style={{ textAlign: 'center', padding: '100px 0' }}>
+                <h2>Product Not Found</h2>
+                <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-6)' }}>
+                    The product you're looking for doesn't exist or has been removed.
+                </p>
+                <Link to="/products" className="btn btn--primary">Browse Products</Link>
+            </div>
+        );
+    }
 
     const productReviews = allReviews.filter((r) => r.productId === product.id);
-
-    const relatedProducts = products.filter((p) => p.id !== product.id).slice(0, 4);
 
     const isWishlisted = wishlist.some((item) => item.id === product.id);
 
@@ -52,6 +96,13 @@ export default function ProductDetail() {
 
     return (
         <div className="page">
+            <SEO 
+                title={`${product.name} - ${product.brand} | Stryng Clothing`}
+                description={product.description}
+                keywords={`${product.name}, ${product.brand}, ${product.category}, streetwear, fashion`}
+                image={product.images[0]}
+                type="product"
+            />
             <div className="container">
                 {/* Breadcrumb */}
                 <div className="breadcrumb">
@@ -79,7 +130,12 @@ export default function ProductDetail() {
                         </div>
                         <div className="pdp__main-image">
                             {product.images && product.images.length > 0 ? (
-                                <img src={product.images[selectedImage]} alt={product.name} />
+                                <img
+                                    src={product.images[selectedImage]}
+                                    alt={product.name}
+                                    fetchPriority="high"
+                                    loading="eager"
+                                />
                             ) : (
                                 <div style={{ width: '100%', height: '100%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>No Image</div>
                             )}

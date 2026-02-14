@@ -1,42 +1,53 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Loader } from 'lucide-react';
-import { uploadMultipleImages } from '../../lib/cloudinaryConfig';
+import { Upload, X, Loader, AlertCircle } from 'lucide-react';
+import { secureUploadMultipleImages, validateImageFile } from '../../lib/secureImageUpload';
 
 export default function ImageUpload({ images = [], onChange, maxImages = 5 }) {
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [dragActive, setDragActive] = useState(false);
+    const [errors, setErrors] = useState([]);
     const fileInputRef = useRef(null);
 
     const handleFiles = async (files) => {
         const fileArray = Array.from(files);
+        setErrors([]);
 
         // Check max images
         if (images.length + fileArray.length > maxImages) {
-            alert(`You can only upload up to ${maxImages} images`);
+            setErrors([`You can only upload up to ${maxImages} images`]);
             return;
         }
 
-        // Validate file types
-        const validFiles = fileArray.filter(file => {
-            if (!file.type.startsWith('image/')) {
-                alert(`${file.name} is not an image file`);
-                return false;
+        // Validate files
+        const validationErrors = [];
+        fileArray.forEach(file => {
+            const validation = validateImageFile(file);
+            if (!validation.isValid) {
+                validationErrors.push(`${file.name}: ${validation.errors.join(', ')}`);
             }
-            return true;
         });
 
-        if (validFiles.length === 0) return;
+        if (validationErrors.length > 0) {
+            setErrors(validationErrors);
+            return;
+        }
 
         setUploading(true);
         setUploadProgress(0);
 
         try {
-            const urls = await uploadMultipleImages(validFiles, setUploadProgress);
-            onChange([...images, ...urls]);
+            const result = await secureUploadMultipleImages(fileArray, setUploadProgress);
+            
+            if (result.errors && result.errors.length > 0) {
+                setErrors(result.errors.map(e => `${e.file}: ${e.errors.join(', ')}`));
+            }
+            
+            const newUrls = result.uploaded.map(r => r.url);
+            onChange([...images, ...newUrls]);
         } catch (error) {
             console.error('Upload error:', error);
-            alert('Failed to upload images. Please try again.');
+            setErrors([error.message || 'Failed to upload images. Please try again.']);
         } finally {
             setUploading(false);
             setUploadProgress(0);
@@ -76,6 +87,29 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }) {
 
     return (
         <div className="image-upload">
+            {/* Error messages */}
+            {errors.length > 0 && (
+                <div style={{ 
+                    marginBottom: '1rem', 
+                    padding: '0.75rem', 
+                    backgroundColor: '#fee', 
+                    border: '1px solid #fcc',
+                    borderRadius: '4px',
+                    fontSize: '0.875rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <AlertCircle size={16} color="#c00" />
+                        <strong>Upload Errors:</strong>
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+                        {errors.map((error, i) => (
+                            <li key={i}>{error}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {/* Upload area */}
             {/* Upload Zone */}
             <div
                 className={`image-upload__dropzone ${dragActive ? 'image-upload__dropzone--active' : ''}`}

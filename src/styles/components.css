@@ -660,3 +660,109 @@
 .toast--info svg {
     color: var(--color-info);
 }
+
+/* ========================================
+   SKELETON LOADING STYLES
+   ======================================== */
+
+.skeleton {
+    pointer-events: none;
+    user-select: none;
+}
+
+.skeleton__image {
+    position: relative;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    aspect-ratio: 3/4;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.skeleton__shimmer {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.5),
+        transparent
+    );
+    animation: shimmer-slide 1.5s infinite;
+}
+
+.skeleton__text {
+    height: 12px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-2);
+}
+
+.skeleton__text--brand {
+    width: 60%;
+    height: 10px;
+}
+
+.skeleton__text--name {
+    width: 90%;
+    height: 14px;
+}
+
+.skeleton__text--price {
+    width: 40%;
+    height: 16px;
+    margin-top: var(--space-2);
+}
+
+.skeleton__colors {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.skeleton__color-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes shimmer-slide {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Loading spinner for infinite scroll */
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-8) 0;
+}
+
+.loading-spinner__text {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    margin-left: var(--space-3);
+}

@@ -37,7 +37,7 @@ export default function Cart() {
                         {cart.map((item) => (
                             <div key={item.cartId} className="cart-item">
                                 <Link to={`/products/${item.slug}`} className="cart-item__image">
-                                    <img src={item.images[0]} alt={item.name} />
+                                    <img src={item.images[0]} alt={item.name} loading="lazy" />
                                 </Link>
                                 <div>
                                     <Link to={`/products/${item.slug}`} className="cart-item__name">{item.name}</Link>

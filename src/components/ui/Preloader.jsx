@@ -20,7 +20,7 @@ export default function Preloader() {
             <div className="preloader__content">
                 <div className="preloader__logo-container">
                     <img
-                        src="/images/animation.png"
+                        src="/images/animation.webp"
                         alt="Stryng Monogram"
                         className="preloader__logo"
                     />

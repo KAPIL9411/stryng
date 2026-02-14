@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Check, Lock, ChevronLeft, ChevronRight, Smartphone, QrCode, Truck } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../lib/dummyData';
+import { trackBeginCheckout, trackPurchase } from '../lib/analytics';
 
 const steps = ['Address', 'Shipping', 'Payment', 'Review'];
 
@@ -16,8 +17,13 @@ export default function Checkout() {
 
     // Redirect if empty cart
     useEffect(() => {
-        if (cart.length === 0) navigate('/cart');
-    }, [cart, navigate]);
+        if (cart.length === 0) {
+            navigate('/cart');
+        } else {
+            // Track begin checkout
+            trackBeginCheckout(cart, total);
+        }
+    }, [cart, navigate, total]);
 
     // State
     const [currentStep, setCurrentStep] = useState(0);
@@ -51,13 +57,30 @@ export default function Checkout() {
     const validateStep = (step) => {
         if (step === 0) {
             const required = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state', 'zip'];
-            const missing = required.filter(f => !formData[f]);
+            const missing = required.filter(f => !formData[f]?.trim());
             if (missing.length > 0) {
                 showToast(`Please fill in all required fields.`, 'error');
                 return false;
             }
-            if (formData.phone.length < 10) {
-                showToast('Please enter a valid phone number.', 'error');
+            
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.email)) {
+                showToast('Please enter a valid email address.', 'error');
+                return false;
+            }
+            
+            // Phone validation (Indian format)
+            const phoneRegex = /^[6-9]\d{9}$/;
+            if (!phoneRegex.test(formData.phone.replace(/\D/g, ''))) {
+                showToast('Please enter a valid 10-digit phone number.', 'error');
+                return false;
+            }
+            
+            // PIN code validation
+            const pinRegex = /^\d{6}$/;
+            if (!pinRegex.test(formData.zip)) {
+                showToast('Please enter a valid 6-digit PIN code.', 'error');
                 return false;
             }
         }
@@ -108,6 +131,9 @@ export default function Checkout() {
         setIsProcessing(false);
 
         if (result) {
+            // Track purchase
+            trackPurchase(orderId, cart, total);
+            
             clearCart();
             showToast('Order placed successfully!', 'success');
             // Redirect to Success page (we can reuse Order Tracking or a dedicated success page)

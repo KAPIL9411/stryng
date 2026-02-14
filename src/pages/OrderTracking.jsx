@@ -3,52 +3,73 @@ import { Link, useParams, useLocation } from 'react-router-dom';
 import { Package, ChevronRight, MapPin, Phone, MessageCircle, CheckCircle } from 'lucide-react';
 import { formatPrice } from '../lib/dummyData';
 import { supabase } from '../lib/supabaseClient';
+import useStore from '../store/useStore';
 
 const MERCHANT_PHONE = '919411867984';
 
 export default function OrderTracking() {
     const { id } = useParams();
     const location = useLocation();
+    const { user } = useStore();
     const [order, setOrder] = useState(location.state?.order || null);
     const [loading, setLoading] = useState(!order);
+    const [error, setError] = useState(null);
     const isNewOrder = location.state?.newOrder;
 
     useEffect(() => {
-        if (!order) {
+        if (!order && user) {
             const fetchOrder = async () => {
-                const { data, error } = await supabase
-                    .from('orders')
-                    .select('*, order_items(*, product:products(*))')
-                    .eq('id', id)
-                    .single();
+                try {
+                    const { data, error } = await supabase
+                        .from('orders')
+                        .select('*, order_items(*, product:products(*))')
+                        .eq('id', id)
+                        .eq('user_id', user.id) // Security: Only fetch user's own orders
+                        .single();
 
-                if (error) {
-                    console.error('Error fetching order:', error);
-                } else {
-                    const normalizedOrder = {
-                        ...data,
-                        items: data.order_items ? data.order_items.map(item => ({
-                            ...item,
-                            product: item.product
-                        })) : []
-                    };
-                    setOrder(normalizedOrder);
+                    if (error) {
+                        console.error('Error fetching order:', error);
+                        setError('Order not found or access denied.');
+                    } else {
+                        const normalizedOrder = {
+                            ...data,
+                            items: data.order_items ? data.order_items.map(item => ({
+                                ...item,
+                                product: item.product
+                            })) : []
+                        };
+                        setOrder(normalizedOrder);
+                    }
+                } catch (err) {
+                    console.error('Unexpected error:', err);
+                    setError('Failed to load order details.');
+                } finally {
+                    setLoading(false);
                 }
-                setLoading(false);
             };
             fetchOrder();
         }
-    }, [id, order]);
+    }, [id, order, user]);
 
-    if (loading) return <div className="page container" style={{ textAlign: 'center', padding: '50px' }}>Loading Order Details...</div>;
+    if (loading) {
+        return (
+            <div className="page container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <div className="spinner" />
+            </div>
+        );
+    }
 
-    if (!order) return (
-        <div className="page container" style={{ textAlign: 'center', padding: '100px 0' }}>
-            <h2>Order Not Found</h2>
-            <p>We couldn't find the order with ID: {id}</p>
-            <Link to="/account" className="btn btn--primary" style={{ marginTop: '20px' }}>Go to Orders</Link>
-        </div>
-    );
+    if (error || !order) {
+        return (
+            <div className="page container" style={{ textAlign: 'center', padding: '100px 0' }}>
+                <h2>Order Not Found</h2>
+                <p style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-6)' }}>
+                    {error || `We couldn't find the order with ID: ${id}`}
+                </p>
+                <Link to="/account" className="btn btn--primary">Go to Orders</Link>
+            </div>
+        );
+    }
 
     // WhatsApp Link Generation
     const waMessage = `Hi, I just placed Order #${order.id}. Here is the payment proof/screenshot.`;
@@ -142,6 +163,7 @@ export default function OrderTracking() {
                                         src={product?.images?.[0] || product?.image}
                                         alt={product?.name}
                                         className="order-item__image"
+                                        loading="lazy"
                                     />
                                     <div className="order-item__info">
                                         <h4 className="order-item__name">{product?.name}</h4>

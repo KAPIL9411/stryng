@@ -4,6 +4,14 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Heart, Eye, ShoppingBag, ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { categories, formatPrice } from '../lib/dummyData';
 import useStore from '../store/useStore';
+import SEO from '../components/SEO';
+import { trackSearch } from '../lib/analytics';
+import { getProductCardImageProps } from '../lib/imageOptimization';
+import ProductSkeleton from '../components/ui/ProductSkeleton';
+import useDebounce from '../hooks/useDebounce';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import { useProducts, usePrefetchProducts } from '../hooks/useProducts';
+import { PRODUCTS_PER_PAGE } from '../config/constants';
 
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const colorOptions = [
@@ -17,28 +25,52 @@ const colorOptions = [
     { name: 'Gray', hex: '#808080' },
 ];
 
-function ProductCard({ product }) {
+function ProductCard({ product, priority = false }) {
+    const { toggleWishlist, isInWishlist } = useStore();
+    const isWishlisted = isInWishlist(product.id);
+    
+    // Get optimized image props
+    const imageProps = getProductCardImageProps(product.images[0]);
+    
     return (
         <Link to={`/products/${product.slug}`} className="product-card">
             <div className="product-card__image-wrapper">
-                <img src={product.images[0]} alt={product.name} className="product-card__image" loading="lazy" />
+                <img
+                    {...imageProps}
+                    alt={product.name}
+                    className="product-card__image"
+                    loading={priority ? "eager" : imageProps.loading}
+                    fetchPriority={priority ? "high" : "auto"}
+                />
                 {product.images[1] && (
-                    <img src={product.images[1]} alt={product.name} className="product-card__hover-image" loading="lazy" />
+                    <img 
+                        src={product.images[1]} 
+                        alt={`${product.name} alternate view`} 
+                        className="product-card__hover-image" 
+                        loading="lazy" 
+                    />
                 )}
                 <div className="product-card__badges">
-                    {product.isNew && <span className="badge badge--new">New</span>}
-                    {product.isTrending && <span className="badge badge--trending">Trending</span>}
-                    {product.discount > 0 && <span className="badge badge--sale">-{product.discount}%</span>}
+                    {product.isNew && <span className="badge badge--new" role="status" aria-label="New arrival">New</span>}
+                    {product.isTrending && <span className="badge badge--trending" role="status" aria-label="Trending product">Trending</span>}
+                    {product.discount > 0 && <span className="badge badge--sale" role="status" aria-label={`${product.discount}% discount`}>-{product.discount}%</span>}
                 </div>
                 <div className="product-card__actions">
-                    <button className="product-card__action-btn" aria-label="Wishlist" onClick={(e) => e.preventDefault()}>
-                        <Heart size={16} />
+                    <button 
+                        className="product-card__action-btn" 
+                        aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            toggleWishlist(product);
+                        }}
+                    >
+                        <Heart size={16} fill={isWishlisted ? 'currentColor' : 'none'} />
                     </button>
-                    <button className="product-card__action-btn" aria-label="Quick view" onClick={(e) => e.preventDefault()}>
+                    <button className="product-card__action-btn" aria-label={`Quick view ${product.name}`} onClick={(e) => e.preventDefault()}>
                         <Eye size={16} />
                     </button>
                 </div>
-                <div className="product-card__quick-add" onClick={(e) => e.preventDefault()}>
+                <div className="product-card__quick-add" onClick={(e) => e.preventDefault()} role="button" tabIndex={0}>
                     <ShoppingBag size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
                     Quick Add
                 </div>
@@ -55,9 +87,16 @@ function ProductCard({ product }) {
                         </>
                     )}
                 </div>
-                <div className="product-card__colors">
+                <div className="product-card__colors" role="list" aria-label="Available colors">
                     {product.colors.map((c) => (
-                        <span key={c.name} className="product-card__color-dot" style={{ backgroundColor: c.hex }} title={c.name} />
+                        <span
+                            key={c.name}
+                            className="product-card__color-dot"
+                            style={{ backgroundColor: c.hex }}
+                            title={c.name}
+                            role="listitem"
+                            aria-label={c.name}
+                        />
                     ))}
                 </div>
             </div>
@@ -212,79 +251,98 @@ function FilterSidebar({ onFilterChange }) {
     );
 }
 
+const USE_INFINITE_SCROLL = false; // Disabled for now, use traditional pagination
+
 export default function ProductListing() {
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
-    const { products, isLoadingProducts } = useStore();
+    const { toggleWishlist, isInWishlist } = useStore();
+    
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const rawSearchQuery = searchParams.get('search')?.trim() || '';
+    
+    // Debounce search query to reduce API calls
+    const searchQuery = useDebounce(rawSearchQuery, 300);
 
-    // Filtering Logic
-    const filteredProducts = useMemo(() => {
-        if (!products.length) return [];
-        let result = [...products];
-
-        // Search
-        const searchQuery = searchParams.get('search')?.toLowerCase().trim();
-        if (searchQuery) {
-            const terms = searchQuery.split(/\s+/).filter(Boolean);
-            result = result.filter(p => {
-                const searchableText = `${p.name} ${p.description} ${p.category} ${p.brand}`.toLowerCase();
-                return terms.every(term => searchableText.includes(term));
-            });
-        }
-
-        // Category
+    // Build filters object from URL params
+    const filters = useMemo(() => {
         const selectedCategories = searchParams.getAll('category');
-        if (selectedCategories.length > 0) {
-            result = result.filter(p => selectedCategories.includes(p.category));
-        }
-
-        // Price
-        const minPrice = Number(searchParams.get('minPrice')) || 0;
-        const maxPrice = Number(searchParams.get('maxPrice')) || Infinity;
-        result = result.filter(p => p.price >= minPrice && p.price <= maxPrice);
-
-        // Size
         const selectedSizes = searchParams.getAll('size');
-        if (selectedSizes.length > 0) {
-            result = result.filter(p => p.sizes.some(s => selectedSizes.includes(s)));
-        }
-
-        // Color
         const selectedColors = searchParams.getAll('color');
-        if (selectedColors.length > 0) {
-            result = result.filter(p => p.colors.some(c => selectedColors.includes(c.name)));
-        }
-
-        // Sorting
+        const minPrice = Number(searchParams.get('minPrice')) || undefined;
+        const maxPrice = Number(searchParams.get('maxPrice')) || undefined;
         const sortOption = searchParams.get('sort') || 'recommended';
-        switch (sortOption) {
-            case 'price-low':
-                result.sort((a, b) => a.price - b.price);
-                break;
-            case 'price-high':
-                result.sort((a, b) => b.price - a.price);
-                break;
-            case 'newest':
-                result.sort((a, b) => (a.isNew === b.isNew ? 0 : a.isNew ? -1 : 1));
-                break;
-            case 'popularity':
-                result.sort((a, b) => b.reviewCount - a.reviewCount);
-                break;
-            default: // Recommended (default to id or randomish)
-                break;
-        }
 
-        return result;
-    }, [searchParams]);
+        return {
+            category: selectedCategories,
+            sizes: selectedSizes,
+            colors: selectedColors,
+            minPrice,
+            maxPrice,
+            search: searchQuery,
+            sort: sortOption,
+        };
+    }, [searchParams, searchQuery]);
+
+    // Fetch products using React Query
+    const { data, isLoading, isError, error } = useProducts(currentPage, PRODUCTS_PER_PAGE, filters);
+    
+    // Prefetch next page
+    const prefetchProducts = usePrefetchProducts();
+    
+    useEffect(() => {
+        if (data?.pagination?.hasNext) {
+            prefetchProducts(currentPage + 1, PRODUCTS_PER_PAGE, filters);
+        }
+    }, [currentPage, filters, data, prefetchProducts]);
+
+    // Track search queries
+    useEffect(() => {
+        if (searchQuery && data) {
+            trackSearch(searchQuery, data.pagination.totalItems);
+        }
+    }, [searchQuery, data]);
+
+    // Extract data
+    const products = data?.products || [];
+    const pagination = data?.pagination || { currentPage: 1, totalPages: 1, totalItems: 0, hasNext: false };
 
     const handleSortChange = (e) => {
         const newParams = new URLSearchParams(searchParams);
         newParams.set('sort', e.target.value);
+        newParams.set('page', '1'); // Reset to page 1 when sorting changes
         setSearchParams(newParams);
     };
 
+    const handlePageChange = (page) => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set('page', page.toString());
+        setSearchParams(newParams);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Generate SEO title and description based on filters
+    const selectedCategory = searchParams.get('category');
+    
+    let seoTitle = 'Shop All Products - Stryng Clothing';
+    let seoDescription = 'Browse our complete collection of premium streetwear, t-shirts, shirts, and trousers.';
+    
+    if (searchQuery) {
+        seoTitle = `Search Results for "${searchQuery}" - Stryng Clothing`;
+        seoDescription = `Found ${pagination.totalItems} products matching "${searchQuery}". Shop premium streetwear and fashion.`;
+    } else if (selectedCategory) {
+        const categoryName = categories.find(c => c.slug === selectedCategory)?.name || selectedCategory;
+        seoTitle = `${categoryName} - Stryng Clothing`;
+        seoDescription = `Shop ${categoryName.toLowerCase()} from Stryng Clothing. Premium quality with direct-to-consumer pricing.`;
+    }
+
     return (
         <div className="page">
+            <SEO 
+                title={seoTitle}
+                description={seoDescription}
+                keywords={`${selectedCategory || 'clothing'}, streetwear, fashion, online shopping, India`}
+            />
             <div className="container">
                 {/* Breadcrumb */}
                 <div className="breadcrumb">
@@ -295,7 +353,7 @@ export default function ProductListing() {
 
                 {/* Mobile Filter Toggle */}
                 <button className="filter-toggle" onClick={() => setMobileFilterOpen(true)}>
-                    <SlidersHorizontal size={16} /> Filters {(searchParams.toString() && filteredProducts.length !== products.length) ? '(Active)' : ''}
+                    <SlidersHorizontal size={16} /> Filters {(searchParams.toString() && products.length !== pagination.totalItems) ? '(Active)' : ''}
                 </button>
 
                 <div className="plp">
@@ -304,7 +362,7 @@ export default function ProductListing() {
                     <div>
                         <div className="plp__header">
                             <p className="plp__count">
-                                {filteredProducts.length} Product{filteredProducts.length !== 1 ? 's' : ''} Found
+                                {pagination.totalItems} Product{pagination.totalItems !== 1 ? 's' : ''} Found
                                 {searchParams.get('search') && ` for "${searchParams.get('search')}"`}
                             </p>
                             <div className="plp__sort">
@@ -323,12 +381,79 @@ export default function ProductListing() {
                             </div>
                         </div>
 
-                        {filteredProducts.length > 0 ? (
+                        {isLoading ? (
                             <div className="product-grid">
-                                {filteredProducts.map((product) => (
-                                    <ProductCard key={product.id} product={product} />
-                                ))}
+                                <ProductSkeleton count={12} />
                             </div>
+                        ) : isError ? (
+                            <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)' }}>
+                                <ShoppingBag size={48} style={{ margin: '0 auto 20px', opacity: 0.5 }} />
+                                <h3>Error loading products</h3>
+                                <p>{error?.message || 'Something went wrong. Please try again.'}</p>
+                                <button
+                                    className="btn btn--primary"
+                                    style={{ marginTop: '20px' }}
+                                    onClick={() => window.location.reload()}
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        ) : products.length > 0 ? (
+                            <>
+                                <div className="product-grid">
+                                    {products.map((product, index) => (
+                                        <ProductCard key={product.id} product={product} priority={index < 6} />
+                                    ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {pagination.totalPages > 1 && (
+                                    <div className="pagination">
+                                        <button 
+                                            className="pagination__btn" 
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            aria-label="Previous page"
+                                        >
+                                            &laquo;
+                                        </button>
+                                        
+                                        {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => {
+                                            const showPage = page === 1 || 
+                                                            page === pagination.totalPages || 
+                                                            (page >= currentPage - 1 && page <= currentPage + 1);
+                                            
+                                            if (!showPage) {
+                                                if (page === currentPage - 2 || page === currentPage + 2) {
+                                                    return <span key={page} className="pagination__ellipsis">...</span>;
+                                                }
+                                                return null;
+                                            }
+                                            
+                                            return (
+                                                <button
+                                                    key={page}
+                                                    className={`pagination__btn ${page === currentPage ? 'pagination__btn--active' : ''}`}
+                                                    onClick={() => handlePageChange(page)}
+                                                    aria-label={`Page ${page}`}
+                                                    aria-current={page === currentPage ? 'page' : undefined}
+                                                >
+                                                    {page}
+                                                </button>
+                                            );
+                                        })}
+                                        
+                                        <button 
+                                            className="pagination__btn" 
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === pagination.totalPages}
+                                            aria-label="Next page"
+                                        >
+                                            &raquo;
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)' }}>
                                 <ShoppingBag size={48} style={{ margin: '0 auto 20px', opacity: 0.5 }} />
@@ -341,17 +466,6 @@ export default function ProductListing() {
                                 >
                                     Clear All Filters
                                 </button>
-                            </div>
-                        )}
-
-                        {/* Pagination (Visual only for now as we don't have enough dummy data) */}
-                        {filteredProducts.length > 0 && (
-                            <div className="pagination">
-                                <button className="pagination__btn">&laquo;</button>
-                                <button className="pagination__btn pagination__btn--active">1</button>
-                                <button className="pagination__btn">2</button>
-                                <button className="pagination__btn">3</button>
-                                <button className="pagination__btn">&raquo;</button>
                             </div>
                         )}
                     </div>

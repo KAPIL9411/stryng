@@ -1,6 +1,11 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import useStore from './store/useStore';
+import { initAnalytics, trackPageView } from './lib/analytics';
+import { queryClient } from './lib/queryClient';
+import { initPerformanceMonitoring } from './lib/performance';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -47,6 +52,8 @@ function ScrollToTop() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    // Track page view
+    trackPageView(pathname);
   }, [pathname]);
 
   return null;
@@ -54,20 +61,38 @@ function ScrollToTop() {
 
 function App() {
   const { pathname } = useLocation();
-  const { initializeAuth, fetchProducts } = useStore();
+  const { initializeAuth } = useStore();
 
   useEffect(() => {
-    initializeAuth();
-    fetchProducts();
-  }, []);
+    // Initialize analytics
+    initAnalytics();
+    
+    // Initialize performance monitoring
+    initPerformanceMonitoring();
+    
+    // Initialize auth only (React Query handles data fetching)
+    const initialize = async () => {
+      try {
+        await initializeAuth();
+      } catch (error) {
+        console.error('Initialization error:', error);
+      }
+    };
+    
+    initialize();
+  }, [initializeAuth]);
 
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <Preloader />
       <Toast />
       <ScrollToTop />
       <ErrorBoundary>
-        <Suspense fallback={<Preloader />}>
+        <Suspense fallback={
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+            <div className="spinner" />
+          </div>
+        }>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
@@ -101,7 +126,9 @@ function App() {
           </Routes>
         </Suspense>
       </ErrorBoundary>
-    </>
+      {/* React Query Devtools - only in development */}
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
   );
 }
 

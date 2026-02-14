@@ -1,27 +1,28 @@
 import { Link } from 'react-router-dom';
-import { Package, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
-import useStore from '../../store/useStore';
+import { Package, ShoppingCart, Users, TrendingUp, DollarSign, Clock, CheckCircle, Truck, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { useAllProducts } from '../../hooks/useProducts';
+import { formatPrice } from '../../utils/format';
 
 export default function AdminDashboard() {
-    const { products, fetchProducts } = useStore();
+    const { data: products = [], isLoading: isLoadingProducts } = useAllProducts();
     const [stats, setStats] = useState({
         totalOrders: 0,
         totalCustomers: 0,
         totalRevenue: 0,
+        pendingOrders: 0,
         loading: true
     });
+    const [recentOrders, setRecentOrders] = useState([]);
 
     useEffect(() => {
-        fetchProducts(); // Ensure products are up to date
-
         async function fetchStats() {
             try {
                 // Get orders for revenue and count
                 const { data: orderData, error: orderError } = await supabase
                     .from('orders')
-                    .select('total, payment_status');
+                    .select('total, payment_status, status, created_at, id, profiles(full_name)');
 
                 // Get total customers (profiles)
                 const { count: userCount, error: userError } = await supabase
@@ -34,16 +35,29 @@ export default function AdminDashboard() {
                 const totalOrders = orderData ? orderData.length : 0;
                 const totalRevenue = orderData
                     ? orderData
-                        .filter(o => o.payment_status === 'paid')
+                        .filter(o => o.payment_status === 'paid' || o.payment_status === 'completed')
                         .reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+                    : 0;
+                
+                const pendingOrders = orderData
+                    ? orderData.filter(o => o.status === 'pending' || o.status === 'processing').length
                     : 0;
 
                 setStats({
                     totalOrders,
                     totalCustomers: userCount || 0,
                     totalRevenue,
+                    pendingOrders,
                     loading: false
                 });
+
+                // Set recent orders (last 5)
+                if (orderData) {
+                    const sorted = orderData
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                        .slice(0, 5);
+                    setRecentOrders(sorted);
+                }
             } catch (err) {
                 console.error('Stats fetch error:', err);
                 setStats(prev => ({ ...prev, loading: false }));
@@ -53,40 +67,51 @@ export default function AdminDashboard() {
         fetchStats();
     }, []);
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
     const statCards = [
         {
             label: 'Total Revenue',
-            value: stats.loading ? '...' : formatCurrency(stats.totalRevenue),
-            icon: <TrendingUp size={24} />,
-            color: '#10B981', // Emerald
+            value: stats.loading ? '...' : formatPrice(stats.totalRevenue),
+            icon: <DollarSign size={24} />,
+            color: '#10B981',
+            bgColor: '#D1FAE5',
         },
         {
             label: 'Total Orders',
             value: stats.loading ? '...' : stats.totalOrders,
             icon: <ShoppingCart size={24} />,
-            color: '#F59E0B', // Amber
+            color: '#F59E0B',
+            bgColor: '#FEF3C7',
         },
         {
             label: 'Total Products',
-            value: products.length,
+            value: isLoadingProducts ? '...' : products.length,
             icon: <Package size={24} />,
-            color: '#4F46E5', // Indigo
+            color: '#4F46E5',
+            bgColor: '#E0E7FF',
         },
         {
             label: 'Customers',
             value: stats.loading ? '...' : stats.totalCustomers,
             icon: <Users size={24} />,
-            color: '#EF4444', // Red
+            color: '#EF4444',
+            bgColor: '#FEE2E2',
         },
     ];
+
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'pending':
+                return <Clock size={14} className="text-warning" />;
+            case 'processing':
+                return <AlertCircle size={14} className="text-info" />;
+            case 'shipped':
+                return <Truck size={14} className="text-primary" />;
+            case 'delivered':
+                return <CheckCircle size={14} className="text-success" />;
+            default:
+                return null;
+        }
+    };
 
     return (
         <div className="admin-dashboard">
@@ -94,7 +119,7 @@ export default function AdminDashboard() {
             <div className="stats-grid">
                 {statCards.map((stat, index) => (
                     <div key={index} className="stat-card">
-                        <div className="stat-icon" style={{ backgroundColor: `${stat.color}20`, color: stat.color }}>
+                        <div className="stat-icon" style={{ backgroundColor: stat.bgColor, color: stat.color }}>
                             {stat.icon}
                         </div>
                         <div className="stat-content">
@@ -127,25 +152,109 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            {/* Recent Products */}
-            <div className="recent-section">
-                <h2>Recent Products</h2>
-                <div className="product-list">
-                    {products.slice(0, 5).map(product => (
-                        <div key={product.id} className="product-item">
-                            <img src={product.images?.[0] || '/placeholder.jpg'} alt={product.name} />
-                            <div className="product-details">
-                                <h4>{product.name}</h4>
-                                <p>{product.category}</p>
+            <div className="grid grid--2">
+                {/* Recent Orders */}
+                <div className="recent-section">
+                    <div className="flex flex--between items-center mb-4">
+                        <h2>Recent Orders</h2>
+                        <Link to="/admin/orders" className="btn btn--ghost btn--sm">View All</Link>
+                    </div>
+                    <div className="order-list">
+                        {recentOrders.length > 0 ? (
+                            recentOrders.map(order => (
+                                <Link 
+                                    key={order.id} 
+                                    to={`/admin/orders/${order.id}`}
+                                    className="order-item"
+                                >
+                                    <div className="order-item__info">
+                                        <div className="flex items-center gap-2">
+                                            {getStatusIcon(order.status)}
+                                            <span className="font-semibold">#{order.id.slice(0, 8)}</span>
+                                        </div>
+                                        <p className="text-sm text-muted">{order.profiles?.full_name || 'Guest'}</p>
+                                    </div>
+                                    <div className="order-item__details">
+                                        <p className="font-semibold">{formatPrice(order.total)}</p>
+                                        <p className="text-xs text-muted">
+                                            {new Date(order.created_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                </Link>
+                            ))
+                        ) : (
+                            <p className="text-muted text-center p-8">No orders yet</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Recent Products */}
+                <div className="recent-section">
+                    <div className="flex flex--between items-center mb-4">
+                        <h2>Recent Products</h2>
+                        <Link to="/admin/products" className="btn btn--ghost btn--sm">View All</Link>
+                    </div>
+                    <div className="product-list">
+                        {products.slice(0, 5).map(product => (
+                            <div key={product.id} className="product-item">
+                                <img src={product.images?.[0] || '/placeholder.jpg'} alt={product.name} />
+                                <div className="product-details">
+                                    <h4>{product.name}</h4>
+                                    <p className="text-sm text-muted">{product.category}</p>
+                                    <p className="font-semibold">{formatPrice(product.price)}</p>
+                                </div>
+                                <Link to={`/admin/products/${product.id}/edit`} className="btn btn--sm btn--secondary">
+                                    Edit
+                                </Link>
                             </div>
-                            <Link to={`/admin/products/${product.id}/edit`} className="btn btn--sm btn--secondary">
-                                Edit
-                            </Link>
-                        </div>
-                    ))}
-                    {products.length === 0 && <p className="text-muted">No products found.</p>}
+                        ))}
+                        {products.length === 0 && !isLoadingProducts && (
+                            <p className="text-muted text-center p-8">No products found.</p>
+                        )}
+                    </div>
                 </div>
             </div>
+
+            <style>{`
+                .order-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-3);
+                }
+                
+                .order-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: var(--space-4);
+                    background: white;
+                    border: 1px solid var(--color-border);
+                    border-radius: var(--radius-md);
+                    text-decoration: none;
+                    color: inherit;
+                    transition: all 0.2s ease;
+                }
+                
+                .order-item:hover {
+                    border-color: var(--color-primary);
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+                
+                .order-item__info {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--space-1);
+                }
+                
+                .order-item__details {
+                    text-align: right;
+                }
+                
+                .text-warning { color: #F59E0B; }
+                .text-info { color: #3B82F6; }
+                .text-primary { color: var(--color-primary); }
+                .text-success { color: #10B981; }
+            `}</style>
         </div>
     );
 }

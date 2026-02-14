@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, LogOut, Search, Bell, Image } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, LogOut, Search, Bell, Image, Menu, X, Users, Settings, BarChart3 } from 'lucide-react';
 import useStore from '../../store/useStore';
+import { useState } from 'react';
 
 const sidebarItems = [
     { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
@@ -13,16 +14,36 @@ export default function AdminLayout({ children }) {
     const { user, logout } = useStore();
     const location = useLocation();
     const navigate = useNavigate();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleLogout = async () => {
         await logout();
         navigate('/login');
     };
 
+    const closeMobileMenu = () => {
+        setMobileMenuOpen(false);
+    };
+
     return (
         <div className="admin-layout">
+            {/* Mobile Menu Toggle */}
+            <button 
+                className="mobile-menu-toggle"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+            >
+                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+
+            {/* Mobile Overlay */}
+            <div 
+                className={`mobile-overlay ${mobileMenuOpen ? 'active' : ''}`}
+                onClick={closeMobileMenu}
+            />
+
             {/* Sidebar */}
-            <aside className="admin-sidebar">
+            <aside className={`admin-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
                 <div className="admin-sidebar__header">
                     <img src="/images/stryingclothing.png" alt="Stryng" className="admin-logo" />
                     <span className="admin-badge">Admin</span>
@@ -34,6 +55,7 @@ export default function AdminLayout({ children }) {
                             key={item.path}
                             to={item.path}
                             className={`admin-nav-item ${location.pathname === item.path ? 'active' : ''}`}
+                            onClick={closeMobileMenu}
                         >
                             {item.icon}
                             <span>{item.label}</span>
@@ -42,6 +64,15 @@ export default function AdminLayout({ children }) {
                 </nav>
 
                 <div className="admin-sidebar__footer">
+                    <div className="admin-user-info">
+                        <div className="avatar">
+                            {user?.email?.[0].toUpperCase() || 'A'}
+                        </div>
+                        <div className="admin-user-details">
+                            <p className="admin-user-name">{user?.full_name || 'Admin'}</p>
+                            <p className="admin-user-email">{user?.email}</p>
+                        </div>
+                    </div>
                     <button onClick={handleLogout} className="admin-nav-item logout-btn">
                         <LogOut size={20} />
                         <span>Sign Out</span>
@@ -57,11 +88,7 @@ export default function AdminLayout({ children }) {
                     </h2>
 
                     <div className="admin-actions">
-                        <div className="search-bar">
-                            <Search size={18} />
-                            <input type="text" placeholder="Search..." />
-                        </div>
-                        <div className="user-profile">
+                        <div className="user-profile hide-mobile">
                             <div className="avatar">
                                 {user?.email?.[0].toUpperCase() || 'A'}
                             </div>

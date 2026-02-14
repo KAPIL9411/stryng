@@ -3,41 +3,31 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Heart, ShoppingBag, Eye, ArrowRight, Star, Truck, RotateCcw, Shield } from 'lucide-react';
 import { categories, formatPrice } from '../lib/dummyData';
 import useStore from '../store/useStore';
+import SEO from '../components/SEO';
+import { useBanners } from '../hooks/useBanners';
+import { useAllProducts } from '../hooks/useProducts';
 
-/* ---- Hero Carousel (Marquee) ---- */
 /* ---- Hero Carousel (Marquee) ---- */
 function HeroBanner() {
-    const { banners, fetchBanners, bannersLoaded } = useStore();
-
-    useEffect(() => {
-        fetchBanners();
-    }, []);
-
+    const { data: banners = [], isLoading } = useBanners();
     const activeBanners = banners.filter(b => b.active);
 
-    // Logic: 
-    // 1. If we have active banners from DB -> Use them.
-    // 2. If we haven't loaded yet -> Use dummy data as placeholder? Or just wait?
-    // User wants mock data GONE. So let's prioritize DB.
-
-    let slidesToUse = [];
-
-    if (bannersLoaded) {
-        // DB check complete. Use ONLY DB data.
-        slidesToUse = activeBanners;
-    } else {
-        // Still loading... optionally show dummy data or spinner. 
-        // Let's show nothing to be safe and avoid "flicker" of mock data.
-        slidesToUse = [];
+    // Show placeholder during initial load to prevent layout shift
+    if (isLoading) {
+        return (
+            <section className="hero-marquee" style={{ minHeight: '500px', backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div className="hero-marquee__track" style={{ opacity: 0 }}>
+                    {/* Invisible placeholder to maintain layout */}
+                </div>
+            </section>
+        );
     }
 
-    if (slidesToUse.length === 0) {
-        if (bannersLoaded) return null; // DB empty -> Hide section
-        return null; // Loading -> Hide section
-    }
+    // After load, hide if no banners
+    if (!isLoading && activeBanners.length === 0) return null;
 
     // Map dynamic banners to slide structure
-    const formattedSlides = slidesToUse.map(b => ({
+    const formattedSlides = activeBanners.map(b => ({
         id: b.id,
         image: b.image_url || b.image,
         title: b.title,
@@ -56,7 +46,16 @@ function HeroBanner() {
                 {marqueeSlides.map((slide, index) => (
                     <div key={`${slide.id}-${index}`} className="hero-marquee__item">
                         <Link to={slide.link} className="hero-marquee__link">
-                            <img src={slide.image} alt={slide.title} className="hero-marquee__image" width="600" height="800" />
+                            <img
+                                src={slide.image}
+                                alt={slide.title}
+                                className="hero-marquee__image"
+                                width="600"
+                                height="800"
+                                loading="eager"
+                                fetchPriority="high"
+                                decoding="async"
+                            />
                             <div className="hero-marquee__overlay">
                                 <h2 className="hero-marquee__title">{slide.title}</h2>
                                 <p className="hero-marquee__tag">{slide.tag}</p>
@@ -129,31 +128,31 @@ function ProductCard({ product }) {
 
 /* ---- Category Cards ---- */
 function CategorySection() {
-    const { getCategoryCount } = useStore();
+    const { data: products = [] } = useAllProducts();
+    
+    const getCategoryCount = (categorySlug) => {
+        return products.filter(p => p.category === categorySlug).length;
+    };
 
-    // HARDCODED CATEGORIES
-    // You can replace the 'image' URLs below with your own (e.g., "/images/my-shirt.jpg")
+    // Categories with local images
     const displayCategories = [
         {
             id: 1,
             name: 'T-Shirts',
             slug: 't-shirts',
-            // plain white t-shirt mockup
-            image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=800"
+            image: "/images/tshirts.webp"
         },
         {
             id: 2,
             name: 'Shirts',
             slug: 'shirts',
-            // men's dress shirt
-            image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&q=80&w=800"
+            image: "/images/shirts.webp"
         },
         {
             id: 3,
             name: 'Trousers',
             slug: 'trousers',
-            // chino pants
-            image: "https://images.unsplash.com/photo-1473966968600-fa801b869a1a?auto=format&fit=crop&q=80&w=800"
+            image: "/images/trousers.webp"
         }
     ];
 
@@ -182,7 +181,24 @@ function CategorySection() {
 
 /* ---- Trending Products (Marquee) ---- */
 function TrendingProducts() {
-    const { products } = useStore();
+    const { data: products = [], isLoading } = useAllProducts();
+    
+    if (isLoading) {
+        return (
+            <section className="section" style={{ backgroundColor: 'var(--color-bg-secondary)', overflow: 'hidden' }}>
+                <div className="container">
+                    <div className="section__header">
+                        <h2 className="section__title">Trending Now</h2>
+                        <p className="section__subtitle">The styles everyone is talking about</p>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                        <div className="spinner" />
+                    </div>
+                </div>
+            </section>
+        );
+    }
+    
     // Get trending products or fallback to first 8 products if none marked trending
     const trending = products.filter((p) => p.isTrending);
     const displayProducts = trending.length > 0 ? trending : products.slice(0, 8);
@@ -225,7 +241,24 @@ function TrendingProducts() {
 
 /* ---- New Arrivals Grid ---- */
 function NewArrivals() {
-    const { products } = useStore();
+    const { data: products = [], isLoading } = useAllProducts();
+    
+    if (isLoading) {
+        return (
+            <section className="section">
+                <div className="container">
+                    <div className="section__header">
+                        <h2 className="section__title">New Arrivals</h2>
+                        <p className="section__subtitle">Fresh drops you don&apos;t want to miss</p>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                        <div className="spinner" />
+                    </div>
+                </div>
+            </section>
+        );
+    }
+    
     const newItems = products.filter((p) => p.isNew).length > 0
         ? products.filter((p) => p.isNew)
         : products.slice(0, 4);
@@ -278,44 +311,23 @@ function Features() {
     );
 }
 
-/* ---- Newsletter ---- */
-function Newsletter() {
-    return (
-        <section className="newsletter">
-            <div className="container">
-                <h2 className="newsletter__title">Stay in the Loop</h2>
-                <p className="newsletter__text">
-                    Subscribe to get exclusive offers, new arrival alerts, and style inspiration delivered to your inbox.
-                </p>
-                <form className="newsletter__form" onSubmit={(e) => e.preventDefault()}>
-                    <input type="email" className="newsletter__input" placeholder="Enter your email address" />
-                    <button type="submit" className="newsletter__btn">Subscribe</button>
-                </form>
-            </div>
-        </section>
-    );
-}
-
 /* ---- Manufacturing Process (Stryng Trust) ---- */
 function ManufacturingProcess() {
     const steps = [
         {
             title: 'Design & Innovation',
             desc: 'Our oversized fits are conceptualized in-house, focusing on modern streetwear aesthetics.',
-            // Fashion design studio / sketches
-            img: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?auto=format&fit=crop&q=80&w=800',
+            img: '/images/process1.webp',
         },
         {
             title: 'Premium Production',
             desc: 'Crafted with high-GSM cotton blends. Every stitch is reinforced for durability.',
-            // Sewing machine / craftsmanship
-            img: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?auto=format&fit=crop&q=80&w=800',
+            img: '/images/process2.webp',
         },
         {
             title: 'Quality Assurance',
             desc: 'Rigorous quality checks to ensure every piece meets our "Stryng" standard.',
-            // Checking fabric quality
-            img: 'https://images.unsplash.com/photo-1574634534894-89d7576c8259?auto=format&fit=crop&q=80&w=800',
+            img: '/images/process3.webp',
         },
     ];
 
@@ -373,7 +385,7 @@ function ValueProposition() {
                     </div>
                     <div className="value-prop__image-wrapper">
                         <img
-                            src="/images/3.png"
+                            src="/images/3.webp"
                             alt="Premium Streetwear Model"
                             className="value-prop__image"
                             width="600"
@@ -392,15 +404,14 @@ function ValueProposition() {
 
 /* ---- Home Page ---- */
 export default function Home() {
-    const { fetchProducts, fetchBanners } = useStore();
-
-    useEffect(() => {
-        fetchProducts();
-        fetchBanners();
-    }, []);
-
+    // Data is already fetched in App.jsx, no need to fetch again
     return (
         <>
+            <SEO 
+                title="Stryng Clothing - Premium Streetwear & Fashion"
+                description="Shop premium quality streetwear, t-shirts, shirts, and trousers. Direct-to-consumer pricing with luxury quality. Free shipping on orders above ₹999."
+                keywords="streetwear, fashion, clothing, t-shirts, shirts, trousers, premium clothing, online shopping, India"
+            />
             <HeroBanner />
             <Features />
             <CategorySection />
@@ -408,7 +419,6 @@ export default function Home() {
             <ValueProposition />
             <NewArrivals />
             <ManufacturingProcess />
-            <Newsletter />
         </>
     );
 }

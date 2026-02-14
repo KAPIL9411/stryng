@@ -3,6 +3,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabaseClient';
 import { validatePassword } from '../components/auth/PasswordStrength';
+import { trackAddToCart, trackRemoveFromCart, trackAddToWishlist, trackSignUp, trackLogin } from '../lib/analytics';
+import { validateCartStock, getStockStatus } from '../lib/inventoryManagement';
 
 // Map Supabase error messages to user-friendly messages
 const getAuthErrorMessage = (error) => {
@@ -29,7 +31,18 @@ const useStore = create(
             cart: [],
 
             addToCart: (product, size, color, quantity = 1) => {
-                const { cart } = get();
+                const { cart, products } = get();
+                
+                // Check stock availability
+                const currentProduct = products.find(p => p.id === product.id);
+                if (currentProduct) {
+                    const stockStatus = getStockStatus(currentProduct, size);
+                    if (!stockStatus.available) {
+                        get().showToast('This product is out of stock', 'error');
+                        return;
+                    }
+                }
+                
                 const existingItemIndex = cart.findIndex(
                     (item) => item.id === product.id && item.selectedSize === size && item.selectedColor.name === color.name
                 );
@@ -54,13 +67,24 @@ const useStore = create(
                     });
                     get().showToast(`Added ${product.name} to cart`, 'success');
                 }
+                
+                // Track analytics
+                trackAddToCart(product, quantity);
             },
 
             removeFromCart: (cartId) => {
+                const { cart } = get();
+                const item = cart.find(item => item.cartId === cartId);
+                
                 set((state) => ({
                     cart: state.cart.filter((item) => item.cartId !== cartId),
                 }));
                 get().showToast('Removed item from cart', 'error');
+                
+                // Track analytics
+                if (item) {
+                    trackRemoveFromCart(item, item.quantity);
+                }
             },
 
             updateQuantity: (cartId, delta) => {
@@ -87,6 +111,12 @@ const useStore = create(
                 return cart.reduce((count, item) => count + item.quantity, 0);
             },
 
+            // Validate cart stock before checkout
+            validateCart: () => {
+                const { cart, products } = get();
+                return validateCartStock(cart, products);
+            },
+
             /* ---- Wishlist State & Actions ---- */
             wishlist: [],
 
@@ -100,6 +130,9 @@ const useStore = create(
                 } else {
                     set({ wishlist: [...wishlist, product] });
                     get().showToast('Added to wishlist', 'success');
+                    
+                    // Track analytics
+                    trackAddToWishlist(product);
                 }
             },
 
@@ -110,8 +143,21 @@ const useStore = create(
             /* ---- Products State & Actions (Supabase) ---- */
             products: [], // Loaded from DB
             isLoadingProducts: false,
+            productsLoaded: false,
+            productsPagination: {
+                currentPage: 1,
+                totalPages: 1,
+                totalItems: 0,
+                hasNext: false,
+            },
+            productsCache: {}, // Cache products by page/filters
 
+            // Legacy method for backward compatibility (Home page, etc.)
             fetchProducts: async () => {
+                // Prevent duplicate fetches
+                const { productsLoaded, isLoadingProducts } = get();
+                if (productsLoaded || isLoadingProducts) return;
+
                 set({ isLoadingProducts: true });
                 console.log('🔄 Fetching products from Supabase...');
                 try {
@@ -125,19 +171,134 @@ const useStore = create(
                     console.log('✅ Products fetched:', data?.length);
 
                     // Map snake_case from DB to camelCase for frontend
-                    const mappedProducts = data.map(p => ({
+                    const mappedProducts = (data || []).map(p => ({
                         ...p,
                         originalPrice: p.original_price,
-                        reviewCount: p.reviews_count,
-                        isNew: p.is_new,
-                        isTrending: p.is_trending,
+                        reviewCount: p.reviews_count || 0,
+                        isNew: p.is_new || false,
+                        isTrending: p.is_trending || false,
                     }));
-                    set({ products: mappedProducts, isLoadingProducts: false });
+                    set({ products: mappedProducts, isLoadingProducts: false, productsLoaded: true });
                 } catch (error) {
                     console.error('⚠️ Error fetching products:', error.message);
-                    set({ products: [], isLoadingProducts: false });
+                    set({ products: [], isLoadingProducts: false, productsLoaded: true });
                 }
             },
+
+            // New paginated fetch method
+            fetchProductsPaginated: async (page = 1, limit = 24, filters = {}) => {
+                set({ isLoadingProducts: true });
+                
+                // Generate cache key
+                const cacheKey = `page-${page}-${JSON.stringify(filters)}`;
+                const { productsCache } = get();
+                
+                // Return cached data if available
+                if (productsCache[cacheKey]) {
+                    console.log('✅ Using cached products for:', cacheKey);
+                    set({ 
+                        products: productsCache[cacheKey].products,
+                        productsPagination: productsCache[cacheKey].pagination,
+                        isLoadingProducts: false 
+                    });
+                    return productsCache[cacheKey];
+                }
+
+                try {
+                    const start = (page - 1) * limit;
+                    const end = start + limit - 1;
+
+                    // Build query with only needed fields for listing
+                    let query = supabase
+                        .from('products')
+                        .select('id, name, slug, price, original_price, discount, images, brand, category, colors, is_new, is_trending, rating, reviews_count', { count: 'exact' })
+                        .range(start, end);
+
+                    // Apply server-side filters
+                    if (filters.category && filters.category.length > 0) {
+                        query = query.in('category', Array.isArray(filters.category) ? filters.category : [filters.category]);
+                    }
+                    if (filters.minPrice) {
+                        query = query.gte('price', filters.minPrice);
+                    }
+                    if (filters.maxPrice) {
+                        query = query.lte('price', filters.maxPrice);
+                    }
+                    if (filters.search) {
+                        // Use ilike for case-insensitive search
+                        query = query.or(`name.ilike.%${filters.search}%,brand.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+                    }
+                    if (filters.sizes && filters.sizes.length > 0) {
+                        // Filter by sizes (array contains)
+                        query = query.contains('sizes', filters.sizes);
+                    }
+
+                    // Apply sorting
+                    switch (filters.sort) {
+                        case 'price-low':
+                            query = query.order('price', { ascending: true });
+                            break;
+                        case 'price-high':
+                            query = query.order('price', { ascending: false });
+                            break;
+                        case 'newest':
+                            query = query.order('created_at', { ascending: false });
+                            break;
+                        case 'popularity':
+                            query = query.order('reviews_count', { ascending: false });
+                            break;
+                        default:
+                            query = query.order('id', { ascending: true });
+                    }
+
+                    const { data, error, count } = await query;
+
+                    if (error) {
+                        console.error('❌ Supabase Fetch Error:', error);
+                        throw error;
+                    }
+
+                    console.log(`✅ Products fetched: ${data?.length} (Page ${page})`);
+
+                    // Map snake_case to camelCase
+                    const mappedProducts = (data || []).map(p => ({
+                        ...p,
+                        originalPrice: p.original_price,
+                        reviewCount: p.reviews_count || 0,
+                        isNew: p.is_new || false,
+                        isTrending: p.is_trending || false,
+                    }));
+
+                    const pagination = {
+                        currentPage: page,
+                        totalItems: count || 0,
+                        totalPages: Math.ceil((count || 0) / limit),
+                        hasNext: end < (count || 0) - 1,
+                    };
+
+                    // Cache the result
+                    const result = { products: mappedProducts, pagination };
+                    set({ 
+                        products: mappedProducts,
+                        productsPagination: pagination,
+                        productsCache: { ...productsCache, [cacheKey]: result },
+                        isLoadingProducts: false 
+                    });
+
+                    return result;
+                } catch (error) {
+                    console.error('⚠️ Error fetching products:', error.message);
+                    set({ 
+                        products: [], 
+                        productsPagination: { currentPage: 1, totalPages: 1, totalItems: 0, hasNext: false },
+                        isLoadingProducts: false 
+                    });
+                    return { products: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0, hasNext: false } };
+                }
+            },
+
+            // Clear products cache (useful when products are updated)
+            clearProductsCache: () => set({ productsCache: {} }),
 
             /* ---- User State & Actions (Supabase Auth) ---- */
             user: null,
@@ -185,6 +346,10 @@ const useStore = create(
                     }
                     set({ isAuthLoading: false, authError: null });
                     get().showToast('Welcome back!', 'success');
+                    
+                    // Track analytics
+                    trackLogin('email');
+                    
                     return { success: true };
                 } catch (err) {
                     const friendlyMsg = getAuthErrorMessage(err);
@@ -225,6 +390,10 @@ const useStore = create(
                         // Check if email confirmation is required
                         const needsVerification = data.user.identities?.length === 0 || !data.session;
                         set({ isAuthLoading: false, authError: null });
+                        
+                        // Track analytics
+                        trackSignUp('email');
+                        
                         return { success: true, needsVerification };
                     }
                     set({ isAuthLoading: false });
@@ -445,7 +614,13 @@ const useStore = create(
             /* ---- Banner Actions ---- */
             banners: [],
             bannersLoaded: false,
+            isFetchingBanners: false,
             fetchBanners: async () => {
+                // Prevent duplicate fetches
+                const { bannersLoaded, isFetchingBanners } = get();
+                if (bannersLoaded || isFetchingBanners) return;
+
+                set({ isFetchingBanners: true });
                 try {
                     const { data, error } = await supabase
                         .from('banners')
@@ -453,10 +628,10 @@ const useStore = create(
                         .order('sort_order', { ascending: true });
 
                     if (error) throw error;
-                    set({ banners: data, bannersLoaded: true });
+                    set({ banners: data || [], bannersLoaded: true, isFetchingBanners: false });
                 } catch (error) {
                     console.error('Error fetching banners:', error);
-                    set({ bannersLoaded: true }); // Stop loading even on error
+                    set({ banners: [], bannersLoaded: true, isFetchingBanners: false });
                 }
             },
 
@@ -514,7 +689,13 @@ const useStore = create(
             /* ---- Order Actions ---- */
             createOrder: async (orderData) => {
                 const { user } = get();
-                if (!user) return null;
+                if (!user) {
+                    get().showToast('Please login to place an order', 'error');
+                    return null;
+                }
+
+                // Generate secure UUID for order ID
+                const orderId = orderData.id || crypto.randomUUID();
 
                 // Determine initial payment status
                 let initialStatus = 'pending';
@@ -525,65 +706,88 @@ const useStore = create(
                     initialPaymentStatus = 'pending';
                 } else if (orderData.paymentMethod === 'upi') {
                     initialStatus = 'placed';
-                    initialPaymentStatus = 'verification_pending'; // Admin needs to verify UTR/Screenshot
+                    initialPaymentStatus = 'verification_pending';
                 }
 
-                const { data, error } = await supabase.from('orders').insert([{
-                    id: orderData.id,
-                    user_id: user.id,
-                    total: orderData.total,
-                    address: orderData.address,
+                // Sanitize address data
+                const sanitizedAddress = {
+                    name: String(orderData.address.name || '').trim().slice(0, 100),
+                    street: String(orderData.address.street || '').trim().slice(0, 200),
+                    city: String(orderData.address.city || '').trim().slice(0, 100),
+                    state: String(orderData.address.state || '').trim().slice(0, 100),
+                    pin: String(orderData.address.pin || '').trim().slice(0, 10),
+                    phone: String(orderData.address.phone || '').trim().slice(0, 15)
+                };
 
-                    // New Fields
-                    payment_method: orderData.paymentMethod,
-                    transaction_id: orderData.transactionId || null,
-                    payment_status: initialPaymentStatus,
-                    status: initialStatus, // Override default 'pending'
+                try {
+                    const { data, error } = await supabase.from('orders').insert([{
+                        id: orderId,
+                        user_id: user.id,
+                        total: orderData.total,
+                        address: sanitizedAddress,
+                        payment_method: orderData.paymentMethod,
+                        transaction_id: orderData.transactionId ? String(orderData.transactionId).trim().slice(0, 100) : null,
+                        payment_status: initialPaymentStatus,
+                        status: initialStatus,
+                        timeline: orderData.timeline,
+                    }]).select();
 
-                    timeline: orderData.timeline,
-                }]).select();
+                    if (error) {
+                        console.error('Order creation failed:', error);
+                        get().showToast('Failed to place order. Please try again.', 'error');
+                        return null;
+                    }
 
-                if (error) {
-                    console.error('Order creation failed:', error);
-                    get().showToast('Failed to place order', 'error');
+                    // Insert items with error handling
+                    if (orderData.items && orderData.items.length > 0) {
+                        const itemsToInsert = orderData.items.map(item => ({
+                            order_id: orderId,
+                            product_id: item.id,
+                            quantity: item.quantity,
+                            size: item.selectedSize,
+                            color: item.selectedColor,
+                            price: item.price
+                        }));
+
+                        const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+                        
+                        if (itemsError) {
+                            console.error('Error inserting order items:', itemsError);
+                            // Rollback order if items fail
+                            await supabase.from('orders').delete().eq('id', orderId);
+                            get().showToast('Failed to save order items. Please try again.', 'error');
+                            return null;
+                        }
+                    }
+
+                    return data[0];
+                } catch (err) {
+                    console.error('Unexpected error creating order:', err);
+                    get().showToast('An unexpected error occurred. Please try again.', 'error');
                     return null;
                 }
-
-                // Insert items
-                const itemsToInsert = orderData.items.map(item => ({
-                    order_id: orderData.id,
-                    product_id: item.id,
-                    quantity: item.quantity,
-                    size: item.selectedSize,
-                    color: item.selectedColor,
-                    price: item.price
-                }));
-
-                // Only insert items if we have valid UUIDs or if we are skipping FK checks
-                // For now, assuming mixed data, try-catch or just proceed
-                if (itemsToInsert.length > 0) {
-                    const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
-                    if (itemsError) console.error('Error inserting items:', itemsError);
-                }
-
-                return data[0];
             },
 
             fetchUserOrders: async () => {
                 const { user } = get();
                 if (!user) return [];
 
-                const { data, error } = await supabase
-                    .from('orders')
-                    .select('*, order_items(*, product:products(*))') // Join items and nested products
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false });
+                try {
+                    const { data, error } = await supabase
+                        .from('orders')
+                        .select('*, order_items(*, product:products(*))')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false });
 
-                if (error) {
-                    console.error('Fetch orders failed:', error);
+                    if (error) {
+                        console.error('Fetch orders failed:', error);
+                        return [];
+                    }
+                    return data || [];
+                } catch (err) {
+                    console.error('Unexpected error fetching orders:', err);
                     return [];
                 }
-                return data;
             },
 
 
