@@ -114,7 +114,7 @@ export default function Header() {
                 <div className="mobile-menu__content">
                     <div className="mobile-menu__header">
                         <span className="header__logo">
-                            <img src="/images/stryingclothing.png" alt="Stryng Clothing" className="mobile-menu__logo-img" width="100" height="28" />
+                            <img src="/images/logo2.webp" alt="Stryng Clothing" className="mobile-menu__logo-img" width="100" height="28" />
                         </span>
                         <button onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
                             <X size={22} />
