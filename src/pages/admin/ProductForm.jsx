@@ -101,6 +101,25 @@ export default function ProductForm() {
     }
   }, [productName, isEditing, setValue]);
 
+  // Auto-calculate discount when price or original_price changes
+  const price = watch('price');
+  const originalPrice = watch('original_price');
+  useEffect(() => {
+    if (price && originalPrice && originalPrice > 0) {
+      const priceNum = parseFloat(price);
+      const originalPriceNum = parseFloat(originalPrice);
+      
+      if (originalPriceNum > priceNum) {
+        const discountPercent = Math.round(
+          ((originalPriceNum - priceNum) / originalPriceNum) * 100
+        );
+        setValue('discount', discountPercent);
+      } else if (originalPriceNum === priceNum) {
+        setValue('discount', 0);
+      }
+    }
+  }, [price, originalPrice, setValue]);
+
   // Show loading state while fetching products for edit (AFTER all hooks)
   if (isEditing && isLoadingProducts) {
     return (
@@ -164,7 +183,9 @@ export default function ProductForm() {
     if (!isEditing) {
       const existingProduct = products.find((p) => p.slug === slug);
       if (existingProduct) {
-        slug = `${slug}-${Date.now()}`;
+        const timestamp = Date.now();
+        slug = `${slug}-${timestamp}`;
+        console.log(`⚠️ Slug collision detected. Modified slug to: ${slug}`);
         showToast('Slug was modified to ensure uniqueness', 'info');
       }
     }
@@ -206,7 +227,7 @@ export default function ProductForm() {
           // Unique constraint violation
           if (result.error.message.includes('slug')) {
             throw new Error(
-              'A product with this slug already exists. Please use a different name.'
+              'A product with this slug already exists. Please use a different name or modify the slug manually.'
             );
           } else if (result.error.message.includes('sku')) {
             throw new Error(
@@ -214,7 +235,7 @@ export default function ProductForm() {
             );
           } else {
             throw new Error(
-              'This product already exists. Please check slug and SKU.'
+              'This product already exists. Please check slug and SKU fields.'
             );
           }
         }
@@ -235,7 +256,7 @@ export default function ProductForm() {
       // Navigate back to products list
       navigate('/admin/products');
     } catch (error) {
-      console.error('Error saving product:', error);
+      console.error('❌ Error saving product:', error);
       const errorMessage = error.message || error.toString();
       showToast(
         `Failed to ${isEditing ? 'update' : 'create'} product: ${errorMessage}`,

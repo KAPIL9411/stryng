@@ -250,6 +250,21 @@ export const createProduct = async (productData) => {
 
   if (error) {
     console.error('❌ Product create error:', error);
+    
+    // Provide user-friendly error messages
+    if (error.code === '23505') {
+      // Unique constraint violation
+      if (error.message.includes('slug')) {
+        const friendlyError = new Error('A product with this slug already exists. Please use a different name or modify the slug.');
+        friendlyError.code = error.code;
+        throw friendlyError;
+      } else if (error.message.includes('sku')) {
+        const friendlyError = new Error('A product with this SKU already exists. Please use a different SKU.');
+        friendlyError.code = error.code;
+        throw friendlyError;
+      }
+    }
+    
     throw error;
   }
 
