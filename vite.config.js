@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import viteCompression from 'vite-plugin-compression'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -83,15 +84,33 @@ export default defineConfig({
           }
         ]
       }
+    }),
+    // Gzip compression for production builds
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+      threshold: 10240, // Only compress files larger than 10KB
+      deleteOriginFile: false
+    }),
+    // Brotli compression for production builds (better compression than gzip)
+    viteCompression({
+      algorithm: 'brotliCompress',
+      ext: '.br',
+      threshold: 10240,
+      deleteOriginFile: false
     })
   ],
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', 'zustand'],
-          query: ['@tanstack/react-query'],
-          ui: ['lucide-react']
+          // Separate vendor chunks for better caching
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-ui': ['lucide-react', 'framer-motion'],
+          'vendor-forms': ['react-hook-form'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-state': ['zustand']
         },
         // Add hash to filenames for cache busting
         entryFileNames: 'assets/[name].[hash].js',
@@ -99,7 +118,23 @@ export default defineConfig({
         assetFileNames: 'assets/[name].[hash].[ext]'
       }
     },
+    // Enable minification with terser
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,  // Remove console.logs in production
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.trace']
+      },
+      format: {
+        comments: false  // Remove comments
+      }
+    },
     // Optimize chunk size
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 500,
+    // Enable CSS code splitting
+    cssCodeSplit: true,
+    // Source maps for production debugging (optional, can be disabled for smaller builds)
+    sourcemap: false
   }
 })

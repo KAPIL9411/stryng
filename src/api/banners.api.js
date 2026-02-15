@@ -12,18 +12,18 @@ import { API_ENDPOINTS } from '../config/constants';
  * @returns {Promise<Array>} Active banners
  */
 export const fetchBanners = async () => {
-    const { data, error } = await supabase
-        .from(API_ENDPOINTS.BANNERS)
-        .select('*')
-        .eq('active', true)
-        .order('sort_order', { ascending: true });
+  const { data, error } = await supabase
+    .from(API_ENDPOINTS.BANNERS)
+    .select('*')
+    .eq('active', true)
+    .order('sort_order', { ascending: true });
 
-    if (error) {
-        console.error('❌ Banners fetch error:', error);
-        throw error;
-    }
+  if (error) {
+    console.error('❌ Banners fetch error:', error);
+    throw error;
+  }
 
-    return data || [];
+  return data || [];
 };
 
 /**
@@ -32,17 +32,17 @@ export const fetchBanners = async () => {
  * @returns {Promise<Object>} Created banner
  */
 export const createBanner = async (bannerData) => {
-    const { data, error } = await supabase
-        .from(API_ENDPOINTS.BANNERS)
-        .insert([bannerData])
-        .select();
+  const { data, error } = await supabase
+    .from(API_ENDPOINTS.BANNERS)
+    .insert([bannerData])
+    .select();
 
-    if (error) {
-        console.error('❌ Banner create error:', error);
-        throw error;
-    }
+  if (error) {
+    console.error('❌ Banner create error:', error);
+    throw error;
+  }
 
-    return data[0];
+  return data[0];
 };
 
 /**
@@ -52,18 +52,18 @@ export const createBanner = async (bannerData) => {
  * @returns {Promise<Object>} Updated banner
  */
 export const updateBanner = async (id, bannerData) => {
-    const { data, error } = await supabase
-        .from(API_ENDPOINTS.BANNERS)
-        .update(bannerData)
-        .eq('id', id)
-        .select();
+  const { data, error } = await supabase
+    .from(API_ENDPOINTS.BANNERS)
+    .update(bannerData)
+    .eq('id', id)
+    .select();
 
-    if (error) {
-        console.error('❌ Banner update error:', error);
-        throw error;
-    }
+  if (error) {
+    console.error('❌ Banner update error:', error);
+    throw error;
+  }
 
-    return data[0];
+  return data[0];
 };
 
 /**
@@ -72,13 +72,13 @@ export const updateBanner = async (id, bannerData) => {
  * @returns {Promise<void>}
  */
 export const deleteBanner = async (id) => {
-    const { error } = await supabase
-        .from(API_ENDPOINTS.BANNERS)
-        .delete()
-        .eq('id', id);
+  const { error } = await supabase
+    .from(API_ENDPOINTS.BANNERS)
+    .delete()
+    .eq('id', id);
 
-    if (error) {
-        console.error('❌ Banner delete error:', error);
-        throw error;
-    }
+  if (error) {
+    console.error('❌ Banner delete error:', error);
+    throw error;
+  }
 };

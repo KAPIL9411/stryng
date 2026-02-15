@@ -3,172 +3,172 @@
    ============================================ */
 
 .container {
-    width: 100%;
-    max-width: var(--container-xl);
-    margin: 0 auto;
-    padding: 0 var(--space-4);
+  width: 100%;
+  max-width: var(--container-xl);
+  margin: 0 auto;
+  padding: 0 var(--space-4);
 }
 
 .container--narrow {
-    max-width: var(--container-md);
+  max-width: var(--container-md);
 }
 
 .container--wide {
-    max-width: var(--container-2xl);
+  max-width: var(--container-2xl);
 }
 
 /* ---- Section ---- */
 .section {
-    padding: var(--space-16) 0;
+  padding: var(--space-16) 0;
 }
 
 .section--sm {
-    padding: var(--space-8) 0;
+  padding: var(--space-8) 0;
 }
 
 .section--lg {
-    padding: var(--space-24) 0;
+  padding: var(--space-24) 0;
 }
 
 .section__header {
-    text-align: center;
-    margin-bottom: var(--space-12);
+  text-align: center;
+  margin-bottom: var(--space-12);
 }
 
 .section__title {
-    font-family: var(--font-display);
-    font-size: var(--text-3xl);
-    font-weight: var(--font-semibold);
-    margin-bottom: var(--space-3);
-    letter-spacing: var(--tracking-tight);
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-3);
+  letter-spacing: var(--tracking-tight);
 }
 
 .section__subtitle {
-    font-size: var(--text-base);
-    color: var(--color-text-muted);
-    max-width: 560px;
-    margin: 0 auto;
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  max-width: 560px;
+  margin: 0 auto;
 }
 
 /* ---- Grid ---- */
 .grid {
-    display: grid;
-    gap: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
 }
 
 .grid--2 {
-    grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .grid--3 {
-    grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .grid--4 {
-    grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 
 /* ---- Flex ---- */
 .flex {
-    display: flex;
+  display: flex;
 }
 
 .flex--center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .flex--between {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .flex--column {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .flex--gap-sm {
-    gap: var(--space-2);
+  gap: var(--space-2);
 }
 
 .flex--gap-md {
-    gap: var(--space-4);
+  gap: var(--space-4);
 }
 
 .flex--gap-lg {
-    gap: var(--space-6);
+  gap: var(--space-6);
 }
 
 /* ---- Page Layout ---- */
 .page {
-    min-height: calc(100vh - var(--header-height) - var(--announcement-height));
-    padding-top: var(--space-8);
-    padding-bottom: var(--space-16);
+  min-height: calc(100vh - var(--header-height) - var(--announcement-height));
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-16);
 }
 
 .page--with-sidebar {
-    display: grid;
-    grid-template-columns: var(--sidebar-width) 1fr;
-    gap: var(--space-8);
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  gap: var(--space-8);
 }
 
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
-    .grid--4 {
-        grid-template-columns: repeat(3, 1fr);
-    }
+  .grid--4 {
+    grid-template-columns: repeat(3, 1fr);
+  }
 
-    .page--with-sidebar {
-        grid-template-columns: 1fr;
-    }
+  .page--with-sidebar {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
-    .container {
-        padding: 0 var(--space-4);
-    }
+  .container {
+    padding: 0 var(--space-4);
+  }
 
-    .section {
-        padding: var(--space-10) 0;
-    }
+  .section {
+    padding: var(--space-10) 0;
+  }
 
-    .section__title {
-        font-size: var(--text-2xl);
-    }
+  .section__title {
+    font-size: var(--text-2xl);
+  }
 
-    .grid--3 {
-        grid-template-columns: repeat(2, 1fr);
-    }
+  .grid--3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
-    .grid--4 {
-        grid-template-columns: repeat(2, 1fr);
-    }
+  .grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
-    .hide-mobile {
-        display: none !important;
-    }
+  .hide-mobile {
+    display: none !important;
+  }
 }
 
 @media (min-width: 769px) {
-    .hide-desktop {
-        display: none !important;
-    }
+  .hide-desktop {
+    display: none !important;
+  }
 }
 
 @media (max-width: 480px) {
-    .grid--2 {
-        grid-template-columns: 1fr;
-    }
+  .grid--2 {
+    grid-template-columns: 1fr;
+  }
 
-    .grid--3 {
-        grid-template-columns: 1fr;
-        /* Stack on very small screens */
-    }
+  .grid--3 {
+    grid-template-columns: 1fr;
+    /* Stack on very small screens */
+  }
 
-    /* Ensure 2 columns for product grids even on small mobiles? 
+  /* Ensure 2 columns for product grids even on small mobiles? 
        Usually 1 col is better for details, but 2 cols is standard for fashion.
        Let's keep generic grid--3 as 1fr, but we will override for product-grid specifically in pages.css */
 }

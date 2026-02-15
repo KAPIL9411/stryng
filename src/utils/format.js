@@ -10,8 +10,8 @@
  * @returns {string} Formatted price
  */
 export const formatPrice = (price) => {
-    if (typeof price !== 'number') return '₹0';
-    return `₹${price.toLocaleString('en-IN')}`;
+  if (typeof price !== 'number') return '₹0';
+  return `₹${price.toLocaleString('en-IN')}`;
 };
 
 /**
@@ -20,13 +20,13 @@ export const formatPrice = (price) => {
  * @returns {string} Formatted date
  */
 export const formatDate = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-    });
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 };
 
 /**
@@ -35,15 +35,15 @@ export const formatDate = (date) => {
  * @returns {string} Formatted date with time
  */
 export const formatDateTime = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleString('en-IN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 /**
@@ -52,12 +52,12 @@ export const formatDateTime = (date) => {
  * @returns {string} Formatted phone
  */
 export const formatPhone = (phone) => {
-    if (!phone) return '';
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 10) {
-        return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
-    }
-    return phone;
+  if (!phone) return '';
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return `+91 ${cleaned.slice(0, 5)} ${cleaned.slice(5)}`;
+  }
+  return phone;
 };
 
 /**
@@ -66,11 +66,11 @@ export const formatPhone = (phone) => {
  * @returns {string} Formatted file size
  */
 export const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 };
 
 /**
@@ -80,8 +80,8 @@ export const formatFileSize = (bytes) => {
  * @returns {string} Truncated text
  */
 export const truncateText = (text, maxLength = 100) => {
-    if (!text || text.length <= maxLength) return text;
-    return text.slice(0, maxLength) + '...';
+  if (!text || text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
 };
 
 /**
@@ -90,8 +90,8 @@ export const truncateText = (text, maxLength = 100) => {
  * @returns {string} Capitalized string
  */
 export const capitalize = (str) => {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
 /**
@@ -100,13 +100,13 @@ export const capitalize = (str) => {
  * @returns {string} Slug
  */
 export const slugify = (str) => {
-    if (!str) return '';
-    return str
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/[\s_-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 };
 
 /**
@@ -116,8 +116,9 @@ export const slugify = (str) => {
  * @returns {number} Discount percentage
  */
 export const calculateDiscount = (originalPrice, currentPrice) => {
-    if (!originalPrice || !currentPrice || originalPrice <= currentPrice) return 0;
-    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+  if (!originalPrice || !currentPrice || originalPrice <= currentPrice)
+    return 0;
+  return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
 };
 
 /**
@@ -126,8 +127,8 @@ export const calculateDiscount = (originalPrice, currentPrice) => {
  * @returns {string} Formatted order ID
  */
 export const formatOrderId = (orderId) => {
-    if (!orderId) return '';
-    return `#${orderId.slice(0, 8).toUpperCase()}`;
+  if (!orderId) return '';
+  return `#${orderId.slice(0, 8).toUpperCase()}`;
 };
 
 /**
@@ -136,22 +137,22 @@ export const formatOrderId = (orderId) => {
  * @returns {string} Relative time string
  */
 export const formatRelativeTime = (date) => {
-    if (!date) return '';
-    
-    const now = new Date();
-    const past = new Date(date);
-    const diffMs = now - past;
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffSecs < 60) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    
-    return formatDate(date);
+  if (!date) return '';
+
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now - past;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+
+  return formatDate(date);
 };
 
 /**
@@ -160,8 +161,8 @@ export const formatRelativeTime = (date) => {
  * @returns {string} Formatted number
  */
 export const formatNumber = (num) => {
-    if (typeof num !== 'number') return '0';
-    return num.toLocaleString('en-IN');
+  if (typeof num !== 'number') return '0';
+  return num.toLocaleString('en-IN');
 };
 
 /**
@@ -171,6 +172,6 @@ export const formatNumber = (num) => {
  * @returns {string} Formatted percentage
  */
 export const formatPercentage = (value, decimals = 0) => {
-    if (typeof value !== 'number') return '0%';
-    return `${value.toFixed(decimals)}%`;
+  if (typeof value !== 'number') return '0%';
+  return `${value.toFixed(decimals)}%`;
 };

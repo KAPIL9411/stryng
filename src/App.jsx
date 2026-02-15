@@ -15,7 +15,7 @@ const Home = lazy(() => import('./pages/Home'));
 const ProductListing = lazy(() => import('./pages/ProductListing'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Cart = lazy(() => import('./pages/Cart'));
-const CheckoutNew = lazy(() => import('./pages/CheckoutNew'));
+const CheckoutOptimized = lazy(() => import('./pages/CheckoutOptimized'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -45,6 +45,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Preloader from './components/ui/Preloader';
 import Toast from './components/ui/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import SuspenseWrapper from './components/common/SuspenseWrapper';
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin Styles
@@ -63,19 +64,18 @@ function ScrollToTop() {
 }
 
 function App() {
-  const { pathname } = useLocation();
   const { initializeAuth } = useStore();
 
   useEffect(() => {
     // Make queryClient available globally for logout
     window.queryClient = queryClient;
-    
+
     // Initialize analytics
     initAnalytics();
-    
+
     // Initialize performance monitoring
     initPerformanceMonitoring();
-    
+
     // Prefetch banners immediately for faster home page load
     queryClient.prefetchQuery({
       queryKey: ['banners', 'active'],
@@ -90,7 +90,7 @@ function App() {
       },
       staleTime: 5 * 60 * 1000,
     });
-    
+
     // Initialize auth only (React Query handles data fetching)
     const initialize = async () => {
       try {
@@ -99,7 +99,7 @@ function App() {
         console.error('Initialization error:', error);
       }
     };
-    
+
     initialize();
   }, [initializeAuth]);
 
@@ -109,11 +109,7 @@ function App() {
       <Toast />
       <ScrollToTop />
       <ErrorBoundary>
-        <Suspense fallback={
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-            <div className="spinner" />
-          </div>
-        }>
+        <SuspenseWrapper>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
@@ -128,33 +124,139 @@ function App() {
               <Route path="verify-email" element={<VerifyEmail />} />
 
               {/* Protected Routes */}
-              <Route path="account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-              <Route path="addresses" element={<ProtectedRoute><Addresses /></ProtectedRoute>} />
-              <Route path="checkout" element={<ProtectedRoute><CheckoutNew /></ProtectedRoute>} />
-              <Route path="orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
-              <Route path="order/:id" element={<ProtectedRoute><OrderTracking /></ProtectedRoute>} />
+              <Route
+                path="account"
+                element={
+                  <ProtectedRoute>
+                    <Account />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="addresses"
+                element={
+                  <ProtectedRoute>
+                    <Addresses />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="checkout"
+                element={
+                  <ProtectedRoute>
+                    <CheckoutOptimized />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="orders"
+                element={
+                  <ProtectedRoute>
+                    <OrderHistory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="order/:id"
+                element={
+                  <ProtectedRoute>
+                    <OrderTracking />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Admin Routes */}
-              <Route path="admin" element={<AdminRoute><AdminLayout><AdminDashboard /></AdminLayout></AdminRoute>} />
-              <Route path="admin/products" element={<AdminRoute><AdminLayout><AdminProducts /></AdminLayout></AdminRoute>} />
-              <Route path="admin/products/new" element={<AdminRoute><AdminLayout><ProductForm /></AdminLayout></AdminRoute>} />
-              <Route path="admin/products/:id/edit" element={<AdminRoute><AdminLayout><ProductForm /></AdminLayout></AdminRoute>} />
-              <Route path="admin/orders" element={<AdminRoute><AdminLayout><AdminOrders /></AdminLayout></AdminRoute>} />
-              <Route path="admin/orders/:id" element={<AdminRoute><AdminLayout><AdminOrderDetails /></AdminLayout></AdminRoute>} />
-              <Route path="admin/banners" element={<AdminRoute><AdminLayout><AdminBanners /></AdminLayout></AdminRoute>} />
-              <Route path="admin/pincodes" element={<AdminRoute><AdminLayout><AdminPincodes /></AdminLayout></AdminRoute>} />
+              <Route
+                path="admin"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminDashboard />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/products"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminProducts />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/products/new"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <ProductForm />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/products/:id/edit"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <ProductForm />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/orders"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminOrders />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/orders/:id"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminOrderDetails />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/banners"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminBanners />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/pincodes"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminPincodes />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
 
               {/* Fallback */}
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
-        </Suspense>
+        </SuspenseWrapper>
       </ErrorBoundary>
       {/* React Query Devtools - only in development */}
-      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }
 
 export default App;
-

@@ -1,110 +1,279 @@
-
 import { Link } from 'react-router-dom';
-import { Minus, Plus, X, ArrowRight, Tag, ShoppingBag, Sparkles, TrendingUp } from 'lucide-react';
+import {
+  Minus,
+  Plus,
+  X,
+  ArrowRight,
+  Tag,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import useStore from '../store/useStore';
-import { formatPrice } from '../lib/dummyData';
-import { useState, useEffect } from 'react';
+import { formatPrice } from '../utils/format';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+
+// Memoized CartItem component to prevent unnecessary re-renders
+const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
+  const totalPrice = useMemo(
+    () => formatPrice(item.price * item.quantity),
+    [item.price, item.quantity]
+  );
+
+  const handleIncrement = useCallback(() => {
+    onUpdateQuantity(item.cartId, 1);
+  }, [item.cartId, onUpdateQuantity]);
+
+  const handleDecrement = useCallback(() => {
+    onUpdateQuantity(item.cartId, -1);
+  }, [item.cartId, onUpdateQuantity]);
+
+  const handleRemove = useCallback(() => {
+    onRemove(item.cartId);
+  }, [item.cartId, onRemove]);
+
+  return (
+    <div className="cart-item">
+      <Link
+        to={`/products/${item.slug}`}
+        className="cart-item__image"
+      >
+        <img src={item.images[0]} alt={item.name} loading="lazy" />
+      </Link>
+      <div>
+        <Link
+          to={`/products/${item.slug}`}
+          className="cart-item__name"
+        >
+          {item.name}
+        </Link>
+        <p className="cart-item__variant">
+          Size: {item.selectedSize} | Color:{' '}
+          {item.selectedColor?.name}
+        </p>
+        <div
+          className="qty-stepper"
+          style={{ marginBottom: 'var(--space-2)' }}
+        >
+          <button
+            className="qty-stepper__btn"
+            onClick={handleDecrement}
+            disabled={item.quantity <= 1}
+          >
+            <Minus size={14} />
+          </button>
+          <span className="qty-stepper__value">{item.quantity}</span>
+          <button
+            className="qty-stepper__btn"
+            onClick={handleIncrement}
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <p className="cart-item__price">
+          {totalPrice}
+        </p>
+        <button
+          className="cart-item__remove"
+          onClick={handleRemove}
+        >
+          Remove
+        </button>
+      </div>
+      <button
+        style={{
+          alignSelf: 'start',
+          color: 'var(--color-text-muted)',
+        }}
+        aria-label="Remove item"
+        onClick={handleRemove}
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
+});
+
+CartItem.displayName = 'CartItem';
+
+// Memoized FeaturedProduct component
+const FeaturedProduct = memo(({ product }) => {
+  const formattedPrice = useMemo(
+    () => formatPrice(product.price),
+    [product.price]
+  );
+
+  const formattedOriginalPrice = useMemo(
+    () => product.originalPrice ? formatPrice(product.originalPrice) : null,
+    [product.originalPrice]
+  );
+
+  return (
+    <Link
+      to={`/products/${product.slug}`}
+      className="empty-cart__product-card"
+    >
+      <div className="empty-cart__product-image">
+        <img
+          src={product.images[0]}
+          alt={product.name}
+          loading="lazy"
+        />
+        {product.isNew && (
+          <span className="badge badge--new">New</span>
+        )}
+        {product.isTrending && (
+          <span className="badge badge--trending">
+            Trending
+          </span>
+        )}
+      </div>
+      <div className="empty-cart__product-info">
+        <h4>{product.name}</h4>
+        <div className="empty-cart__product-price">
+          <span className="price">
+            {formattedPrice}
+          </span>
+          {formattedOriginalPrice && (
+            <span className="price--original">
+              {formattedOriginalPrice}
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+});
+
+FeaturedProduct.displayName = 'FeaturedProduct';
 
 export default function Cart() {
-    const { cart, updateQuantity, removeFromCart, products, fetchProducts } = useStore();
-    const [featuredProducts, setFeaturedProducts] = useState([]);
+  const { cart, updateQuantity, removeFromCart, products, fetchProducts } =
+    useStore();
+  const [featuredProducts, setFeaturedProducts] = useState([]);
 
-    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const shipping = subtotal > 999 ? 0 : 99;
-    const tax = Math.round(subtotal * 0.18);
-    const total = subtotal + shipping + tax;
+  // Memoize expensive calculations
+  const subtotal = useMemo(
+    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    [cart]
+  );
 
-    useEffect(() => {
-        if (cart.length === 0) {
-            // Fetch products if not loaded
-            if (products.length === 0) {
-                fetchProducts();
-            } else {
-                // Get trending or new products
-                const featured = products
-                    .filter(p => p.isTrending || p.isNew)
-                    .slice(0, 4);
-                setFeaturedProducts(featured);
-            }
-        }
-    }, [cart.length, products, fetchProducts]);
+  const shipping = useMemo(
+    () => subtotal > 999 ? 0 : 99,
+    [subtotal]
+  );
 
+  const tax = useMemo(
+    () => Math.round(subtotal * 0.18),
+    [subtotal]
+  );
+
+  const total = useMemo(
+    () => subtotal + shipping + tax,
+    [subtotal, shipping, tax]
+  );
+
+  const formattedSubtotal = useMemo(
+    () => formatPrice(subtotal),
+    [subtotal]
+  );
+
+  const formattedShipping = useMemo(
+    () => shipping === 0 ? 'FREE' : formatPrice(shipping),
+    [shipping]
+  );
+
+  const formattedTax = useMemo(
+    () => formatPrice(tax),
+    [tax]
+  );
+
+  const formattedTotal = useMemo(
+    () => formatPrice(total),
+    [total]
+  );
+
+  // Memoize event handlers
+  const handleUpdateQuantity = useCallback((cartId, delta) => {
+    updateQuantity(cartId, delta);
+  }, [updateQuantity]);
+
+  const handleRemoveFromCart = useCallback((cartId) => {
+    removeFromCart(cartId);
+  }, [removeFromCart]);
+
+  useEffect(() => {
     if (cart.length === 0) {
-        return (
-            <div className="page">
-                <div className="container">
-                    <div className="empty-cart">
-                        <div className="empty-cart__icon">
-                            <ShoppingBag size={64} strokeWidth={1.5} />
-                        </div>
-                        
-                        <h1 className="empty-cart__title">Your Cart is Empty</h1>
-                        <p className="empty-cart__subtitle">
-                            But it doesn't have to be! Discover our latest collection and find something you'll love.
-                        </p>
+      // Fetch products if not loaded
+      if (products.length === 0) {
+        fetchProducts();
+      } else {
+        // Get trending or new products
+        const featured = products
+          .filter((p) => p.isTrending || p.isNew)
+          .slice(0, 4);
+        setFeaturedProducts(featured);
+      }
+    }
+  }, [cart.length, products, fetchProducts]);
 
-                        <div className="empty-cart__features">
-                            <div className="empty-cart__feature">
-                                <Sparkles size={24} />
-                                <span>New Arrivals Daily</span>
-                            </div>
-                            <div className="empty-cart__feature">
-                                <TrendingUp size={24} />
-                                <span>Trending Styles</span>
-                            </div>
-                            <div className="empty-cart__feature">
-                                <Tag size={24} />
-                                <span>Exclusive Deals</span>
-                            </div>
-                        </div>
+  if (cart.length === 0) {
+    return (
+      <div className="page">
+        <div className="container">
+          <div className="empty-cart">
+            <div className="empty-cart__icon">
+              <ShoppingBag size={64} strokeWidth={1.5} />
+            </div>
 
-                        <div className="empty-cart__actions">
-                            <Link to="/products" className="btn btn--primary btn--lg">
-                                Explore Collection <ArrowRight size={18} />
-                            </Link>
-                            <Link to="/products?filter=trending" className="btn btn--secondary btn--lg">
-                                View Trending
-                            </Link>
-                        </div>
+            <h1 className="empty-cart__title">Your Cart is Empty</h1>
+            <p className="empty-cart__subtitle">
+              But it doesn't have to be! Discover our latest collection and find
+              something you'll love.
+            </p>
 
-                        {/* Featured Products */}
-                        {featuredProducts.length > 0 && (
-                            <div className="empty-cart__products">
-                                <h3>You Might Like These</h3>
-                                <div className="empty-cart__products-grid">
-                                    {featuredProducts.map((product) => (
-                                        <Link 
-                                            key={product.id} 
-                                            to={`/products/${product.slug}`}
-                                            className="empty-cart__product-card"
-                                        >
-                                            <div className="empty-cart__product-image">
-                                                <img src={product.images[0]} alt={product.name} loading="lazy" />
-                                                {product.isNew && (
-                                                    <span className="badge badge--new">New</span>
-                                                )}
-                                                {product.isTrending && (
-                                                    <span className="badge badge--trending">Trending</span>
-                                                )}
-                                            </div>
-                                            <div className="empty-cart__product-info">
-                                                <h4>{product.name}</h4>
-                                                <div className="empty-cart__product-price">
-                                                    <span className="price">{formatPrice(product.price)}</span>
-                                                    {product.originalPrice && (
-                                                        <span className="price--original">{formatPrice(product.originalPrice)}</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+            <div className="empty-cart__features">
+              <div className="empty-cart__feature">
+                <Sparkles size={24} />
+                <span>New Arrivals Daily</span>
+              </div>
+              <div className="empty-cart__feature">
+                <TrendingUp size={24} />
+                <span>Trending Styles</span>
+              </div>
+              <div className="empty-cart__feature">
+                <Tag size={24} />
+                <span>Exclusive Deals</span>
+              </div>
+            </div>
+
+            <div className="empty-cart__actions">
+              <Link to="/products" className="btn btn--primary btn--lg">
+                Explore Collection <ArrowRight size={18} />
+              </Link>
+              <Link
+                to="/products?filter=trending"
+                className="btn btn--secondary btn--lg"
+              >
+                View Trending
+              </Link>
+            </div>
+
+            {/* Featured Products */}
+            {featuredProducts.length > 0 && (
+              <div className="empty-cart__products">
+                <h3>You Might Like These</h3>
+                <div className="empty-cart__products-grid">
+                  {featuredProducts.map((product) => (
+                    <FeaturedProduct key={product.id} product={product} />
+                  ))}
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
 
-                <style>{`
+        <style>{`
                     .empty-cart {
                         text-align: center;
                         padding: 4rem 2rem;
@@ -317,96 +486,90 @@ export default function Cart() {
                         }
                     }
                 `}</style>
-            </div>
-        );
-    }
-
-    return (
-        <div className="page">
-            <div className="container">
-                <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: 'var(--space-8)' }}>Shopping Bag ({cart.length})</h1>
-
-                <div className="cart-page">
-                    {/* Cart Items */}
-                    <div>
-                        {cart.map((item) => (
-                            <div key={item.cartId} className="cart-item">
-                                <Link to={`/products/${item.slug}`} className="cart-item__image">
-                                    <img src={item.images[0]} alt={item.name} loading="lazy" />
-                                </Link>
-                                <div>
-                                    <Link to={`/products/${item.slug}`} className="cart-item__name">{item.name}</Link>
-                                    <p className="cart-item__variant">Size: {item.selectedSize} | Color: {item.selectedColor?.name}</p>
-                                    <div className="qty-stepper" style={{ marginBottom: 'var(--space-2)' }}>
-                                        <button
-                                            className="qty-stepper__btn"
-                                            onClick={() => updateQuantity(item.cartId, -1)}
-                                            disabled={item.quantity <= 1}
-                                        >
-                                            <Minus size={14} />
-                                        </button>
-                                        <span className="qty-stepper__value">{item.quantity}</span>
-                                        <button
-                                            className="qty-stepper__btn"
-                                            onClick={() => updateQuantity(item.cartId, 1)}
-                                        >
-                                            <Plus size={14} />
-                                        </button>
-                                    </div>
-                                    <p className="cart-item__price">{formatPrice(item.price * item.quantity)}</p>
-                                    <button
-                                        className="cart-item__remove"
-                                        onClick={() => removeFromCart(item.cartId)}
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                                <button
-                                    style={{ alignSelf: 'start', color: 'var(--color-text-muted)' }}
-                                    aria-label="Remove item"
-                                    onClick={() => removeFromCart(item.cartId)}
-                                >
-                                    <X size={18} />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Summary */}
-                    <div className="cart-summary">
-                        <h3 className="cart-summary__title">Order Summary</h3>
-                        <div className="cart-summary__row">
-                            <span>Subtotal</span>
-                            <span>{formatPrice(subtotal)}</span>
-                        </div>
-                        <div className="cart-summary__row">
-                            <span>Shipping</span>
-                            <span>{shipping === 0 ? 'FREE' : formatPrice(shipping)}</span>
-                        </div>
-                        <div className="cart-summary__row">
-                            <span>Tax (GST 18%)</span>
-                            <span>{formatPrice(tax)}</span>
-                        </div>
-                        <div className="cart-summary__row cart-summary__row--total">
-                            <span>Total</span>
-                            <span>{formatPrice(total)}</span>
-                        </div>
-
-                        <div className="cart-summary__coupon">
-                            <input type="text" className="cart-summary__coupon-input" placeholder="Coupon code" />
-                            <button className="btn btn--secondary btn--sm"><Tag size={14} /> Apply</button>
-                        </div>
-
-                        <Link to="/checkout" className="btn btn--primary btn--full btn--lg" style={{ marginTop: 'var(--space-4)' }}>
-                            Checkout <ArrowRight size={18} />
-                        </Link>
-
-                        <Link to="/products" style={{ display: 'block', textAlign: 'center', marginTop: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', textDecoration: 'underline' }}>
-                            Continue Shopping
-                        </Link>
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     );
+  }
+
+  return (
+    <div className="page">
+      <div className="container">
+        <h1
+          style={{
+            fontSize: 'var(--text-3xl)',
+            marginBottom: 'var(--space-8)',
+          }}
+        >
+          Shopping Bag ({cart.length})
+        </h1>
+
+        <div className="cart-page">
+          {/* Cart Items */}
+          <div>
+            {cart.map((item) => (
+              <CartItem
+                key={item.cartId}
+                item={item}
+                onUpdateQuantity={handleUpdateQuantity}
+                onRemove={handleRemoveFromCart}
+              />
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div className="cart-summary">
+            <h3 className="cart-summary__title">Order Summary</h3>
+            <div className="cart-summary__row">
+              <span>Subtotal</span>
+              <span>{formattedSubtotal}</span>
+            </div>
+            <div className="cart-summary__row">
+              <span>Shipping</span>
+              <span>{formattedShipping}</span>
+            </div>
+            <div className="cart-summary__row">
+              <span>Tax (GST 18%)</span>
+              <span>{formattedTax}</span>
+            </div>
+            <div className="cart-summary__row cart-summary__row--total">
+              <span>Total</span>
+              <span>{formattedTotal}</span>
+            </div>
+
+            <div className="cart-summary__coupon">
+              <input
+                type="text"
+                className="cart-summary__coupon-input"
+                placeholder="Coupon code"
+              />
+              <button className="btn btn--secondary btn--sm">
+                <Tag size={14} /> Apply
+              </button>
+            </div>
+
+            <Link
+              to="/checkout"
+              className="btn btn--primary btn--full btn--lg"
+              style={{ marginTop: 'var(--space-4)' }}
+            >
+              Checkout <ArrowRight size={18} />
+            </Link>
+
+            <Link
+              to="/products"
+              style={{
+                display: 'block',
+                textAlign: 'center',
+                marginTop: 'var(--space-4)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-muted)',
+                textDecoration: 'underline',
+              }}
+            >
+              Continue Shopping
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

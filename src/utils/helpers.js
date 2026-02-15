@@ -10,8 +10,8 @@
  * @returns {*} Cloned object
  */
 export const deepClone = (obj) => {
-    if (obj === null || typeof obj !== 'object') return obj;
-    return JSON.parse(JSON.stringify(obj));
+  if (obj === null || typeof obj !== 'object') return obj;
+  return JSON.parse(JSON.stringify(obj));
 };
 
 /**
@@ -20,10 +20,10 @@ export const deepClone = (obj) => {
  * @returns {boolean} True if empty
  */
 export const isEmpty = (obj) => {
-    if (obj === null || obj === undefined) return true;
-    if (Array.isArray(obj)) return obj.length === 0;
-    if (typeof obj === 'object') return Object.keys(obj).length === 0;
-    return false;
+  if (obj === null || obj === undefined) return true;
+  if (Array.isArray(obj)) return obj.length === 0;
+  if (typeof obj === 'object') return Object.keys(obj).length === 0;
+  return false;
 };
 
 /**
@@ -33,15 +33,15 @@ export const isEmpty = (obj) => {
  * @returns {Function} Debounced function
  */
 export const debounce = (func, wait = 300) => {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
     };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 };
 
 /**
@@ -51,14 +51,14 @@ export const debounce = (func, wait = 300) => {
  * @returns {Function} Throttled function
  */
 export const throttle = (func, limit = 100) => {
-    let inThrottle;
-    return function executedFunction(...args) {
-        if (!inThrottle) {
-            func(...args);
-            inThrottle = true;
-            setTimeout(() => (inThrottle = false), limit);
-        }
-    };
+  let inThrottle;
+  return function executedFunction(...args) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
 };
 
 /**
@@ -66,7 +66,7 @@ export const throttle = (func, limit = 100) => {
  * @returns {string} Unique ID
  */
 export const generateId = () => {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
 /**
@@ -75,7 +75,7 @@ export const generateId = () => {
  * @returns {Promise} Promise that resolves after delay
  */
 export const sleep = (ms) => {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 /**
@@ -86,13 +86,13 @@ export const sleep = (ms) => {
  * @returns {Promise} Result of function
  */
 export const retry = async (fn, retries = 3, delay = 1000) => {
-    try {
-        return await fn();
-    } catch (error) {
-        if (retries === 0) throw error;
-        await sleep(delay);
-        return retry(fn, retries - 1, delay * 2);
-    }
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries === 0) throw error;
+    await sleep(delay);
+    return retry(fn, retries - 1, delay * 2);
+  }
 };
 
 /**
@@ -102,14 +102,14 @@ export const retry = async (fn, retries = 3, delay = 1000) => {
  * @returns {Object} Grouped object
  */
 export const groupBy = (array, key) => {
-    return array.reduce((result, item) => {
-        const group = item[key];
-        if (!result[group]) {
-            result[group] = [];
-        }
-        result[group].push(item);
-        return result;
-    }, {});
+  return array.reduce((result, item) => {
+    const group = item[key];
+    if (!result[group]) {
+      result[group] = [];
+    }
+    result[group].push(item);
+    return result;
+  }, {});
 };
 
 /**
@@ -119,19 +119,19 @@ export const groupBy = (array, key) => {
  * @returns {Array} Array without duplicates
  */
 export const removeDuplicates = (array, key = null) => {
-    if (!key) {
-        return [...new Set(array)];
+  if (!key) {
+    return [...new Set(array)];
+  }
+
+  const seen = new Set();
+  return array.filter((item) => {
+    const value = item[key];
+    if (seen.has(value)) {
+      return false;
     }
-    
-    const seen = new Set();
-    return array.filter(item => {
-        const value = item[key];
-        if (seen.has(value)) {
-            return false;
-        }
-        seen.add(value);
-        return true;
-    });
+    seen.add(value);
+    return true;
+  });
 };
 
 /**
@@ -142,14 +142,14 @@ export const removeDuplicates = (array, key = null) => {
  * @returns {Array} Sorted array
  */
 export const sortBy = (array, key, order = 'asc') => {
-    return [...array].sort((a, b) => {
-        const aVal = a[key];
-        const bVal = b[key];
-        
-        if (aVal < bVal) return order === 'asc' ? -1 : 1;
-        if (aVal > bVal) return order === 'asc' ? 1 : -1;
-        return 0;
-    });
+  return [...array].sort((a, b) => {
+    const aVal = a[key];
+    const bVal = b[key];
+
+    if (aVal < bVal) return order === 'asc' ? -1 : 1;
+    if (aVal > bVal) return order === 'asc' ? 1 : -1;
+    return 0;
+  });
 };
 
 /**
@@ -159,11 +159,11 @@ export const sortBy = (array, key, order = 'asc') => {
  * @returns {Array} Array of chunks
  */
 export const chunk = (array, size) => {
-    const chunks = [];
-    for (let i = 0; i < array.length; i += size) {
-        chunks.push(array.slice(i, i + size));
-    }
-    return chunks;
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
 };
 
 /**
@@ -173,12 +173,12 @@ export const chunk = (array, size) => {
  * @returns {Object} New object with picked keys
  */
 export const pick = (obj, keys) => {
-    return keys.reduce((result, key) => {
-        if (obj.hasOwnProperty(key)) {
-            result[key] = obj[key];
-        }
-        return result;
-    }, {});
+  return keys.reduce((result, key) => {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      result[key] = obj[key];
+    }
+    return result;
+  }, {});
 };
 
 /**
@@ -188,9 +188,9 @@ export const pick = (obj, keys) => {
  * @returns {Object} New object without omitted keys
  */
 export const omit = (obj, keys) => {
-    const result = { ...obj };
-    keys.forEach(key => delete result[key]);
-    return result;
+  const result = { ...obj };
+  keys.forEach((key) => delete result[key]);
+  return result;
 };
 
 /**
@@ -200,23 +200,23 @@ export const omit = (obj, keys) => {
  * @returns {Object} Merged object
  */
 export const deepMerge = (target, source) => {
-    const output = { ...target };
-    
-    if (isObject(target) && isObject(source)) {
-        Object.keys(source).forEach(key => {
-            if (isObject(source[key])) {
-                if (!(key in target)) {
-                    output[key] = source[key];
-                } else {
-                    output[key] = deepMerge(target[key], source[key]);
-                }
-            } else {
-                output[key] = source[key];
-            }
-        });
-    }
-    
-    return output;
+  const output = { ...target };
+
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach((key) => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+
+  return output;
 };
 
 /**
@@ -225,7 +225,7 @@ export const deepMerge = (target, source) => {
  * @returns {boolean} True if object
  */
 const isObject = (item) => {
-    return item && typeof item === 'object' && !Array.isArray(item);
+  return item && typeof item === 'object' && !Array.isArray(item);
 };
 
 /**
@@ -236,17 +236,17 @@ const isObject = (item) => {
  * @returns {*} Value at path or default value
  */
 export const getNestedValue = (obj, path, defaultValue = undefined) => {
-    const keys = path.split('.');
-    let result = obj;
-    
-    for (const key of keys) {
-        if (result === null || result === undefined) {
-            return defaultValue;
-        }
-        result = result[key];
+  const keys = path.split('.');
+  let result = obj;
+
+  for (const key of keys) {
+    if (result === null || result === undefined) {
+      return defaultValue;
     }
-    
-    return result !== undefined ? result : defaultValue;
+    result = result[key];
+  }
+
+  return result !== undefined ? result : defaultValue;
 };
 
 /**
@@ -257,19 +257,19 @@ export const getNestedValue = (obj, path, defaultValue = undefined) => {
  * @returns {Object} Modified object
  */
 export const setNestedValue = (obj, path, value) => {
-    const keys = path.split('.');
-    const lastKey = keys.pop();
-    let current = obj;
-    
-    for (const key of keys) {
-        if (!current[key] || typeof current[key] !== 'object') {
-            current[key] = {};
-        }
-        current = current[key];
+  const keys = path.split('.');
+  const lastKey = keys.pop();
+  let current = obj;
+
+  for (const key of keys) {
+    if (!current[key] || typeof current[key] !== 'object') {
+      current[key] = {};
     }
-    
-    current[lastKey] = value;
-    return obj;
+    current = current[key];
+  }
+
+  current[lastKey] = value;
+  return obj;
 };
 
 /**
@@ -278,13 +278,13 @@ export const setNestedValue = (obj, path, value) => {
  * @returns {Promise<boolean>} Success status
  */
 export const copyToClipboard = async (text) => {
-    try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch (error) {
-        console.error('Failed to copy to clipboard:', error);
-        return false;
-    }
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error);
+    return false;
+  }
 };
 
 /**
@@ -293,12 +293,12 @@ export const copyToClipboard = async (text) => {
  * @param {string} filename - Filename
  */
 export const downloadFile = (url, filename) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 /**
@@ -306,7 +306,9 @@ export const downloadFile = (url, filename) => {
  * @returns {boolean} True if mobile
  */
 export const isMobile = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 };
 
 /**
@@ -315,14 +317,14 @@ export const isMobile = () => {
  * @returns {Object} Query parameters
  */
 export const getQueryParams = (url = window.location.href) => {
-    const params = {};
-    const urlObj = new URL(url);
-    
-    for (const [key, value] of urlObj.searchParams) {
-        params[key] = value;
-    }
-    
-    return params;
+  const params = {};
+  const urlObj = new URL(url);
+
+  for (const [key, value] of urlObj.searchParams) {
+    params[key] = value;
+  }
+
+  return params;
 };
 
 /**
@@ -331,15 +333,15 @@ export const getQueryParams = (url = window.location.href) => {
  * @returns {string} Query string
  */
 export const buildQueryString = (params) => {
-    const searchParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-            searchParams.append(key, value);
-        }
-    });
-    
-    return searchParams.toString();
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      searchParams.append(key, value);
+    }
+  });
+
+  return searchParams.toString();
 };
 
 /**
@@ -348,11 +350,12 @@ export const buildQueryString = (params) => {
  * @param {number} offset - Offset from top in pixels
  */
 export const scrollToElement = (elementId, offset = 0) => {
-    const element = document.getElementById(elementId);
-    if (element) {
-        const top = element.getBoundingClientRect().top + window.pageYOffset - offset;
-        window.scrollTo({ top, behavior: 'smooth' });
-    }
+  const element = document.getElementById(elementId);
+  if (element) {
+    const top =
+      element.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
 };
 
 /**
@@ -361,12 +364,13 @@ export const scrollToElement = (elementId, offset = 0) => {
  * @returns {boolean} True if in viewport
  */
 export const isInViewport = (element) => {
-    if (!element) return false;
-    const rect = element.getBoundingClientRect();
-    return (
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
+  if (!element) return false;
+  const rect = element.getBoundingClientRect();
+  return (
+    rect.top >= 0 &&
+    rect.left >= 0 &&
+    rect.bottom <=
+      (window.innerHeight || document.documentElement.clientHeight) &&
+    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+  );
 };

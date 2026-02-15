@@ -6,28 +6,31 @@ import useStore from '../store/useStore';
  * Redirects to login and stores intended destination
  */
 export default function ProtectedRoute({ children }) {
-    const { user, isLoadingAuth } = useStore();
-    const location = useLocation();
+  const { user, isLoadingAuth } = useStore();
+  const location = useLocation();
 
-    // Still checking auth state
-    if (isLoadingAuth) {
-        return (
-            <div className="page" style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '60vh'
-            }}>
-                <div className="spinner" />
-            </div>
-        );
-    }
+  // Still checking auth state
+  if (isLoadingAuth) {
+    return (
+      <div
+        className="page"
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '60vh',
+        }}
+      >
+        <div className="spinner" />
+      </div>
+    );
+  }
 
-    // Not authenticated - redirect to login with return URL
-    if (!user) {
-        return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-    }
+  // Not authenticated - redirect to login with return URL
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
 
-    // Authenticated - render children
-    return children;
+  // Authenticated - render children
+  return children;
 }

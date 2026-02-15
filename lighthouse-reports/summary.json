@@ -1,0 +1,57 @@
+[
+  {
+    "name": "Home",
+    "url": "http://localhost:4173/",
+    "scores": {
+      "performance": 87,
+      "accessibility": 96,
+      "bestPractices": 96,
+      "seo": 92
+    },
+    "reportPath": "lighthouse-reports\\home.html"
+  },
+  {
+    "name": "Product Listing",
+    "url": "http://localhost:4173/products",
+    "scores": {
+      "performance": 94,
+      "accessibility": 93,
+      "bestPractices": 96,
+      "seo": 92
+    },
+    "reportPath": "lighthouse-reports\\product-listing.html"
+  },
+  {
+    "name": "Product Detail",
+    "url": "http://localhost:4173/products/1",
+    "scores": {
+      "performance": 99,
+      "accessibility": 98,
+      "bestPractices": 93,
+      "seo": 92
+    },
+    "reportPath": "lighthouse-reports\\product-detail.html"
+  },
+  {
+    "name": "Cart",
+    "url": "http://localhost:4173/cart",
+    "scores": {
+      "performance": 97,
+      "accessibility": 98,
+      "bestPractices": 96,
+      "seo": 92
+    },
+    "reportPath": "lighthouse-reports\\cart.html"
+  },
+  {
+    "name": "Login",
+    "url": "http://localhost:4173/login",
+    "scores": {
+      "performance": 98,
+      "accessibility": 87,
+      "bestPractices": 96,
+      "seo": 92
+    },
+    "reportPath": "lighthouse-reports\\login.html"
+  }
+]

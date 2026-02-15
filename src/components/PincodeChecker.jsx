@@ -2,117 +2,109 @@ import { useState } from 'react';
 import { MapPin, Check, X, Loader } from 'lucide-react';
 import { checkPincodeServiceability } from '../api/addresses.api';
 
-export default function PincodeChecker({ onServiceabilityCheck, productId }) {
-    const [pincode, setPincode] = useState('');
-    const [checking, setChecking] = useState(false);
-    const [result, setResult] = useState(null);
+export default function PincodeChecker({ onServiceabilityCheck }) {
+  const [pincode, setPincode] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState(null);
 
-    const handleCheck = async (e) => {
-        e.preventDefault();
-        
-        if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
-            setResult({
-                is_serviceable: false,
-                message: 'Please enter a valid 6-digit pincode'
-            });
-            return;
+  const handleCheck = async (e) => {
+    e.preventDefault();
+
+    if (pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
+      setResult({
+        is_serviceable: false,
+        message: 'Please enter a valid 6-digit pincode',
+      });
+      return;
+    }
+
+    setChecking(true);
+    setResult(null);
+
+    try {
+      const response = await checkPincodeServiceability(pincode);
+
+      if (response.success) {
+        setResult(response.data);
+        if (onServiceabilityCheck) {
+          onServiceabilityCheck(response.data);
         }
+      } else {
+        setResult({
+          is_serviceable: false,
+          message: 'Error checking pincode. Please try again.',
+        });
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setResult({
+        is_serviceable: false,
+        message: 'Error checking pincode. Please try again.',
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
 
-        setChecking(true);
-        setResult(null);
+  const handlePincodeChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setPincode(value);
+    if (result) setResult(null);
+  };
 
-        try {
-            const response = await checkPincodeServiceability(pincode);
-            
-            if (response.success) {
-                setResult(response.data);
-                if (onServiceabilityCheck) {
-                    onServiceabilityCheck(response.data);
-                }
-            } else {
-                setResult({
-                    is_serviceable: false,
-                    message: 'Error checking pincode. Please try again.'
-                });
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            setResult({
-                is_serviceable: false,
-                message: 'Error checking pincode. Please try again.'
-            });
-        } finally {
-            setChecking(false);
-        }
-    };
+  return (
+    <div className="pincode-checker">
+      <form onSubmit={handleCheck} className="pincode-checker__form">
+        <div className="pincode-checker__input-group">
+          <MapPin size={18} className="pincode-checker__icon" />
+          <input
+            type="text"
+            value={pincode}
+            onChange={handlePincodeChange}
+            placeholder="Enter pincode"
+            className="pincode-checker__input"
+            maxLength={6}
+            disabled={checking}
+          />
+          <button
+            type="submit"
+            className="pincode-checker__button"
+            disabled={checking || pincode.length !== 6}
+          >
+            {checking ? <Loader size={16} className="spinner" /> : 'Check'}
+          </button>
+        </div>
+      </form>
 
-    const handlePincodeChange = (e) => {
-        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-        setPincode(value);
-        if (result) setResult(null);
-    };
-
-    return (
-        <div className="pincode-checker">
-            <form onSubmit={handleCheck} className="pincode-checker__form">
-                <div className="pincode-checker__input-group">
-                    <MapPin size={18} className="pincode-checker__icon" />
-                    <input
-                        type="text"
-                        value={pincode}
-                        onChange={handlePincodeChange}
-                        placeholder="Enter pincode"
-                        className="pincode-checker__input"
-                        maxLength={6}
-                        disabled={checking}
-                    />
-                    <button
-                        type="submit"
-                        className="pincode-checker__button"
-                        disabled={checking || pincode.length !== 6}
-                    >
-                        {checking ? (
-                            <Loader size={16} className="spinner" />
-                        ) : (
-                            'Check'
-                        )}
-                    </button>
-                </div>
-            </form>
-
-            {result && (
-                <div className={`pincode-checker__result ${result.is_serviceable ? 'success' : 'error'}`}>
-                    <div className="pincode-checker__result-icon">
-                        {result.is_serviceable ? (
-                            <Check size={18} />
-                        ) : (
-                            <X size={18} />
-                        )}
-                    </div>
-                    <div className="pincode-checker__result-content">
-                        <p className="pincode-checker__result-message">
-                            {result.message}
-                        </p>
-                        {result.is_serviceable && (
-                            <div className="pincode-checker__result-details">
-                                <p className="pincode-checker__result-location">
-                                    {result.city}, {result.state}
-                                </p>
-                                <p className="pincode-checker__result-delivery">
-                                    Estimated delivery: {result.estimated_delivery_days} days
-                                </p>
-                                {result.is_cod_available && (
-                                    <p className="pincode-checker__result-cod">
-                                        Cash on Delivery available
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
+      {result && (
+        <div
+          className={`pincode-checker__result ${result.is_serviceable ? 'success' : 'error'}`}
+        >
+          <div className="pincode-checker__result-icon">
+            {result.is_serviceable ? <Check size={18} /> : <X size={18} />}
+          </div>
+          <div className="pincode-checker__result-content">
+            <p className="pincode-checker__result-message">{result.message}</p>
+            {result.is_serviceable && (
+              <div className="pincode-checker__result-details">
+                <p className="pincode-checker__result-location">
+                  {result.city}, {result.state}
+                </p>
+                <p className="pincode-checker__result-delivery">
+                  Estimated delivery: {result.estimated_delivery_days} days
+                </p>
+                {result.is_cod_available && (
+                  <p className="pincode-checker__result-cod">
+                    Cash on Delivery available
+                  </p>
+                )}
+              </div>
             )}
+          </div>
+        </div>
+      )}
 
-            <style>{`
+      <style>{`
                 .pincode-checker {
                     margin: 1.5rem 0;
                 }
@@ -279,6 +271,6 @@ export default function PincodeChecker({ onServiceabilityCheck, productId }) {
                     }
                 }
             `}</style>
-        </div>
-    );
+    </div>
+  );
 }

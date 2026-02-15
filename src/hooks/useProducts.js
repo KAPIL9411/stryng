@@ -1,6 +1,6 @@
 /**
- * React Query Hooks for Products
- * Provides caching, prefetching, and optimistic updates
+ * Ultra-Fast React Query Hooks for Products
+ * Optimized for maximum performance with in-memory caching
  * @module hooks/useProducts
  */
 
@@ -10,34 +10,29 @@ import * as productsApi from '../api/products.api';
 import useStore from '../store/useStore';
 
 /**
- * Hook to fetch paginated products with caching
+ * Hook to fetch paginated products with ultra-fast caching
  * @param {number} page - Page number
  * @param {number} limit - Items per page
  * @param {Object} filters - Filter options
  * @param {Object} options - React Query options
  */
-export const useProducts = (page = 1, limit = 24, filters = {}, options = {}) => {
-    return useQuery({
-        queryKey: queryKeys.products.list(page, filters),
-        queryFn: () => productsApi.fetchProducts(page, limit, filters),
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        cacheTime: 10 * 60 * 1000, // 10 minutes
-        keepPreviousData: true,
-        ...options,
-    });
-};
-
-/**
- * Hook to fetch all products (legacy support)
- */
-export const useAllProducts = (options = {}) => {
-    return useQuery({
-        queryKey: queryKeys.products.all,
-        queryFn: productsApi.fetchAllProducts,
-        staleTime: 5 * 60 * 1000,
-        cacheTime: 10 * 60 * 1000,
-        ...options,
-    });
+export const useProducts = (
+  page = 1,
+  limit = 24,
+  filters = {},
+  options = {}
+) => {
+  return useQuery({
+    queryKey: ['products', page, filters],
+    queryFn: () => productsApi.fetchProducts(page, limit, filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 1,
+    retryDelay: 500,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    ...options,
+  });
 };
 
 /**
@@ -45,87 +40,94 @@ export const useAllProducts = (options = {}) => {
  * @param {string} slug - Product slug
  */
 export const useProduct = (slug, options = {}) => {
-    return useQuery({
-        queryKey: queryKeys.products.detail(slug),
-        queryFn: () => productsApi.fetchProductBySlug(slug),
-        enabled: !!slug,
-        staleTime: 5 * 60 * 1000,
-        cacheTime: 10 * 60 * 1000,
-        ...options,
-    });
+  return useQuery({
+    queryKey: ['product', slug],
+    queryFn: () => productsApi.fetchProductBySlug(slug),
+    enabled: !!slug,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
+    refetchOnWindowFocus: false,
+    ...options,
+  });
 };
 
 /**
- * Hook to prefetch next page of products
+ * Hook to prefetch next page (background loading)
  */
 export const usePrefetchProducts = () => {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    return (page, limit, filters) => {
-        queryClient.prefetchQuery({
-            queryKey: queryKeys.products.list(page, filters),
-            queryFn: () => productsApi.fetchProducts(page, limit, filters),
-        });
-    };
+  return (page, limit, filters) => {
+    queryClient.prefetchQuery({
+      queryKey: ['products', page, filters],
+      queryFn: () => productsApi.fetchProducts(page, limit, filters),
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 };
 
 /**
- * Hook to create/update/delete products (admin)
+ * Hook to fetch products by IDs (for cart, wishlist)
+ * @param {Array<string>} ids - Product IDs
  */
-export const useProductMutations = () => {
-    const queryClient = useQueryClient();
-    const { showToast } = useStore();
-
-    const createMutation = useMutation({
-        mutationFn: productsApi.createProduct,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
-            showToast('Product created successfully', 'success');
-        },
-        onError: (error) => {
-            console.error('Create product error:', error);
-            showToast('Failed to create product', 'error');
-        },
-    });
-
-    const updateMutation = useMutation({
-        mutationFn: ({ id, productData }) => productsApi.updateProduct(id, productData),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
-            showToast('Product updated successfully', 'success');
-        },
-        onError: (error) => {
-            console.error('Update product error:', error);
-            showToast('Failed to update product', 'error');
-        },
-    });
-
-    const deleteMutation = useMutation({
-        mutationFn: productsApi.deleteProduct,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
-            showToast('Product deleted successfully', 'success');
-        },
-        onError: (error) => {
-            console.error('Delete product error:', error);
-            showToast('Failed to delete product', 'error');
-        },
-    });
-
-    return {
-        createProduct: createMutation,
-        updateProduct: updateMutation,
-        deleteProduct: deleteMutation,
-    };
+export const useProductsByIds = (ids, options = {}) => {
+  return useQuery({
+    queryKey: ['products-ids', ids?.sort().join(',')],
+    queryFn: () => productsApi.fetchProductsByIds(ids),
+    enabled: !!ids && ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: 1,
+    ...options,
+  });
 };
 
 /**
- * Hook to invalidate products cache (useful after updates)
+ * Hook to fetch trending products
+ * @param {number} limit - Number of products
+ */
+export const useTrendingProducts = (limit = 12, options = {}) => {
+  return useQuery({
+    queryKey: ['trending', limit],
+    queryFn: () => productsApi.fetchTrendingProducts(limit),
+    staleTime: 15 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    ...options,
+  });
+};
+
+/**
+ * Hook to invalidate products cache
  */
 export const useInvalidateProducts = () => {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    return () => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
-    };
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['product'] });
+    queryClient.invalidateQueries({ queryKey: ['trending'] });
+    queryClient.invalidateQueries({ queryKey: ['products-all'] });
+  };
+};
+
+/**
+ * Hook to fetch all products (optimized)
+ * WARNING: Use sparingly - prefer useProducts with pagination
+ */
+export const useAllProducts = (options = {}) => {
+  return useQuery({
+    queryKey: ['products-all'],
+    queryFn: () => productsApi.fetchAllProducts(),
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    ...options,
+  });
 };

@@ -1,0 +1,76 @@
+/* Badge Base */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-primary);
+  font-weight: var(--font-medium);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Badge Sizes */
+.ui-badge--sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.ui-badge--md {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.ui-badge--lg {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+}
+
+/* Badge Variants */
+.ui-badge--default {
+  background-color: var(--color-gray-200);
+  color: var(--color-gray-700);
+}
+
+.ui-badge--primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.ui-badge--success {
+  background-color: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.ui-badge--warning {
+  background-color: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.ui-badge--error {
+  background-color: var(--color-error-light);
+  color: var(--color-error);
+}
+
+.ui-badge--info {
+  background-color: var(--color-info-light);
+  color: var(--color-info);
+}
+
+/* Dot Badge */
+.ui-badge--dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.ui-badge--dot.ui-badge--sm {
+  width: 6px;
+  height: 6px;
+}
+
+.ui-badge--dot.ui-badge--lg {
+  width: 10px;
+  height: 10px;
+}

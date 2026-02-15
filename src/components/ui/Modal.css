@@ -1,0 +1,138 @@
+/* Modal Overlay */
+.ui-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-bg-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+  animation: fadeIn var(--transition-base);
+}
+
+/* Modal Content */
+.ui-modal__content {
+  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2xl);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--transition-base);
+  width: 100%;
+}
+
+/* Modal Sizes */
+.ui-modal__content--sm {
+  max-width: 400px;
+}
+
+.ui-modal__content--md {
+  max-width: 600px;
+}
+
+.ui-modal__content--lg {
+  max-width: 800px;
+}
+
+.ui-modal__content--xl {
+  max-width: 1200px;
+}
+
+/* Modal Header */
+.ui-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6);
+  border-bottom: var(--border-thin);
+}
+
+.ui-modal__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.ui-modal__close {
+  background: none;
+  border: none;
+  padding: var(--space-2);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-modal__close:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.ui-modal__close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Modal Body */
+.ui-modal__body {
+  padding: var(--space-6);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Modal Footer */
+.ui-modal__footer {
+  padding: var(--space-6);
+  border-top: var(--border-thin);
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  background-color: var(--color-bg-secondary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ui-modal {
+    padding: var(--space-2);
+  }
+
+  .ui-modal__content {
+    max-height: 95vh;
+  }
+
+  .ui-modal__header,
+  .ui-modal__body,
+  .ui-modal__footer {
+    padding: var(--space-4);
+  }
+}

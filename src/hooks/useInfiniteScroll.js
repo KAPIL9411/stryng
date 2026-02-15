@@ -4,56 +4,64 @@ import { useEffect, useRef, useCallback } from 'react';
  * useInfiniteScroll Hook
  * Detects when user scrolls near the bottom and triggers a callback
  * Uses Intersection Observer for efficient scroll detection
- * 
+ *
  * @param {Function} callback - Function to call when user reaches bottom
  * @param {boolean} hasMore - Whether there's more content to load
  * @param {boolean} isLoading - Whether content is currently loading
  * @param {Object} options - Intersection Observer options
  * @returns {Object} { ref, isIntersecting }
  */
-export const useInfiniteScroll = (callback, hasMore, isLoading, options = {}) => {
-    const observerRef = useRef(null);
-    const loadMoreRef = useRef(null);
+export const useInfiniteScroll = (
+  callback,
+  hasMore,
+  isLoading,
+  options = {}
+) => {
+  const observerRef = useRef(null);
+  const loadMoreRef = useRef(null);
 
-    const {
-        threshold = 0.5,
-        rootMargin = '100px', // Start loading 100px before reaching the element
-    } = options;
+  const {
+    threshold = 0.5,
+    rootMargin = '100px', // Start loading 100px before reaching the element
+  } = options;
 
-    const handleObserver = useCallback((entries) => {
-        const [entry] = entries;
-        
-        if (entry.isIntersecting && hasMore && !isLoading) {
-            callback();
-        }
-    }, [callback, hasMore, isLoading]);
+  const handleObserver = useCallback(
+    (entries) => {
+      const [entry] = entries;
 
-    useEffect(() => {
-        // Create observer
-        if (observerRef.current) {
-            observerRef.current.disconnect();
-        }
+      if (entry.isIntersecting && hasMore && !isLoading) {
+        callback();
+      }
+    },
+    [callback, hasMore, isLoading]
+  );
 
-        observerRef.current = new IntersectionObserver(handleObserver, {
-            threshold,
-            rootMargin,
-        });
+  useEffect(() => {
+    // Create observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
 
-        // Observe the load more element
-        const currentRef = loadMoreRef.current;
-        if (currentRef) {
-            observerRef.current.observe(currentRef);
-        }
+    observerRef.current = new IntersectionObserver(handleObserver, {
+      threshold,
+      rootMargin,
+    });
 
-        // Cleanup
-        return () => {
-            if (observerRef.current) {
-                observerRef.current.disconnect();
-            }
-        };
-    }, [handleObserver, threshold, rootMargin]);
+    // Observe the load more element
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observerRef.current.observe(currentRef);
+    }
 
-    return { ref: loadMoreRef };
+    // Cleanup
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [handleObserver, threshold, rootMargin]);
+
+  return { ref: loadMoreRef };
 };
 
 export default useInfiniteScroll;

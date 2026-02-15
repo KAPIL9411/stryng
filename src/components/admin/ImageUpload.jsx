@@ -1,172 +1,193 @@
 import { useState, useRef } from 'react';
 import { Upload, X, Loader, AlertCircle } from 'lucide-react';
-import { secureUploadMultipleImages, validateImageFile } from '../../lib/secureImageUpload';
+import {
+  secureUploadMultipleImages,
+  validateImageFile,
+} from '../../lib/secureImageUpload';
 
 export default function ImageUpload({ images = [], onChange, maxImages = 5 }) {
-    const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [dragActive, setDragActive] = useState(false);
-    const [errors, setErrors] = useState([]);
-    const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const [errors, setErrors] = useState([]);
+  const fileInputRef = useRef(null);
 
-    const handleFiles = async (files) => {
-        const fileArray = Array.from(files);
-        setErrors([]);
+  const handleFiles = async (files) => {
+    const fileArray = Array.from(files);
+    setErrors([]);
 
-        // Check max images
-        if (images.length + fileArray.length > maxImages) {
-            setErrors([`You can only upload up to ${maxImages} images`]);
-            return;
-        }
+    // Check max images
+    if (images.length + fileArray.length > maxImages) {
+      setErrors([`You can only upload up to ${maxImages} images`]);
+      return;
+    }
 
-        // Validate files
-        const validationErrors = [];
-        fileArray.forEach(file => {
-            const validation = validateImageFile(file);
-            if (!validation.isValid) {
-                validationErrors.push(`${file.name}: ${validation.errors.join(', ')}`);
-            }
-        });
+    // Validate files
+    const validationErrors = [];
+    fileArray.forEach((file) => {
+      const validation = validateImageFile(file);
+      if (!validation.isValid) {
+        validationErrors.push(`${file.name}: ${validation.errors.join(', ')}`);
+      }
+    });
 
-        if (validationErrors.length > 0) {
-            setErrors(validationErrors);
-            return;
-        }
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
-        setUploading(true);
-        setUploadProgress(0);
+    setUploading(true);
+    setUploadProgress(0);
 
-        try {
-            const result = await secureUploadMultipleImages(fileArray, setUploadProgress);
-            
-            if (result.errors && result.errors.length > 0) {
-                setErrors(result.errors.map(e => `${e.file}: ${e.errors.join(', ')}`));
-            }
-            
-            const newUrls = result.uploaded.map(r => r.url);
-            onChange([...images, ...newUrls]);
-        } catch (error) {
-            console.error('Upload error:', error);
-            setErrors([error.message || 'Failed to upload images. Please try again.']);
-        } finally {
-            setUploading(false);
-            setUploadProgress(0);
-        }
-    };
+    try {
+      const result = await secureUploadMultipleImages(
+        fileArray,
+        setUploadProgress
+      );
 
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
+      if (result.errors && result.errors.length > 0) {
+        setErrors(
+          result.errors.map((e) => `${e.file}: ${e.errors.join(', ')}`)
+        );
+      }
 
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFiles(e.dataTransfer.files);
-        }
-    };
+      const newUrls = result.uploaded.map((r) => r.url);
+      onChange([...images, ...newUrls]);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setErrors([
+        error.message || 'Failed to upload images. Please try again.',
+      ]);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
 
-    const handleDrag = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true);
-        } else if (e.type === 'dragleave') {
-            setDragActive(false);
-        }
-    };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
 
-    const handleChange = (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            handleFiles(e.target.files);
-        }
-    };
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+    }
+  };
 
-    const removeImage = (index) => {
-        const newImages = images.filter((_, i) => i !== index);
-        onChange(newImages);
-    };
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
 
-    return (
-        <div className="image-upload">
-            {/* Error messages */}
-            {errors.length > 0 && (
-                <div style={{ 
-                    marginBottom: '1rem', 
-                    padding: '0.75rem', 
-                    backgroundColor: '#fee', 
-                    border: '1px solid #fcc',
-                    borderRadius: '4px',
-                    fontSize: '0.875rem'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <AlertCircle size={16} color="#c00" />
-                        <strong>Upload Errors:</strong>
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
-                        {errors.map((error, i) => (
-                            <li key={i}>{error}</li>
-                        ))}
-                    </ul>
-                </div>
-            )}
+  const handleChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+  };
 
-            {/* Upload area */}
-            {/* Upload Zone */}
-            <div
-                className={`image-upload__dropzone ${dragActive ? 'image-upload__dropzone--active' : ''}`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => !uploading && fileInputRef.current?.click()}
-            >
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleChange}
-                    style={{ display: 'none' }}
-                />
+  const removeImage = (index) => {
+    const newImages = images.filter((_, i) => i !== index);
+    onChange(newImages);
+  };
 
-                {uploading ? (
-                    <div className="image-upload__uploading">
-                        <Loader className="image-upload__spinner" size={32} />
-                        <p>Uploading... {uploadProgress}%</p>
-                    </div>
-                ) : (
-                    <div className="image-upload__prompt">
-                        <Upload size={32} />
-                        <p><strong>Click to upload</strong> or drag and drop</p>
-                        <p className="image-upload__hint">PNG, JPG, WebP up to 10MB</p>
-                    </div>
-                )}
-            </div>
-
-            {/* Image Previews */}
-            {images.length > 0 && (
-                <div className="image-upload__previews">
-                    {images.map((url, index) => (
-                        <div key={index} className="image-upload__preview">
-                            <img src={url} alt={`Upload ${index + 1}`} />
-                            <button
-                                type="button"
-                                className="image-upload__remove"
-                                onClick={() => removeImage(index)}
-                                aria-label="Remove image"
-                            >
-                                <X size={16} />
-                            </button>
-                            {index === 0 && (
-                                <span className="image-upload__primary-badge">Primary</span>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            <p className="image-upload__count">
-                {images.length} / {maxImages} images uploaded
-            </p>
+  return (
+    <div className="image-upload">
+      {/* Error messages */}
+      {errors.length > 0 && (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.75rem',
+            backgroundColor: '#fee',
+            border: '1px solid #fcc',
+            borderRadius: '4px',
+            fontSize: '0.875rem',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginBottom: '0.5rem',
+            }}
+          >
+            <AlertCircle size={16} color="#c00" />
+            <strong>Upload Errors:</strong>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: '1.5rem' }}>
+            {errors.map((error, i) => (
+              <li key={i}>{error}</li>
+            ))}
+          </ul>
         </div>
-    );
+      )}
+
+      {/* Upload area */}
+      {/* Upload Zone */}
+      <div
+        className={`image-upload__dropzone ${dragActive ? 'image-upload__dropzone--active' : ''}`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={handleChange}
+          style={{ display: 'none' }}
+        />
+
+        {uploading ? (
+          <div className="image-upload__uploading">
+            <Loader className="image-upload__spinner" size={32} />
+            <p>Uploading... {uploadProgress}%</p>
+          </div>
+        ) : (
+          <div className="image-upload__prompt">
+            <Upload size={32} />
+            <p>
+              <strong>Click to upload</strong> or drag and drop
+            </p>
+            <p className="image-upload__hint">PNG, JPG, WebP up to 10MB</p>
+          </div>
+        )}
+      </div>
+
+      {/* Image Previews */}
+      {images.length > 0 && (
+        <div className="image-upload__previews">
+          {images.map((url, index) => (
+            <div key={index} className="image-upload__preview">
+              <img src={url} alt={`Upload ${index + 1}`} />
+              <button
+                type="button"
+                className="image-upload__remove"
+                onClick={() => removeImage(index)}
+                aria-label="Remove image"
+              >
+                <X size={16} />
+              </button>
+              {index === 0 && (
+                <span className="image-upload__primary-badge">Primary</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="image-upload__count">
+        {images.length} / {maxImages} images uploaded
+      </p>
+    </div>
+  );
 }
