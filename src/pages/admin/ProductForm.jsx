@@ -155,6 +155,8 @@ export default function ProductForm() {
   };
 
   const onSubmit = async (data) => {
+    console.log('🔄 Form submitted with data:', data);
+    
     // Validation
     if (images.length === 0) {
       showToast('Please upload at least one image', 'error');
@@ -213,15 +215,23 @@ export default function ProductForm() {
       track_inventory: data.track_inventory !== false,
     };
 
+    console.log('📦 Product data to save:', productData);
+    console.log('✏️ Is editing:', isEditing, 'Product ID:', id);
+
     try {
       let result;
       if (isEditing) {
+        console.log('🔄 Updating product...');
         result = await updateProduct(id, productData);
+        console.log('✅ Update result:', result);
       } else {
+        console.log('➕ Creating product...');
         result = await createProduct(productData);
+        console.log('✅ Create result:', result);
       }
 
       if (result.error) {
+        console.error('❌ Result contains error:', result.error);
         // Handle specific error types
         if (result.error.code === '23505') {
           // Unique constraint violation
@@ -242,8 +252,12 @@ export default function ProductForm() {
         throw result.error;
       }
 
+      console.log('✅ Product saved successfully');
+
       // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-all'] });
 
       // Show success message
       showToast(
@@ -254,7 +268,9 @@ export default function ProductForm() {
       );
 
       // Navigate back to products list
-      navigate('/admin/products');
+      setTimeout(() => {
+        navigate('/admin/products');
+      }, 500);
     } catch (error) {
       console.error('❌ Error saving product:', error);
       const errorMessage = error.message || error.toString();

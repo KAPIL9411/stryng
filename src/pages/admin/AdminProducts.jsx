@@ -302,14 +302,14 @@ export default function AdminProducts() {
               ) : (
                 filteredProducts.map((product) => (
                   <tr key={product.id}>
-                    <td>
+                    <td data-label="Image">
                       <img
                         src={product.images[0]}
                         alt={product.name}
                         className="product-thumbnail"
                       />
                     </td>
-                    <td>
+                    <td data-label="Name / SKU">
                       <div className="product-info">
                         <strong>{product.name}</strong>
                         <span className="product-slug">
@@ -317,10 +317,10 @@ export default function AdminProducts() {
                         </span>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Category">
                       <span className="category-badge">{product.category}</span>
                     </td>
-                    <td>
+                    <td data-label="Price">
                       <div className="price-info">
                         <strong>{formatPrice(product.price)}</strong>
                         {product.originalPrice > product.price && (
@@ -332,7 +332,7 @@ export default function AdminProducts() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Stock">
                       <div
                         style={{
                           display: 'flex',
@@ -354,8 +354,8 @@ export default function AdminProducts() {
                           )}
                       </div>
                     </td>
-                    <td>{getStockBadge(product)}</td>
-                    <td>
+                    <td data-label="Status">{getStockBadge(product)}</td>
+                    <td data-label="Actions">
                       <div className="action-buttons">
                         <Link
                           to={`/admin/products/${product.id}/edit`}

@@ -8,23 +8,24 @@ import {
   Copy,
   ExternalLink,
   AlertCircle,
+  ChevronRight,
+  Package,
+  CreditCard,
+  CheckCircle2,
+  Clock,
+  Shield,
+  Truck,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
 import { trackBeginCheckout } from '../lib/analytics';
 import { getUserAddresses } from '../api/addresses.api';
 import { createOrder, markPaymentAsPaid } from '../api/orders.api';
-import {
-  reserveInventory,
-  releaseReservation,
-  checkAvailableStock,
-} from '../lib/inventory';
 import SEO from '../components/SEO';
 
 // UPI Configuration
 const MERCHANT_VPA = 'kurmikapil154@okicici';
 const MERCHANT_NAME = 'Stryng Clothing';
-const RESERVATION_TIMEOUT = 15; // minutes
 
 // Memoized AddressCard component
 const AddressCard = memo(({ address, isSelected, onSelect }) => {
@@ -34,32 +35,41 @@ const AddressCard = memo(({ address, isSelected, onSelect }) => {
 
   return (
     <div
-      className={`address-card ${isSelected ? 'selected' : ''}`}
+      className={`modern-address-card ${isSelected ? 'selected' : ''}`}
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyPress={(e) => e.key === 'Enter' && handleClick()}
     >
-      <div className="address-card__radio">
-        {isSelected && <Check size={16} />}
+      <div className="address-radio">
+        <div className="radio-outer">
+          {isSelected && <div className="radio-inner" />}
+        </div>
       </div>
-      <div className="address-card__content">
-        <h4>{address.full_name}</h4>
-        <p>{address.address_line1}</p>
-        {address.address_line2 && (
-          <p>{address.address_line2}</p>
-        )}
-        {address.landmark && (
-          <p>Landmark: {address.landmark}</p>
-        )}
-        <p>
-          {address.city}, {address.state} -{' '}
-          {address.pincode}
+      <div className="address-content">
+        <div className="address-header">
+          <h4>{address.full_name}</h4>
+          {address.is_default && (
+            <span className="default-badge">Default</span>
+          )}
+        </div>
+        <p className="address-text">
+          {address.address_line1}
+          {address.address_line2 && `, ${address.address_line2}`}
         </p>
-        <p>Phone: {address.phone}</p>
-        {address.is_default && (
-          <span className="badge badge--success">
-            Default
-          </span>
+        {address.landmark && (
+          <p className="address-landmark">Near: {address.landmark}</p>
         )}
+        <p className="address-location">
+          {address.city}, {address.state} - {address.pincode}
+        </p>
+        <p className="address-phone">📞 {address.phone}</p>
       </div>
+      {isSelected && (
+        <div className="selected-indicator">
+          <CheckCircle2 size={20} />
+        </div>
+      )}
     </div>
   );
 });
@@ -67,30 +77,45 @@ const AddressCard = memo(({ address, isSelected, onSelect }) => {
 AddressCard.displayName = 'AddressCard';
 
 // Memoized OrderItem component
-const OrderItem = memo(({ item }) => {
+const OrderItem = memo(({ item, isCompact = false }) => {
   const itemTotal = useMemo(
     () => formatPrice(item.price * item.quantity),
     [item.price, item.quantity]
   );
 
   return (
-    <div className="order-item">
-      <img
-        src={item.images[0]}
-        alt={item.name}
-        className="order-item__image"
-      />
-      <div className="order-item__details">
-        <h4>{item.name}</h4>
-        <p>
-          Size: {item.selectedSize} | Color:{' '}
-          {item.selectedColor?.name}
-        </p>
-        <p>Qty: {item.quantity}</p>
+    <div className={`modern-order-item ${isCompact ? 'compact' : ''}`}>
+      <div className="item-image-wrapper">
+        <img
+          src={item.images[0]}
+          alt={item.name}
+          className="item-image"
+          loading="lazy"
+        />
+        <span className="item-quantity">{item.quantity}</span>
       </div>
-      <div className="order-item__price">
-        {itemTotal}
+      <div className="item-details">
+        <h4 className="item-name">{item.name}</h4>
+        <div className="item-meta">
+          <span className="item-size">Size: {item.selectedSize}</span>
+          <span className="item-separator">•</span>
+          <span className="item-color">
+            <span
+              className="color-dot"
+              style={{ backgroundColor: item.selectedColor?.hex }}
+            />
+            {item.selectedColor?.name}
+          </span>
+        </div>
+        {!isCompact && (
+          <p className="item-price-mobile">{itemTotal}</p>
+        )}
       </div>
+      {!isCompact && (
+        <div className="item-price-desktop">
+          {itemTotal}
+        </div>
+      )}
     </div>
   );
 });
@@ -104,11 +129,8 @@ export default function CheckoutOptimized() {
   // Prevent double submission
   const isCreatingOrder = useRef(false);
   const isConfirmingPayment = useRef(false);
-  const reservationIds = useRef([]);
-  const reservationTimer = useRef(null);
 
   // State
-  const [loading, setLoading] = useState(true);
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -117,43 +139,17 @@ export default function CheckoutOptimized() {
   const [transactionId, setTransactionId] = useState('');
   const [copiedUPI, setCopiedUPI] = useState(false);
   const [countdown, setCountdown] = useState(5);
-  const [stockError, setStockError] = useState(null);
-  const [reservationTimeLeft, setReservationTimeLeft] = useState(
-    RESERVATION_TIMEOUT * 60
-  );
+  const [showSummary, setShowSummary] = useState(false);
 
   // Cart Calculations - memoized for performance
-  const subtotal = useMemo(
-    () => getCartTotal(),
-    [getCartTotal]
-  );
-
+  const subtotal = useMemo(() => getCartTotal(), [getCartTotal]);
   const shippingCost = 0;
+  const tax = useMemo(() => Math.round(subtotal * 0.18), [subtotal]);
+  const total = useMemo(() => subtotal + shippingCost + tax, [subtotal, shippingCost, tax]);
 
-  const tax = useMemo(
-    () => Math.round(subtotal * 0.18),
-    [subtotal]
-  );
-
-  const total = useMemo(
-    () => subtotal + shippingCost + tax,
-    [subtotal, shippingCost, tax]
-  );
-
-  const formattedSubtotal = useMemo(
-    () => formatPrice(subtotal),
-    [subtotal]
-  );
-
-  const formattedTax = useMemo(
-    () => formatPrice(tax),
-    [tax]
-  );
-
-  const formattedTotal = useMemo(
-    () => formatPrice(total),
-    [total]
-  );
+  const formattedSubtotal = useMemo(() => formatPrice(subtotal), [subtotal]);
+  const formattedTax = useMemo(() => formatPrice(tax), [tax]);
+  const formattedTotal = useMemo(() => formatPrice(total), [total]);
 
   // UPI Payment Link - memoized
   const upiLink = useMemo(
@@ -164,18 +160,6 @@ export default function CheckoutOptimized() {
   const qrCodeUrl = useMemo(
     () => `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiLink)}`,
     [upiLink]
-  );
-
-  // Format time helper - must be defined before use
-  const formatTime = useCallback((seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }, []);
-
-  const reservationTimeFormatted = useMemo(
-    () => formatTime(reservationTimeLeft),
-    [reservationTimeLeft, formatTime]
   );
 
   // Memoize event handlers
@@ -194,20 +178,9 @@ export default function CheckoutOptimized() {
     setTransactionId(e.target.value);
   }, []);
 
-  // Cleanup reservations on unmount
-  useEffect(() => {
-    return () => {
-      // Release all reservations when leaving checkout
-      if (reservationIds.current.length > 0 && currentStep !== 3) {
-        reservationIds.current.forEach((id) => {
-          releaseReservation(id).catch(console.error);
-        });
-      }
-      if (reservationTimer.current) {
-        clearInterval(reservationTimer.current);
-      }
-    };
-  }, [currentStep]);
+  const toggleSummary = useCallback(() => {
+    setShowSummary(prev => !prev);
+  }, []);
 
   // Redirect if empty cart or not logged in
   useEffect(() => {
@@ -222,12 +195,10 @@ export default function CheckoutOptimized() {
       return;
     }
 
-    // Track begin checkout
     if (cart.length > 0) {
       trackBeginCheckout(cart, total);
     }
 
-    // Fetch addresses
     if (currentStep === 1) {
       fetchAddresses();
     }
@@ -251,36 +222,10 @@ export default function CheckoutOptimized() {
     }
   }, [currentStep, navigate]);
 
-  // Reservation countdown timer
-  useEffect(() => {
-    if (currentStep === 2 && reservationTimeLeft > 0) {
-      reservationTimer.current = setInterval(() => {
-        setReservationTimeLeft((prev) => {
-          if (prev <= 1) {
-            // Reservation expired
-            showToast('Reservation expired. Please try again.', 'error');
-            navigate('/cart');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        if (reservationTimer.current) {
-          clearInterval(reservationTimer.current);
-        }
-      };
-    }
-  }, [currentStep, reservationTimeLeft, navigate]);
-
   const fetchAddresses = useCallback(async () => {
-    setLoading(true);
-
     const response = await getUserAddresses();
     if (response.success) {
       setAddresses(response.data);
-
       const defaultAddr = response.data.find((addr) => addr.is_default);
       if (defaultAddr) {
         setSelectedAddress(defaultAddr);
@@ -288,56 +233,7 @@ export default function CheckoutOptimized() {
         setSelectedAddress(response.data[0]);
       }
     }
-
-    setLoading(false);
   }, []);
-
-  const validateAndReserveStock = useCallback(async () => {
-    setStockError(null);
-
-    // Check and reserve stock for all items
-    for (const item of cart) {
-      // First check available stock
-      const stockCheck = await checkAvailableStock(item.id);
-
-      if (!stockCheck.success || stockCheck.availableStock < item.quantity) {
-        setStockError({
-          productName: item.name,
-          requested: item.quantity,
-          available: stockCheck.availableStock || 0,
-        });
-        return false;
-      }
-
-      // Reserve inventory
-      const reservation = await reserveInventory(
-        item.id,
-        user.id,
-        item.quantity,
-        RESERVATION_TIMEOUT
-      );
-
-      if (!reservation.success) {
-        setStockError({
-          productName: item.name,
-          requested: item.quantity,
-          available: reservation.available || 0,
-        });
-
-        // Release any successful reservations
-        for (const resId of reservationIds.current) {
-          await releaseReservation(resId);
-        }
-        reservationIds.current = [];
-
-        return false;
-      }
-
-      reservationIds.current.push(reservation.reservationId);
-    }
-
-    return true;
-  }, [cart, user]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (!selectedAddress) {
@@ -351,17 +247,8 @@ export default function CheckoutOptimized() {
 
     isCreatingOrder.current = true;
     setIsProcessing(true);
-    setStockError(null);
 
     try {
-      // Step 1: Validate and reserve inventory
-      const stockReserved = await validateAndReserveStock();
-
-      if (!stockReserved) {
-        throw new Error('Unable to reserve inventory');
-      }
-
-      // Step 2: Create order (atomic operation)
       const orderData = {
         total,
         items: cart.map((item) => ({
@@ -403,21 +290,11 @@ export default function CheckoutOptimized() {
     } catch (error) {
       console.error('Error creating order:', error);
       showToast(error.message || 'Failed to create order', 'error');
-
-      // Release reservations on error
-      for (const resId of reservationIds.current) {
-        await releaseReservation(resId);
-      }
-      reservationIds.current = [];
-
+    } finally {
       isCreatingOrder.current = false;
       setIsProcessing(false);
-    } finally {
-      if (!orderId) {
-        setIsProcessing(false);
-      }
     }
-  }, [selectedAddress, orderId, showToast, validateAndReserveStock, total, cart]);
+  }, [selectedAddress, orderId, showToast, total, cart]);
 
   const handlePaymentConfirmation = useCallback(async () => {
     if (!orderId || isConfirmingPayment.current) {
@@ -434,11 +311,6 @@ export default function CheckoutOptimized() {
         clearCart();
         setCurrentStep(3);
         showToast('Payment confirmation received!', 'success');
-
-        // Clear reservation timer
-        if (reservationTimer.current) {
-          clearInterval(reservationTimer.current);
-        }
       } else {
         throw new Error(result.error);
       }
@@ -451,299 +323,286 @@ export default function CheckoutOptimized() {
     }
   }, [orderId, transactionId, clearCart, showToast]);
 
-  if (loading) {
-    return (
-      <div className="page">
-        <div
-          className="container"
-          style={{ padding: '4rem 0', textAlign: 'center' }}
-        >
-          <div className="spinner" style={{ margin: '0 auto' }}></div>
-          <p
-            style={{ marginTop: '1rem', color: 'var(--color-text-secondary)' }}
-          >
-            Loading checkout...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <SEO
         title="Checkout - Stryng Clothing"
-        description="Complete your order"
+        description="Complete your order securely"
       />
 
-      <div className="page">
-        <div className="container" style={{ padding: '3rem 0' }}>
-          {/* Stock Error Alert */}
-          {stockError && (
-            <div
-              className="alert alert--error"
-              style={{ marginBottom: '2rem' }}
+      <div className="modern-checkout-page">
+        <div className="checkout-container">
+          {/* Mobile Header */}
+          <div className="checkout-mobile-header">
+            <button
+              className="back-button"
+              onClick={() => currentStep > 1 ? setCurrentStep(currentStep - 1) : navigate('/cart')}
+              aria-label="Go back"
             >
-              <AlertCircle size={20} />
-              <div>
-                <strong>Stock Unavailable</strong>
-                <p>
-                  {stockError.productName}: Only {stockError.available}{' '}
-                  available, but you requested {stockError.requested}. Please
-                  update your cart.
-                </p>
-              </div>
-              <Link to="/cart" className="btn btn--sm btn--secondary">
-                Update Cart
-              </Link>
-            </div>
-          )}
+              <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+            <h1>Checkout</h1>
+            <div className="header-spacer" />
+          </div>
 
-          {/* Reservation Timer */}
-          {currentStep === 2 && (
-            <div className="reservation-timer">
-              <AlertCircle size={18} />
-              <span>
-                Complete payment within:{' '}
-                <strong>{reservationTimeFormatted}</strong>
-              </span>
-            </div>
-          )}
-
-          {/* Progress Steps */}
-          <div className="checkout-steps">
-            <div
-              className={`checkout-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}
-            >
-              <div className="checkout-step__number">
-                {currentStep > 1 ? <Check size={16} /> : '1'}
+          {/* Progress Indicator */}
+          <div className="modern-progress">
+            <div className="progress-steps">
+              <div className={`progress-step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+                <div className="step-circle">
+                  {currentStep > 1 ? <Check size={16} /> : <MapPin size={16} />}
+                </div>
+                <span className="step-label">Address</span>
               </div>
-              <span className="checkout-step__label">Address</span>
-            </div>
-            <div className="checkout-step__line"></div>
-            <div
-              className={`checkout-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}
-            >
-              <div className="checkout-step__number">
-                {currentStep > 2 ? <Check size={16} /> : '2'}
+              <div className={`progress-line ${currentStep > 1 ? 'completed' : ''}`} />
+              <div className={`progress-step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+                <div className="step-circle">
+                  {currentStep > 2 ? <Check size={16} /> : <CreditCard size={16} />}
+                </div>
+                <span className="step-label">Payment</span>
               </div>
-              <span className="checkout-step__label">Payment</span>
-            </div>
-            <div className="checkout-step__line"></div>
-            <div
-              className={`checkout-step ${currentStep >= 3 ? 'active' : ''}`}
-            >
-              <div className="checkout-step__number">3</div>
-              <span className="checkout-step__label">Confirmation</span>
+              <div className={`progress-line ${currentStep > 2 ? 'completed' : ''}`} />
+              <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>
+                <div className="step-circle">
+                  <CheckCircle2 size={16} />
+                </div>
+                <span className="step-label">Done</span>
+              </div>
             </div>
           </div>
 
-          <div className="checkout-grid">
+          <div className="checkout-layout">
             {/* Main Content */}
-            <div className="checkout-main">
+            <div className="checkout-main-content">
               {/* Step 1: Address Selection */}
               {currentStep === 1 && (
-                <div className="checkout-section">
-                  <div className="checkout-section__header">
-                    <h2>Select Delivery Address</h2>
-                    <Link
-                      to="/addresses"
-                      className="btn btn--secondary btn--sm"
-                    >
-                      <Plus size={16} /> Add New Address
+                <div className="checkout-card">
+                  <div className="card-header">
+                    <div className="header-title">
+                      <MapPin size={24} />
+                      <h2>Delivery Address</h2>
+                    </div>
+                    <Link to="/addresses" className="add-address-btn">
+                      <Plus size={18} />
+                      <span className="btn-text-desktop">Add New</span>
                     </Link>
                   </div>
 
                   {addresses.length === 0 ? (
-                    <div
-                      className="empty-state"
-                      style={{ padding: '3rem 2rem' }}
-                    >
-                      <MapPin
-                        size={48}
-                        style={{ opacity: 0.5, marginBottom: '1rem' }}
-                      />
+                    <div className="empty-addresses">
+                      <div className="empty-icon">
+                        <MapPin size={48} />
+                      </div>
                       <h3>No addresses saved</h3>
-                      <p>Add a delivery address to continue</p>
-                      <Link
-                        to="/addresses"
-                        className="btn btn--primary"
-                        style={{ marginTop: '1rem' }}
-                      >
-                        <Plus size={18} /> Add Address
+                      <p>Add a delivery address to continue with your order</p>
+                      <Link to="/addresses" className="btn-primary-large">
+                        <Plus size={20} /> Add Address
                       </Link>
                     </div>
                   ) : (
-                    <div className="address-list">
-                      {addresses.map((address) => (
-                        <AddressCard
-                          key={address.id}
-                          address={address}
-                          isSelected={selectedAddress?.id === address.id}
-                          onSelect={handleAddressSelect}
-                        />
-                      ))}
-                    </div>
-                  )}
+                    <>
+                      <div className="address-grid">
+                        {addresses.map((address) => (
+                          <AddressCard
+                            key={address.id}
+                            address={address}
+                            isSelected={selectedAddress?.id === address.id}
+                            onSelect={handleAddressSelect}
+                          />
+                        ))}
+                      </div>
 
-                  {addresses.length > 0 && (
-                    <button
-                      onClick={handlePlaceOrder}
-                      className="btn btn--primary btn--lg"
-                      style={{ width: '100%', marginTop: '2rem' }}
-                      disabled={!selectedAddress || isProcessing}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <Loader size={18} className="spinner" /> Reserving
-                          Stock...
-                        </>
-                      ) : (
-                        'Continue to Payment'
-                      )}
-                    </button>
+                      <button
+                        onClick={handlePlaceOrder}
+                        className="btn-primary-large checkout-continue-btn"
+                        disabled={!selectedAddress || isProcessing}
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader size={20} className="btn-spinner" />
+                            Reserving Stock...
+                          </>
+                        ) : (
+                          <>
+                            Continue to Payment
+                            <ChevronRight size={20} />
+                          </>
+                        )}
+                      </button>
+                    </>
                   )}
                 </div>
               )}
 
               {/* Step 2: Payment */}
               {currentStep === 2 && (
-                <div className="checkout-section">
-                  <h2>Complete Payment</h2>
-                  <p
-                    style={{
-                      color: 'var(--color-text-secondary)',
-                      marginBottom: '2rem',
-                    }}
-                  >
-                    Order ID: <strong>{orderId}</strong>
-                  </p>
+                <div className="checkout-card">
+                  <div className="card-header">
+                    <div className="header-title">
+                      <CreditCard size={24} />
+                      <h2>Payment</h2>
+                    </div>
+                    <div className="order-id-badge">
+                      Order #{orderId?.slice(-8)}
+                    </div>
+                  </div>
 
-                  <div className="payment-section">
-                    <div className="payment-qr">
-                      <h3>Scan QR Code</h3>
-                      <div className="qr-code-container">
+                  <div className="payment-container">
+                    {/* QR Code Section */}
+                    <div className="payment-method-card">
+                      <div className="method-header">
+                        <h3>Scan QR Code</h3>
+                        <span className="recommended-badge">Recommended</span>
+                      </div>
+                      <div className="qr-wrapper">
                         <img
                           src={qrCodeUrl}
                           alt="UPI QR Code"
-                          className="qr-code"
+                          className="qr-image"
                         />
                       </div>
-                      <p className="payment-instruction">
-                        Scan with any UPI app (Google Pay, PhonePe, Paytm, etc.)
+                      <p className="payment-hint">
+                        Scan with any UPI app (GPay, PhonePe, Paytm)
                       </p>
                     </div>
 
-                    <div className="payment-divider">OR</div>
+                    <div className="payment-divider">
+                      <span>OR</span>
+                    </div>
 
-                    <div className="payment-upi">
+                    {/* UPI ID Section */}
+                    <div className="payment-method-card">
                       <h3>Pay via UPI ID</h3>
-                      <div className="upi-id-box">
-                        <span className="upi-id">{MERCHANT_VPA}</span>
-                        <button
-                          onClick={copyUPIId}
-                          className="btn-icon"
-                          title="Copy UPI ID"
-                        >
-                          {copiedUPI ? <Check size={18} /> : <Copy size={18} />}
-                        </button>
+                      <div className="upi-id-container">
+                        <div className="upi-id-display">
+                          <span className="upi-text">{MERCHANT_VPA}</span>
+                          <button
+                            onClick={copyUPIId}
+                            className="copy-btn"
+                            title="Copy UPI ID"
+                          >
+                            {copiedUPI ? (
+                              <Check size={18} className="success-icon" />
+                            ) : (
+                              <Copy size={18} />
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      <p className="payment-amount">
-                        Amount to pay: <strong>{formattedTotal}</strong>
-                      </p>
+                      <div className="payment-amount-display">
+                        <span>Amount to pay</span>
+                        <strong>{formattedTotal}</strong>
+                      </div>
                       <a
                         href={upiLink}
-                        className="btn btn--secondary"
-                        style={{ width: '100%', marginTop: '1rem' }}
+                        className="btn-secondary-large"
                       >
-                        <ExternalLink size={18} /> Open UPI App
+                        <ExternalLink size={18} />
+                        Open UPI App
                       </a>
                     </div>
 
-                    <div className="payment-confirmation">
+                    {/* Transaction ID Input */}
+                    <div className="transaction-section">
                       <h3>After Payment</h3>
-                      <div className="form-group">
-                        <label>UPI Transaction ID (Optional)</label>
+                      <div className="input-group">
+                        <label htmlFor="transaction-id">
+                          UPI Transaction ID (Optional)
+                        </label>
                         <input
+                          id="transaction-id"
                           type="text"
-                          className="form-input"
-                          placeholder="Enter transaction ID"
+                          className="modern-input"
+                          placeholder="e.g., 123456789012"
                           value={transactionId}
                           onChange={handleTransactionIdChange}
                         />
-                        <small style={{ color: 'var(--color-text-secondary)' }}>
+                        <small className="input-hint">
                           Helps us verify your payment faster
                         </small>
                       </div>
 
                       <button
                         onClick={handlePaymentConfirmation}
-                        className="btn btn--primary btn--lg"
-                        style={{ width: '100%' }}
+                        className="btn-primary-large"
                         disabled={isProcessing}
                       >
                         {isProcessing ? (
                           <>
-                            <Loader size={18} className="spinner" />{' '}
-                            Processing...
+                            <Loader size={20} className="btn-spinner" />
+                            Verifying Payment...
                           </>
                         ) : (
                           <>
-                            <Check size={18} /> I Have Paid
+                            <Check size={20} />
+                            I Have Completed Payment
                           </>
                         )}
                       </button>
+
+                      <div className="payment-security">
+                        <Shield size={16} />
+                        <span>Your payment is secure and encrypted</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Step 3: Confirmation */}
+              {/* Step 3: Success */}
               {currentStep === 3 && (
-                <div className="checkout-section">
-                  <div className="order-success">
-                    <div className="success-icon-animated">
-                      <div className="success-checkmark">
-                        <Check size={48} />
-                      </div>
+                <div className="checkout-card success-card">
+                  <div className="success-animation">
+                    <div className="success-checkmark">
+                      <CheckCircle2 size={64} />
                     </div>
-                    <h2 className="success-title">
-                      Order Placed Successfully!
-                    </h2>
-                    <p className="order-id">
-                      Order ID: <strong>{orderId}</strong>
-                    </p>
-                    <p className="success-message">
-                      Thank you for your order! We'll verify your payment and
-                      send you a confirmation email shortly.
-                    </p>
+                  </div>
+                  <h2 className="success-title">Order Placed Successfully!</h2>
+                  <p className="success-order-id">
+                    Order ID: <strong>#{orderId}</strong>
+                  </p>
+                  <p className="success-message">
+                    Thank you for shopping with us! We'll verify your payment
+                    and send you a confirmation email shortly.
+                  </p>
 
-                    <div className="success-actions">
-                      <Link
-                        to={`/order/${orderId}`}
-                        className="btn btn--primary"
-                      >
-                        Track Order
-                      </Link>
-                      <Link to="/products" className="btn btn--secondary">
-                        Continue Shopping
-                      </Link>
-                    </div>
+                  <div className="success-actions">
+                    <Link to={`/order/${orderId}`} className="btn-primary-large">
+                      <Package size={20} />
+                      Track Order
+                    </Link>
+                    <Link to="/products" className="btn-secondary-large">
+                      Continue Shopping
+                    </Link>
+                  </div>
 
-                    <div className="success-info">
-                      <h4>What's Next?</h4>
-                      <ul>
-                        <li>✓ We'll verify your payment within 1-2 hours</li>
-                        <li>✓ You'll receive an order confirmation email</li>
-                        <li>✓ Your order will be processed and shipped</li>
-                        <li>✓ Track your order anytime from your account</li>
-                      </ul>
-                    </div>
+                  <div className="success-info-card">
+                    <h4>What happens next?</h4>
+                    <ul className="success-steps">
+                      <li>
+                        <Check size={16} />
+                        <span>Payment verification (1-2 hours)</span>
+                      </li>
+                      <li>
+                        <Check size={16} />
+                        <span>Order confirmation email</span>
+                      </li>
+                      <li>
+                        <Check size={16} />
+                        <span>Order processing & packaging</span>
+                      </li>
+                      <li>
+                        <Check size={16} />
+                        <span>Shipment & delivery tracking</span>
+                      </li>
+                    </ul>
+                  </div>
 
-                    <p className="redirect-message">
-                      Redirecting to home page in{' '}
-                      <span className="countdown">{countdown}</span> seconds...
-                    </p>
+                  <div className="redirect-notice">
+                    <Clock size={16} />
+                    <span>
+                      Redirecting to home in <strong>{countdown}s</strong>
+                    </span>
                   </div>
                 </div>
               )}
@@ -751,96 +610,120 @@ export default function CheckoutOptimized() {
 
             {/* Order Summary Sidebar */}
             <div className="checkout-sidebar">
-              <div className="order-summary">
-                <h3>Order Summary</h3>
+              <div className="summary-card">
+                <div className="summary-header">
+                  <h3>Order Summary</h3>
+                  <span className="item-count">{cart.length} items</span>
+                </div>
 
-                <div className="order-items">
+                <div className="summary-items">
                   {cart.map((item) => (
-                    <OrderItem key={item.cartId} item={item} />
+                    <OrderItem key={item.cartId} item={item} isCompact />
                   ))}
                 </div>
 
-                <div className="order-totals">
-                  <div className="order-total-row">
+                <div className="summary-totals">
+                  <div className="total-row">
                     <span>Subtotal</span>
                     <span>{formattedSubtotal}</span>
                   </div>
-                  <div className="order-total-row">
+                  <div className="total-row">
                     <span>Shipping</span>
-                    <span className="free-badge">FREE</span>
+                    <span className="free-text">FREE</span>
                   </div>
-                  <div className="order-total-row">
-                    <span>Tax (18%)</span>
+                  <div className="total-row">
+                    <span>Tax (GST 18%)</span>
                     <span>{formattedTax}</span>
                   </div>
-                  <div className="order-total-row total">
+                  <div className="total-row grand-total">
                     <span>Total</span>
                     <span>{formattedTotal}</span>
                   </div>
                 </div>
 
                 {selectedAddress && currentStep === 1 && (
-                  <div className="delivery-address">
-                    <h4>Delivering to:</h4>
-                    <p>
+                  <div className="delivery-info">
+                    <div className="delivery-header">
+                      <Truck size={18} />
+                      <span>Delivering to</span>
+                    </div>
+                    <div className="delivery-address">
                       <strong>{selectedAddress.full_name}</strong>
-                    </p>
-                    <p>{selectedAddress.address_line1}</p>
-                    <p>
-                      {selectedAddress.city}, {selectedAddress.state} -{' '}
-                      {selectedAddress.pincode}
-                    </p>
+                      <p>
+                        {selectedAddress.address_line1}, {selectedAddress.city}
+                      </p>
+                      <p>
+                        {selectedAddress.state} - {selectedAddress.pincode}
+                      </p>
+                    </div>
                   </div>
                 )}
+
+                <div className="trust-badges">
+                  <div className="trust-item">
+                    <Shield size={16} />
+                    <span>Secure Payment</span>
+                  </div>
+                  <div className="trust-item">
+                    <Truck size={16} />
+                    <span>Free Shipping</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Mobile Summary Toggle */}
+          <div className="mobile-summary-toggle">
+            <button
+              className="summary-toggle-btn"
+              onClick={toggleSummary}
+            >
+              <div className="toggle-content">
+                <Package size={18} />
+                <span>Order Summary</span>
+                <span className="toggle-total">{formattedTotal}</span>
+              </div>
+              <ChevronRight
+                size={20}
+                style={{
+                  transform: showSummary ? 'rotate(90deg)' : 'rotate(-90deg)',
+                  transition: 'transform 0.3s ease',
+                }}
+              />
+            </button>
+
+            {showSummary && (
+              <div className="mobile-summary-dropdown">
+                <div className="summary-items">
+                  {cart.map((item) => (
+                    <OrderItem key={item.cartId} item={item} />
+                  ))}
+                </div>
+
+                <div className="summary-totals">
+                  <div className="total-row">
+                    <span>Subtotal</span>
+                    <span>{formattedSubtotal}</span>
+                  </div>
+                  <div className="total-row">
+                    <span>Shipping</span>
+                    <span className="free-text">FREE</span>
+                  </div>
+                  <div className="total-row">
+                    <span>Tax (GST 18%)</span>
+                    <span>{formattedTax}</span>
+                  </div>
+                  <div className="total-row grand-total">
+                    <span>Total</span>
+                    <span>{formattedTotal}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      <style>{`
-                .reservation-timer {
-                    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-                    border: 2px solid #f59e0b;
-                    padding: 1rem 1.5rem;
-                    border-radius: 8px;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    margin-bottom: 2rem;
-                    color: #92400e;
-                    font-weight: 500;
-                }
-
-                .reservation-timer strong {
-                    color: #b45309;
-                    font-size: 1.125rem;
-                }
-
-                .alert {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 1rem;
-                    padding: 1rem 1.5rem;
-                    border-radius: 8px;
-                }
-
-                .alert--error {
-                    background: #fee2e2;
-                    border: 2px solid #dc2626;
-                    color: #991b1b;
-                }
-
-                .alert strong {
-                    display: block;
-                    margin-bottom: 0.25rem;
-                }
-
-                .alert p {
-                    margin: 0;
-                    font-size: 0.9375rem;
-                }
-            `}</style>
     </>
   );
 }

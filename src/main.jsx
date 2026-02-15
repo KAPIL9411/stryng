@@ -12,6 +12,8 @@ import './styles/header-footer.css';
 import './styles/components.css';
 import './styles/pages.css';
 import './styles/utilities.css';
+import './styles/checkout.css';
+import './styles/addresses.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

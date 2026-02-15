@@ -282,23 +282,70 @@ export const createProduct = async (productData) => {
  * @returns {Promise<Object>} Updated product
  */
 export const updateProduct = async (id, productData) => {
-  const { data, error } = await supabase
-    .from(API_ENDPOINTS.PRODUCTS)
-    .update(productData)
-    .eq('id', id)
-    .select();
+  console.log('🔄 API: updateProduct called', { id, productData });
+  console.log('📍 Using table:', API_ENDPOINTS.PRODUCTS);
+  
+  try {
+    // First, verify the product exists
+    console.log('🔍 Checking if product exists...');
+    const { data: existingProduct, error: fetchError } = await supabase
+      .from(API_ENDPOINTS.PRODUCTS)
+      .select('id, name')
+      .eq('id', id)
+      .single();
 
-  if (error) {
-    console.error('❌ Product update error:', error);
+    console.log('📊 Existing product check:', { existingProduct, fetchError });
+
+    if (fetchError) {
+      console.error('❌ Error fetching product:', fetchError);
+      if (fetchError.code === 'PGRST116') {
+        throw new Error(`Product with ID ${id} not found`);
+      }
+      throw fetchError;
+    }
+
+    if (!existingProduct) {
+      throw new Error(`Product with ID ${id} not found`);
+    }
+
+    console.log('✅ Product exists, proceeding with update...');
+
+    // Now update the product
+    const { data, error } = await supabase
+      .from(API_ENDPOINTS.PRODUCTS)
+      .update(productData)
+      .eq('id', id)
+      .select();
+
+    console.log('📊 Supabase update response:', { data, error });
+
+    if (error) {
+      console.error('❌ Product update error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      console.error('❌ No data returned after update');
+      throw new Error(`Failed to update product ${id}`);
+    }
+
+    // Invalidate caches
+    inMemoryCache.invalidatePattern('products:*');
+    inMemoryCache.invalidatePattern('product:*');
+    console.log('🗑️ Products cache invalidated after update');
+    console.log('✅ Product updated successfully:', data[0]);
+
+    return data[0];
+  } catch (error) {
+    console.error('❌ Update product exception:', error);
     throw error;
   }
-
-  // Invalidate caches
-  inMemoryCache.invalidatePattern('products:*');
-  inMemoryCache.invalidatePattern('product:*');
-  console.log('🗑️ Products cache invalidated after update');
-
-  return data[0];
 };
 
 /**

@@ -91,10 +91,35 @@ function App() {
       staleTime: 5 * 60 * 1000,
     });
 
+    // Prefetch user addresses for faster checkout/addresses page load
+    const prefetchAddresses = async () => {
+      const { supabase } = await import('./lib/supabaseClient');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        queryClient.prefetchQuery({
+          queryKey: ['addresses', user.id],
+          queryFn: async () => {
+            const { data } = await supabase
+              .from('customer_addresses')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+              .order('is_default', { ascending: false })
+              .order('created_at', { ascending: false });
+            return data || [];
+          },
+          staleTime: 2 * 60 * 1000, // 2 minutes
+        });
+      }
+    };
+
     // Initialize auth only (React Query handles data fetching)
     const initialize = async () => {
       try {
         await initializeAuth();
+        // Prefetch addresses after auth is initialized
+        await prefetchAddresses();
       } catch (error) {
         console.error('Initialization error:', error);
       }

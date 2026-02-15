@@ -618,42 +618,59 @@ const useStore = create(
 
       /* ---- Admin Product Actions ---- */
       createProduct: async (productData) => {
+        console.log('🔄 Store: createProduct called', productData);
         try {
-          const { data, error } = await supabase
-            .from('products')
-            .insert([productData])
-            .select();
+          // Import the API function
+          const { createProduct: apiCreateProduct } = await import('../api/products.api');
+          
+          // Use the API function which returns data directly
+          const data = await apiCreateProduct(productData);
 
-          if (error) {
-            // Provide user-friendly error messages using consolidated helper
-            if (error.code === '23505') {
-              error.message = getDatabaseErrorMessage(error);
-            }
-            throw error;
+          console.log('📊 API response:', data);
+
+          if (!data) {
+            console.warn('⚠️ No data returned from create');
+            throw new Error('Product creation failed');
           }
 
-          // Note: React Query cache invalidation handled in component
+          console.log('✅ Product created successfully:', data);
           return { data, error: null };
         } catch (error) {
-          console.error('Error creating product:', error);
+          console.error('❌ Error creating product:', error);
+          
+          // Provide user-friendly error messages
+          if (error.code === '23505') {
+            if (error.message.includes('slug')) {
+              error.message = 'A product with this slug already exists. Please use a different name.';
+            } else if (error.message.includes('sku')) {
+              error.message = 'A product with this SKU already exists. Please use a different SKU.';
+            }
+          }
+          
           return { data: null, error };
         }
       },
 
       updateProduct: async (id, productData) => {
+        console.log('🔄 Store: updateProduct called', { id, productData });
         try {
-          const { data, error } = await supabase
-            .from('products')
-            .update(productData)
-            .eq('id', id)
-            .select();
+          // Import the API function
+          const { updateProduct: apiUpdateProduct } = await import('../api/products.api');
+          
+          // Use the API function which returns data directly (not { data, error })
+          const data = await apiUpdateProduct(id, productData);
 
-          if (error) throw error;
+          console.log('📊 API response:', data);
 
-          // Note: React Query cache invalidation handled in component
+          if (!data) {
+            console.warn('⚠️ No data returned from update');
+            throw new Error('Product not found or update failed');
+          }
+
+          console.log('✅ Product updated successfully:', data);
           return { data, error: null };
         } catch (error) {
-          console.error('Error updating product:', error);
+          console.error('❌ Error updating product:', error);
           return { data: null, error };
         }
       },

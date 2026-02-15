@@ -30,7 +30,6 @@ export async function createOrder(orderData) {
     const orderId = generateOrderId();
 
     // 3. Create order
-    const now = new Date().toISOString();
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -41,13 +40,6 @@ export async function createOrder(orderData) {
         payment_status: 'pending',
         payment_method: orderData.paymentMethod || 'upi',
         address: orderData.address,
-        timeline: [
-          {
-            status: 'pending',
-            timestamp: now,
-            message: 'Order placed successfully',
-          },
-        ],
       })
       .select()
       .single();
@@ -101,16 +93,6 @@ export async function createOrder(orderData) {
  */
 export async function markPaymentAsPaid(orderId, transactionId = '') {
   try {
-    // Get current timeline
-    const { data: currentOrder } = await supabase
-      .from('orders')
-      .select('timeline')
-      .eq('id', orderId)
-      .single();
-
-    const timeline = currentOrder?.timeline || [];
-    const now = new Date().toISOString();
-
     // Update payment status
     const { error: paymentError } = await supabase
       .from('payments')
@@ -118,7 +100,7 @@ export async function markPaymentAsPaid(orderId, transactionId = '') {
         payment_status: 'awaiting_verification',
         transaction_id: transactionId || null,
         gateway_response: {
-          marked_paid_at: now,
+          marked_paid_at: new Date().toISOString(),
           transaction_id: transactionId,
         },
       })
@@ -132,16 +114,6 @@ export async function markPaymentAsPaid(orderId, transactionId = '') {
       .update({
         payment_status: 'awaiting_verification',
         transaction_id: transactionId || null,
-        timeline: [
-          ...timeline,
-          {
-            status: 'awaiting_verification',
-            timestamp: now,
-            message: transactionId 
-              ? `Payment marked as paid - Transaction ID: ${transactionId}` 
-              : 'Payment marked as paid - Awaiting admin verification',
-          },
-        ],
       })
       .eq('id', orderId)
       .select()
@@ -283,30 +255,12 @@ export async function cancelOrder(orderId, reason = '') {
       throw new Error('Order cannot be cancelled at this stage');
     }
 
-    // Get current timeline
-    const { data: currentOrder } = await supabase
-      .from('orders')
-      .select('timeline')
-      .eq('id', orderId)
-      .single();
-
-    const timeline = currentOrder?.timeline || [];
-    const now = new Date().toISOString();
-
     // Cancel order
     const { data, error } = await supabase
       .from('orders')
       .update({
         status: 'cancelled',
-        updated_at: now,
-        timeline: [
-          ...timeline,
-          {
-            status: 'cancelled',
-            timestamp: now,
-            message: reason ? `Order cancelled: ${reason}` : 'Order cancelled by customer',
-          },
-        ],
+        updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
       .select()
@@ -391,22 +345,12 @@ export async function getAllOrders(filters = {}, page = 1, pageSize = 20) {
 export async function verifyPayment(orderId, isVerified, notes = '') {
   try {
     if (isVerified) {
-      // Get current order to append to timeline
-      const { data: currentOrder } = await supabase
-        .from('orders')
-        .select('timeline')
-        .eq('id', orderId)
-        .single();
-
-      const timeline = currentOrder?.timeline || [];
-      const now = new Date().toISOString();
-
       // Update payment
       await supabase
         .from('payments')
         .update({
           payment_status: 'paid',
-          payment_date: now,
+          payment_date: new Date().toISOString(),
         })
         .eq('order_id', orderId);
 
@@ -416,14 +360,6 @@ export async function verifyPayment(orderId, isVerified, notes = '') {
         .update({
           status: 'confirmed',
           payment_status: 'paid',
-          timeline: [
-            ...timeline,
-            {
-              status: 'confirmed',
-              timestamp: now,
-              message: 'Payment verified and order confirmed',
-            },
-          ],
         })
         .eq('id', orderId)
         .select()
@@ -446,16 +382,6 @@ export async function verifyPayment(orderId, isVerified, notes = '') {
 
       return { success: true, data };
     } else {
-      // Get current order to append to timeline
-      const { data: currentOrder } = await supabase
-        .from('orders')
-        .select('timeline')
-        .eq('id', orderId)
-        .single();
-
-      const timeline = currentOrder?.timeline || [];
-      const now = new Date().toISOString();
-
       // Payment failed
       await supabase
         .from('payments')
@@ -470,14 +396,6 @@ export async function verifyPayment(orderId, isVerified, notes = '') {
         .update({
           status: 'cancelled',
           payment_status: 'failed',
-          timeline: [
-            ...timeline,
-            {
-              status: 'cancelled',
-              timestamp: now,
-              message: 'Payment verification failed - Order cancelled',
-            },
-          ],
         })
         .eq('id', orderId)
         .select()
@@ -501,39 +419,11 @@ export async function verifyPayment(orderId, isVerified, notes = '') {
  */
 export async function updateOrderStatus(orderId, status) {
   try {
-    // Get current order to append to timeline
-    const { data: currentOrder } = await supabase
-      .from('orders')
-      .select('timeline')
-      .eq('id', orderId)
-      .single();
-
-    const timeline = currentOrder?.timeline || [];
-    const now = new Date().toISOString();
-
-    // Status messages
-    const statusMessages = {
-      pending: 'Order is pending',
-      confirmed: 'Order confirmed',
-      processing: 'Order is being processed',
-      shipped: 'Order has been shipped',
-      delivered: 'Order delivered successfully',
-      cancelled: 'Order cancelled',
-    };
-
     const { data, error } = await supabase
       .from('orders')
       .update({
         status,
-        updated_at: now,
-        timeline: [
-          ...timeline,
-          {
-            status,
-            timestamp: now,
-            message: statusMessages[status] || `Order status updated to ${status}`,
-          },
-        ],
+        updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
       .select()
