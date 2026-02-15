@@ -166,9 +166,16 @@ export default function CheckoutOptimized() {
     [upiLink]
   );
 
+  // Format time helper - must be defined before use
+  const formatTime = useCallback((seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }, []);
+
   const reservationTimeFormatted = useMemo(
     () => formatTime(reservationTimeLeft),
-    [reservationTimeLeft]
+    [reservationTimeLeft, formatTime]
   );
 
   // Memoize event handlers
@@ -185,12 +192,6 @@ export default function CheckoutOptimized() {
 
   const handleTransactionIdChange = useCallback((e) => {
     setTransactionId(e.target.value);
-  }, []);
-
-  const formatTime = useCallback((seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
   // Cleanup reservations on unmount
