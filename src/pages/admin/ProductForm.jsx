@@ -260,7 +260,6 @@ export default function ProductForm() {
       }, 500);
     } catch (error) {
       console.error('❌ Error saving product:', error);
-    }
     } finally {
       setSubmitting(false);
     }
