@@ -849,22 +849,16 @@ export default function ProductListing() {
                 )}
               </>
             ) : (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '60px 0',
-                  color: 'var(--color-text-muted)',
-                }}
-              >
-                <ShoppingBag
-                  size={48}
-                  style={{ margin: '0 auto 20px', opacity: 0.5 }}
-                />
-                <h3>No products found</h3>
-                <p>Try adjusting your filters or search criteria.</p>
+              <div className="empty-products-state">
+                <div className="empty-products-state__icon">
+                  <ShoppingBag size={64} strokeWidth={1.5} />
+                </div>
+                <h2 className="empty-products-state__title">No Products Found</h2>
+                <p className="empty-products-state__message">
+                  Try adjusting your filters or search criteria.
+                </p>
                 <button
-                  className="btn btn--primary"
-                  style={{ marginTop: '20px' }}
+                  className="btn btn--primary empty-products-state__button"
                   onClick={() => setSearchParams({})}
                 >
                   Clear All Filters

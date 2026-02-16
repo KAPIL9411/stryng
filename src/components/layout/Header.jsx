@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Search,
   ShoppingBag,
   User,
   Menu,
@@ -10,6 +9,7 @@ import {
   Heart,
 } from 'lucide-react';
 import useStore from '../../store/useStore';
+import SearchBar from '../SearchBar';
 
 const navLinks = [
   { label: 'Men', path: '/products?category=men' },
@@ -28,16 +28,6 @@ export default function Header() {
   const { getCartCount, wishlist, user, isAdmin } = useStore();
   const cartCount = getCartCount();
   const wishlistCount = wishlist.length;
-
-  const handleSearch = (e) => {
-    if (e.key === 'Enter') {
-      const query = e.target.value.trim();
-      if (query) {
-        navigate(`/products?search=${encodeURIComponent(query)}`);
-        setMobileMenuOpen(false);
-      }
-    }
-  };
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -86,20 +76,7 @@ export default function Header() {
 
           {/* Right — Search + Icons */}
           <div className="header__actions">
-            <div className="header__search">
-              <Search
-                size={18}
-                strokeWidth={1.5}
-                className="header__search-icon"
-              />
-              <input
-                type="text"
-                className="header__search-input"
-                placeholder="Search here..."
-                aria-label="Search"
-                onKeyDown={handleSearch}
-              />
-            </div>
+            <SearchBar className="header__search-bar" />
 
             <Link
               to="/wishlist"
@@ -173,6 +150,12 @@ export default function Header() {
               <X size={22} />
             </button>
           </div>
+
+          {/* Mobile Search */}
+          <div className="mobile-menu__search">
+            <SearchBar />
+          </div>
+
           <nav className="mobile-menu__nav">
             {navLinks.map((link) => (
               <Link

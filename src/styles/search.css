@@ -1,0 +1,336 @@
+/* ============================================
+   SEARCH BAR STYLES - Modern E-commerce Design
+   ============================================ */
+
+.search-bar {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+}
+
+.search-bar__form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.search-bar__form:hover {
+  border-color: #c0c0c0;
+}
+
+.search-bar__form:focus-within {
+  border-color: #ff6b6b;
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.15);
+}
+
+.search-bar__icon {
+  position: absolute;
+  left: 14px;
+  color: #757575;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-bar__input {
+  flex: 1;
+  padding: 11px 40px 11px 44px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #212121;
+  outline: none;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+}
+
+.search-bar__input::placeholder {
+  color: #9e9e9e;
+  font-weight: 400;
+}
+
+.search-bar__clear {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #757575;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.search-bar__clear:hover {
+  background: #f5f5f5;
+  color: #424242;
+}
+
+/* ============================================
+   SEARCH SUGGESTIONS DROPDOWN - Modern Design
+   ============================================ */
+
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 420px;
+  overflow-y: auto;
+  z-index: 1000;
+  animation: slideDown 0.15s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-suggestions__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #757575;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.search-suggestions__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.search-suggestions__item:last-child {
+  border-bottom: none;
+}
+
+.search-suggestions__item:hover,
+.search-suggestions__item--selected {
+  background: #f8f8f8;
+}
+
+.search-suggestions__item-icon {
+  flex-shrink: 0;
+  color: #9e9e9e;
+}
+
+.search-suggestions__item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.search-suggestions__item-text {
+  font-size: 14px;
+  color: #212121;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-suggestions__item-meta {
+  font-size: 12px;
+  color: #757575;
+  font-weight: 400;
+}
+
+.search-suggestions__count {
+  font-size: 11px;
+  color: #9e9e9e;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.search-suggestions__loading,
+.search-suggestions__empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #757575;
+}
+
+.search-suggestions__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Scrollbar styling */
+.search-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 3px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #b0b0b0;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .search-bar {
+    max-width: 100%;
+  }
+
+  .search-bar__input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 40px 12px 44px;
+  }
+
+  .search-bar__icon {
+    left: 16px;
+  }
+
+  .search-bar__clear {
+    right: 12px;
+  }
+
+  .search-suggestions {
+    max-height: 340px;
+    border-radius: 0 0 4px 4px;
+  }
+
+  .search-suggestions__item {
+    padding: 14px 16px;
+  }
+}
+
+/* ============================================
+   HEADER INTEGRATION - Compact Design
+   ============================================ */
+
+.header .search-bar {
+  flex: 0 0 auto;
+  max-width: 280px;
+  margin: 0;
+}
+
+.header .search-bar__form {
+  height: 38px;
+  border-radius: 4px;
+  border-width: 1px;
+}
+
+.header .search-bar__form:hover {
+  border-color: #b0b0b0;
+}
+
+.header .search-bar__form:focus-within {
+  border-color: #ff6b6b;
+  box-shadow: 0 1px 4px rgba(255, 107, 107, 0.2);
+}
+
+.header .search-bar__input {
+  font-size: 13px;
+  padding: 9px 36px 9px 40px;
+}
+
+.header .search-bar__icon {
+  left: 12px;
+}
+
+.header .search-bar__clear {
+  right: 8px;
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 1200px) {
+  .header .search-bar {
+    max-width: 240px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .header .search-bar {
+    max-width: 200px;
+  }
+  
+  .header .search-bar__input {
+    font-size: 12px;
+    padding: 9px 32px 9px 36px;
+  }
+  
+  .header .search-bar__icon {
+    left: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header .search-bar {
+    display: none; /* Hide in header on mobile, show in mobile menu */
+  }
+}
+
+/* ============================================
+   MOBILE MENU SEARCH - Full Width
+   ============================================ */
+
+.mobile-search,
+.mobile-menu__search {
+  padding: 0;
+  background: transparent;
+}
+
+.mobile-menu__search .search-bar {
+  max-width: 100%;
+}
+
+.mobile-menu__search .search-bar__form {
+  border-radius: 4px;
+}
+
+.mobile-menu__search .search-bar__input {
+  font-size: 14px;
+}

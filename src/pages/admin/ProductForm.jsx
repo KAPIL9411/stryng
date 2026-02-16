@@ -154,8 +154,6 @@ export default function ProductForm() {
   };
 
   const onSubmit = async (data) => {
-    console.log('🔄 Form submitted with data:', data);
-    
     // Validation
     if (images.length === 0) {
       return;
@@ -183,7 +181,6 @@ export default function ProductForm() {
       if (existingProduct) {
         const timestamp = Date.now();
         slug = `${slug}-${timestamp}`;
-        console.log(`⚠️ Slug collision detected. Modified slug to: ${slug}`);
       }
     }
 
@@ -210,44 +207,17 @@ export default function ProductForm() {
       track_inventory: data.track_inventory !== false,
     };
 
-    console.log('📦 Product data to save:', productData);
-    console.log('✏️ Is editing:', isEditing, 'Product ID:', id);
-
     try {
       let result;
       if (isEditing) {
-        console.log('🔄 Updating product...');
         result = await updateProduct(id, productData);
-        console.log('✅ Update result:', result);
       } else {
-        console.log('➕ Creating product...');
         result = await createProduct(productData);
-        console.log('✅ Create result:', result);
       }
 
       if (result.error) {
-        console.error('❌ Result contains error:', result.error);
-        // Handle specific error types
-        if (result.error.code === '23505') {
-          // Unique constraint violation
-          if (result.error.message.includes('slug')) {
-            throw new Error(
-              'A product with this slug already exists. Please use a different name or modify the slug manually.'
-            );
-          } else if (result.error.message.includes('sku')) {
-            throw new Error(
-              'A product with this SKU already exists. Please use a different SKU.'
-            );
-          } else {
-            throw new Error(
-              'This product already exists. Please check slug and SKU fields.'
-            );
-          }
-        }
         throw result.error;
       }
-
-      console.log('✅ Product saved successfully');
 
       // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
@@ -257,9 +227,12 @@ export default function ProductForm() {
       // Navigate back to products list
       setTimeout(() => {
         navigate('/admin/products');
-      }, 500);
+      }, 300);
     } catch (error) {
       console.error('❌ Error saving product:', error);
+      
+      // Show user-friendly error message
+      alert(error.message || 'Failed to save product. Please try again.');
     } finally {
       setSubmitting(false);
     }

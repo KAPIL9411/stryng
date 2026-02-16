@@ -650,22 +650,14 @@ const useStore = create(
 
       /* ---- Admin Product Actions ---- */
       createProduct: async (productData) => {
-        console.log('🔄 Store: createProduct called', productData);
         try {
-          // Import the API function
           const { createProduct: apiCreateProduct } = await import('../api/products.api');
-          
-          // Use the API function which returns data directly
           const data = await apiCreateProduct(productData);
 
-          console.log('📊 API response:', data);
-
           if (!data) {
-            console.warn('⚠️ No data returned from create');
             throw new Error('Product creation failed');
           }
 
-          console.log('✅ Product created successfully:', data);
           return { data, error: null };
         } catch (error) {
           console.error('❌ Error creating product:', error);
@@ -684,18 +676,11 @@ const useStore = create(
       },
 
       updateProduct: async (id, productData) => {
-        console.log('🔄 Store: updateProduct called', { id, productData });
         try {
-          // Import the API function
           const { updateProduct: apiUpdateProduct } = await import('../api/products.api');
-          
-          // Use the API function which returns data directly (not { data, error })
           const data = await apiUpdateProduct(id, productData);
 
-          console.log('📊 API response:', data);
-
           if (!data) {
-            console.warn('⚠️ No data returned from update');
             throw new Error('Product not found or update failed');
           }
 
