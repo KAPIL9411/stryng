@@ -6,12 +6,10 @@ import {
   ArrowRight,
   Tag,
   ShoppingBag,
-  Sparkles,
-  TrendingUp,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 
 // Memoized CartItem component to prevent unnecessary re-renders
 const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
@@ -96,61 +94,9 @@ const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
 
 CartItem.displayName = 'CartItem';
 
-// Memoized FeaturedProduct component
-const FeaturedProduct = memo(({ product }) => {
-  const formattedPrice = useMemo(
-    () => formatPrice(product.price),
-    [product.price]
-  );
-
-  const formattedOriginalPrice = useMemo(
-    () => product.originalPrice ? formatPrice(product.originalPrice) : null,
-    [product.originalPrice]
-  );
-
-  return (
-    <Link
-      to={`/products/${product.slug}`}
-      className="empty-cart__product-card"
-    >
-      <div className="empty-cart__product-image">
-        <img
-          src={product.images[0]}
-          alt={product.name}
-          loading="lazy"
-        />
-        {product.isNew && (
-          <span className="badge badge--new">New</span>
-        )}
-        {product.isTrending && (
-          <span className="badge badge--trending">
-            Trending
-          </span>
-        )}
-      </div>
-      <div className="empty-cart__product-info">
-        <h4>{product.name}</h4>
-        <div className="empty-cart__product-price">
-          <span className="price">
-            {formattedPrice}
-          </span>
-          {formattedOriginalPrice && (
-            <span className="price--original">
-              {formattedOriginalPrice}
-            </span>
-          )}
-        </div>
-      </div>
-    </Link>
-  );
-});
-
-FeaturedProduct.displayName = 'FeaturedProduct';
-
 export default function Cart() {
-  const { cart, updateQuantity, removeFromCart, products, fetchProducts } =
+  const { cart, updateQuantity, removeFromCart } =
     useStore();
-  const [featuredProducts, setFeaturedProducts] = useState([]);
 
   // Memoize expensive calculations
   const subtotal = useMemo(
@@ -202,287 +148,170 @@ export default function Cart() {
     removeFromCart(cartId);
   }, [removeFromCart]);
 
-  useEffect(() => {
-    if (cart.length === 0) {
-      // Fetch products if not loaded
-      if (products.length === 0) {
-        fetchProducts();
-      } else {
-        // Get trending or new products
-        const featured = products
-          .filter((p) => p.isTrending || p.isNew)
-          .slice(0, 4);
-        setFeaturedProducts(featured);
-      }
-    }
-  }, [cart.length, products, fetchProducts]);
-
   if (cart.length === 0) {
     return (
       <div className="page">
         <div className="container">
           <div className="empty-cart">
             <div className="empty-cart__icon">
-              <ShoppingBag size={64} strokeWidth={1.5} />
+              <ShoppingBag size={56} strokeWidth={1.5} />
             </div>
 
-            <h1 className="empty-cart__title">Your Cart is Empty</h1>
+            <h1 className="empty-cart__title">I'm Empty!</h1>
             <p className="empty-cart__subtitle">
-              But it doesn't have to be! Discover our latest collection and find
-              something you'll love.
+              I've got room for anything.
             </p>
 
-            <div className="empty-cart__features">
-              <div className="empty-cart__feature">
-                <Sparkles size={24} />
-                <span>New Arrivals Daily</span>
-              </div>
-              <div className="empty-cart__feature">
-                <TrendingUp size={24} />
-                <span>Trending Styles</span>
-              </div>
-              <div className="empty-cart__feature">
-                <Tag size={24} />
-                <span>Exclusive Deals</span>
-              </div>
-            </div>
-
-            <div className="empty-cart__actions">
-              <Link to="/products" className="btn btn--primary btn--lg">
-                Explore Collection <ArrowRight size={18} />
-              </Link>
-              <Link
-                to="/products?filter=trending"
-                className="btn btn--secondary btn--lg"
-              >
-                View Trending
-              </Link>
-            </div>
-
-            {/* Featured Products */}
-            {featuredProducts.length > 0 && (
-              <div className="empty-cart__products">
-                <h3>You Might Like These</h3>
-                <div className="empty-cart__products-grid">
-                  {featuredProducts.map((product) => (
-                    <FeaturedProduct key={product.id} product={product} />
-                  ))}
-                </div>
-              </div>
-            )}
+            <Link to="/products" className="empty-cart__button">
+              Go Shopping!
+            </Link>
           </div>
         </div>
 
         <style>{`
                     .empty-cart {
                         text-align: center;
-                        padding: 4rem 2rem;
-                        max-width: 900px;
+                        padding: 6rem 2rem;
+                        max-width: 500px;
                         margin: 0 auto;
+                        min-height: 60vh;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
                     }
 
                     .empty-cart__icon {
-                        width: 120px;
-                        height: 120px;
-                        margin: 0 auto 2rem;
+                        width: 140px;
+                        height: 140px;
+                        margin: 0 auto 2.5rem;
                         border-radius: 50%;
-                        background: linear-gradient(135deg, rgba(201, 169, 110, 0.1) 0%, rgba(201, 169, 110, 0.05) 100%);
+                        background: linear-gradient(135deg, rgba(201, 169, 110, 0.12) 0%, rgba(201, 169, 110, 0.06) 100%);
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         color: var(--color-accent);
-                        animation: float 3s ease-in-out infinite;
+                        animation: gentleFloat 4s ease-in-out infinite;
+                        box-shadow: 0 10px 30px rgba(201, 169, 110, 0.1);
                     }
 
-                    @keyframes float {
+                    @keyframes gentleFloat {
                         0%, 100% {
                             transform: translateY(0);
                         }
                         50% {
-                            transform: translateY(-10px);
+                            transform: translateY(-12px);
                         }
                     }
 
                     .empty-cart__title {
-                        font-size: 2.5rem;
-                        margin-bottom: 1rem;
+                        font-size: 2.75rem;
+                        margin-bottom: 0.75rem;
                         font-weight: var(--font-bold);
+                        color: var(--color-text-primary);
+                        letter-spacing: -0.02em;
+                        animation: fadeInUp 0.6s ease-out 0.2s both;
                     }
 
                     .empty-cart__subtitle {
                         font-size: 1.125rem;
                         color: var(--color-text-secondary);
-                        margin-bottom: 3rem;
-                        max-width: 500px;
-                        margin-left: auto;
-                        margin-right: auto;
-                        line-height: 1.6;
+                        margin-bottom: 2.5rem;
+                        line-height: 1.5;
+                        animation: fadeInUp 0.6s ease-out 0.3s both;
                     }
 
-                    .empty-cart__features {
-                        display: flex;
-                        justify-content: center;
-                        gap: 3rem;
-                        margin-bottom: 3rem;
-                        flex-wrap: wrap;
-                    }
-
-                    .empty-cart__feature {
-                        display: flex;
-                        flex-direction: column;
+                    .empty-cart__button {
+                        display: inline-flex;
                         align-items: center;
-                        gap: 0.75rem;
-                        color: var(--color-text-secondary);
-                    }
-
-                    .empty-cart__feature svg {
-                        color: var(--color-accent);
-                    }
-
-                    .empty-cart__feature span {
-                        font-size: 0.9375rem;
-                        font-weight: var(--font-medium);
-                    }
-
-                    .empty-cart__actions {
-                        display: flex;
-                        gap: 1rem;
                         justify-content: center;
-                        margin-bottom: 4rem;
-                        flex-wrap: wrap;
-                    }
-
-                    .empty-cart__products {
-                        margin-top: 4rem;
-                        padding-top: 4rem;
-                        border-top: 1px solid var(--color-border);
-                    }
-
-                    .empty-cart__products h3 {
-                        font-size: 1.75rem;
-                        margin-bottom: 2rem;
+                        padding: 1rem 3rem;
+                        font-size: 1.125rem;
                         font-weight: var(--font-semibold);
-                    }
-
-                    .empty-cart__products-grid {
-                        display: grid;
-                        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-                        gap: 1.5rem;
-                    }
-
-                    .empty-cart__product-card {
+                        color: #fff;
+                        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+                        border: none;
+                        border-radius: 50px;
                         text-decoration: none;
-                        color: inherit;
-                        transition: transform 0.3s ease;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+                        animation: fadeInUp 0.6s ease-out 0.4s both;
                     }
 
-                    .empty-cart__product-card:hover {
-                        transform: translateY(-5px);
+                    .empty-cart__button:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+                        background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
                     }
 
-                    .empty-cart__product-image {
-                        position: relative;
-                        aspect-ratio: 3/4;
-                        overflow: hidden;
-                        background: var(--color-bg-secondary);
-                        margin-bottom: 1rem;
+                    .empty-cart__button:active {
+                        transform: translateY(0);
+                        box-shadow: 0 2px 10px rgba(231, 76, 60, 0.3);
                     }
 
-                    .empty-cart__product-image img {
-                        width: 100%;
-                        height: 100%;
-                        object-fit: cover;
-                        transition: transform 0.3s ease;
-                    }
-
-                    .empty-cart__product-card:hover .empty-cart__product-image img {
-                        transform: scale(1.05);
-                    }
-
-                    .empty-cart__product-image .badge {
-                        position: absolute;
-                        top: 0.75rem;
-                        left: 0.75rem;
-                    }
-
-                    .badge--new {
-                        background: var(--color-accent);
-                        color: var(--color-text-primary);
-                        padding: 0.25rem 0.75rem;
-                        font-size: 0.75rem;
-                        font-weight: var(--font-semibold);
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                    }
-
-                    .badge--trending {
-                        background: var(--color-text-primary);
-                        color: var(--color-bg-primary);
-                        padding: 0.25rem 0.75rem;
-                        font-size: 0.75rem;
-                        font-weight: var(--font-semibold);
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                    }
-
-                    .empty-cart__product-info {
-                        text-align: left;
-                    }
-
-                    .empty-cart__product-info h4 {
-                        font-size: 0.9375rem;
-                        margin-bottom: 0.5rem;
-                        font-weight: var(--font-medium);
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                    }
-
-                    .empty-cart__product-price {
-                        display: flex;
-                        align-items: center;
-                        gap: 0.5rem;
-                    }
-
-                    .empty-cart__product-price .price {
-                        font-weight: var(--font-semibold);
-                        font-size: 1rem;
-                    }
-
-                    .empty-cart__product-price .price--original {
-                        font-size: 0.875rem;
-                        color: var(--color-text-secondary);
-                        text-decoration: line-through;
+                    @keyframes fadeInUp {
+                        from {
+                            opacity: 0;
+                            transform: translateY(20px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
                     }
 
                     @media (max-width: 768px) {
                         .empty-cart {
-                            padding: 3rem 1rem;
+                            padding: 4rem 1.5rem;
+                            min-height: 50vh;
+                        }
+
+                        .empty-cart__icon {
+                            width: 120px;
+                            height: 120px;
+                            margin-bottom: 2rem;
+                        }
+
+                        .empty-cart__icon svg {
+                            width: 48px;
+                            height: 48px;
                         }
 
                         .empty-cart__title {
-                            font-size: 2rem;
+                            font-size: 2.25rem;
                         }
 
                         .empty-cart__subtitle {
                             font-size: 1rem;
+                            margin-bottom: 2rem;
                         }
 
-                        .empty-cart__features {
-                            gap: 2rem;
-                        }
-
-                        .empty-cart__actions {
-                            flex-direction: column;
-                        }
-
-                        .empty-cart__actions .btn {
+                        .empty-cart__button {
+                            padding: 0.875rem 2.5rem;
+                            font-size: 1rem;
                             width: 100%;
+                            max-width: 280px;
+                        }
+                    }
+
+                    @media (max-width: 480px) {
+                        .empty-cart {
+                            padding: 3rem 1rem;
                         }
 
-                        .empty-cart__products-grid {
-                            grid-template-columns: repeat(2, 1fr);
-                            gap: 1rem;
+                        .empty-cart__icon {
+                            width: 100px;
+                            height: 100px;
+                        }
+
+                        .empty-cart__icon svg {
+                            width: 42px;
+                            height: 42px;
+                        }
+
+                        .empty-cart__title {
+                            font-size: 2rem;
                         }
                     }
                 `}</style>
