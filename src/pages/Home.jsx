@@ -15,31 +15,44 @@ import { useBanners } from '../hooks/useBanners';
 import { useAllProducts } from '../hooks/useProducts';
 import { getStockStatus } from '../lib/inventory';
 
-/* ---- Hero Carousel (Marquee) ---- */
+/* ---- Hero Carousel (Marquee) - OPTIMIZED ---- */
 const HeroBanner = memo(function HeroBanner() {
   const { data: banners = [], isLoading, error } = useBanners();
-  const activeBanners = banners.filter((b) => b.active);
+  const activeBanners = useMemo(() => banners.filter((b) => b.active), [banners]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  
+  // Touch swipe state
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Map dynamic banners to slide structure - memoize to prevent recalculation
-  // MUST be before any conditional returns to maintain hooks order
   const formattedSlides = useMemo(() => activeBanners.map((b) => ({
     id: b.id,
     image: b.image_url || b.image,
     link: b.cta_link || b.link,
-    title: b.title, // Keep for alt text only
+    title: b.title,
   })), [activeBanners]);
 
   // Duplicate slides to create seamless loop for desktop
-  // MUST be before any conditional returns to maintain hooks order
   const marqueeSlides = useMemo(() => [...formattedSlides, ...formattedSlides], [formattedSlides]);
 
-  // Handle window resize
+  // Handle window resize with debounce
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    let timeoutId;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth <= 768);
+      }, 150);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // Auto-advance slides on mobile
@@ -53,17 +66,60 @@ const HeroBanner = memo(function HeroBanner() {
     return () => clearInterval(interval);
   }, [isMobile, activeBanners.length]);
 
-  // Show skeleton loader during initial load
-  if (isLoading) {
+  // Preload first image immediately
+  useEffect(() => {
+    if (formattedSlides.length > 0) {
+      const img = new Image();
+      img.src = formattedSlides[0].image;
+      img.onload = () => setImagesLoaded(true);
+      
+      // Preload second image for smoother experience
+      if (formattedSlides.length > 1) {
+        const img2 = new Image();
+        img2.src = formattedSlides[1].image;
+      }
+    }
+  }, [formattedSlides]);
+
+  // Touch handlers for swipe
+  const handleTouchStart = (e) => {
+    setTouchStart(e.targetTouches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    
+    const swipeDistance = touchStart - touchEnd;
+    const minSwipeDistance = 50; // Minimum distance for a swipe
+
+    if (Math.abs(swipeDistance) < minSwipeDistance) return;
+
+    if (swipeDistance > 0) {
+      // Swiped left - next slide
+      setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
+    } else {
+      // Swiped right - previous slide
+      setCurrentSlide((prev) => (prev - 1 + activeBanners.length) % activeBanners.length);
+    }
+  };
+
+  // Show minimal skeleton loader during initial load
+  if (isLoading || !imagesLoaded) {
     return (
-      <section className="hero-marquee hero-skeleton">
-        <div className="hero-skeleton__container">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="hero-skeleton__item">
-              <div className="hero-skeleton__shimmer"></div>
-            </div>
-          ))}
-        </div>
+      <section className="hero-marquee" style={{ minHeight: isMobile ? '400px' : '600px', backgroundColor: '#f5f5f5' }}>
+        <div style={{ 
+          width: '100%', 
+          height: '100%', 
+          background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s infinite'
+        }} />
       </section>
     );
   }
@@ -92,7 +148,7 @@ const HeroBanner = memo(function HeroBanner() {
   }
 
   // After load, hide if no banners
-  if (!isLoading && activeBanners.length === 0) {
+  if (activeBanners.length === 0) {
     console.warn('⚠️ No active banners found');
     return (
       <section
@@ -120,21 +176,30 @@ const HeroBanner = memo(function HeroBanner() {
   // Mobile carousel view
   if (isMobile) {
     return (
-      <section className="hero-carousel-mobile">
+      <section 
+        className="hero-carousel-mobile"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           className="hero-carousel-mobile__container"
-          style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+          style={{ 
+            transform: `translateX(-${currentSlide * 100}%)`,
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+          }}
         >
-          {formattedSlides.map((slide) => (
+          {formattedSlides.map((slide, index) => (
             <div key={slide.id} className="hero-carousel-mobile__slide">
               <Link to={slide.link} className="hero-carousel-mobile__link">
                 <img
                   src={slide.image}
                   alt={slide.title}
                   className="hero-carousel-mobile__image"
-                  loading="eager"
-                  fetchPriority="high"
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : "low"}
                   decoding="async"
+                  draggable="false"
                 />
               </Link>
             </div>
@@ -171,8 +236,8 @@ const HeroBanner = memo(function HeroBanner() {
                 className="hero-marquee__image"
                 width="600"
                 height="800"
-                loading="eager"
-                fetchPriority="high"
+                loading={index < 2 ? "eager" : "lazy"}
+                fetchPriority={index < 2 ? "high" : "low"}
                 decoding="async"
               />
             </Link>
@@ -384,14 +449,12 @@ const TrendingProducts = memo(function TrendingProducts() {
   const { data: products = [], isLoading } = useAllProducts();
 
   // Get trending products or fallback to first 8 products if none marked trending - memoize
-  // MUST be before any conditional returns to maintain hooks order
   const displayProducts = useMemo(() => {
     const trending = products.filter((p) => p.isTrending);
     return trending.length > 0 ? trending : products.slice(0, 8);
   }, [products]);
 
   // Duplicate for seamless marquee if we have enough items - memoize
-  // MUST be before any conditional returns to maintain hooks order
   const finalItems = useMemo(() => {
     const marqueeItems =
       displayProducts.length >= 4
@@ -480,7 +543,6 @@ const NewArrivals = memo(function NewArrivals() {
   const { data: products = [], isLoading } = useAllProducts();
 
   // Memoize filtered new items
-  // MUST be before any conditional returns to maintain hooks order
   const newItems = useMemo(() => {
     const filtered = products.filter((p) => p.isNew);
     return filtered.length > 0 ? filtered : products.slice(0, 4);
@@ -707,7 +769,6 @@ const ValueProposition = memo(function ValueProposition() {
 
 /* ---- Home Page ---- */
 export default function Home() {
-  // Data is already fetched in App.jsx, no need to fetch again
   return (
     <>
       <SEO
