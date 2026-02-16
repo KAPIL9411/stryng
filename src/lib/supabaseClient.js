@@ -23,6 +23,23 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Track if we're already handling an auth error to prevent loops
 let isHandlingAuthError = false;
 
+// Suppress Supabase auth errors in console
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  // Check if this is a Supabase auth error we want to suppress
+  const errorString = args.join(' ');
+  if (
+    errorString.includes('AuthApiError') ||
+    errorString.includes('Invalid Refresh Token') ||
+    errorString.includes('Refresh Token Not Found')
+  ) {
+    // Silently ignore these errors - they're handled by our error handler
+    return;
+  }
+  // Log all other errors normally
+  originalConsoleError.apply(console, args);
+};
+
 // Handle auth errors globally
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'TOKEN_REFRESHED') {
@@ -63,8 +80,8 @@ window.fetch = async (...args) => {
         const data = await clonedResponse.json();
         if (data.error && data.error.includes('Invalid Refresh Token')) {
           isHandlingAuthError = true; // Set flag to prevent loops
-          console.warn('⚠️ Invalid refresh token detected - clearing session');
           
+          // Silently handle the error - don't log to console
           // Use setTimeout to avoid blocking the current request
           setTimeout(async () => {
             try {
@@ -78,7 +95,7 @@ window.fetch = async (...args) => {
                 window.location.href = '/login?session_expired=true';
               }
             } catch (e) {
-              console.error('Error during auth cleanup:', e);
+              // Silently handle cleanup errors
             } finally {
               isHandlingAuthError = false;
             }
@@ -91,7 +108,10 @@ window.fetch = async (...args) => {
     
     return response;
   } catch (error) {
-    console.error('Fetch error:', error);
+    // Only log non-auth errors
+    if (!error.message?.includes('Invalid Refresh Token')) {
+      console.error('Fetch error:', error);
+    }
     throw error;
   }
 };
