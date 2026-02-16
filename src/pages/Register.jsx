@@ -82,12 +82,12 @@ export default function Register() {
     <div className="auth">
       <h1 className="auth__title">Create Account</h1>
       <p className="auth__subtitle">
-        Join us and explore the latest in fashion
+        Join us and start shopping today
       </p>
 
       {displayError && (
         <div className="auth__error">
-          <AlertCircle size={16} />
+          <AlertCircle size={18} />
           <span>{displayError}</span>
         </div>
       )}
@@ -102,12 +102,13 @@ export default function Register() {
             <input
               type="text"
               className="input"
-              placeholder="John Doe"
+              placeholder="Enter your full name"
               style={{ paddingLeft: 'var(--space-10)' }}
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="name"
             />
             <User
               size={18}
@@ -123,17 +124,18 @@ export default function Register() {
         </div>
 
         <div className="input-group">
-          <label className="input-group__label">Email Address</label>
+          <label className="input-group__label">Email</label>
           <div style={{ position: 'relative' }}>
             <input
               type="email"
               className="input"
-              placeholder="you@email.com"
+              placeholder="you@example.com"
               style={{ paddingLeft: 'var(--space-10)' }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="email"
             />
             <Mail
               size={18}
@@ -163,6 +165,7 @@ export default function Register() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="new-password"
             />
             <Lock
               size={18}
@@ -183,7 +186,14 @@ export default function Register() {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--color-text-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
               }}
+              disabled={isAuthLoading}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -203,6 +213,7 @@ export default function Register() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="new-password"
             />
             <Lock
               size={18}
@@ -229,15 +240,15 @@ export default function Register() {
           )}
         </div>
 
-        <label className="checkbox">
+        <label className="checkbox" style={{ margin: 0 }}>
           <input type="checkbox" className="checkbox__input" required />
           <span style={{ fontSize: 'var(--text-sm)' }}>
             I agree to the{' '}
-            <a href="#" style={{ textDecoration: 'underline' }}>
-              Terms of Service
+            <a href="#" style={{ textDecoration: 'underline', color: 'inherit' }}>
+              Terms
             </a>{' '}
             and{' '}
-            <a href="#" style={{ textDecoration: 'underline' }}>
+            <a href="#" style={{ textDecoration: 'underline', color: 'inherit' }}>
               Privacy Policy
             </a>
           </span>
@@ -259,7 +270,7 @@ export default function Register() {
         </button>
       </form>
 
-      <div className="auth__divider">or register with</div>
+      <div className="auth__divider">or</div>
 
       <div className="auth__social">
         <button
@@ -285,7 +296,7 @@ export default function Register() {
               fill="#EA4335"
             />
           </svg>
-          Sign up with Google
+          Continue with Google
         </button>
       </div>
 

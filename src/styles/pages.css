@@ -1175,28 +1175,43 @@
 
 /* ---- Auth Pages ---- */
 .auth {
-  max-width: 440px;
+  max-width: 480px;
   margin: 0 auto;
   padding: var(--space-12) var(--space-4);
 }
 
 .auth__title {
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-size: 2.5rem;
   text-align: center;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
 }
 
 .auth__subtitle {
   text-align: center;
-  color: var(--color-text-muted);
-  margin-bottom: var(--space-8);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-10);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .auth__form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
+  background: var(--color-bg-primary);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--color-border);
+}
+
+.auth__form--disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .auth__divider {
@@ -1206,6 +1221,9 @@
   margin: var(--space-6) 0;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: var(--font-medium);
 }
 
 .auth__divider::before,
@@ -1227,45 +1245,72 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
   font-weight: var(--font-medium);
+  background: var(--color-bg-primary);
   transition: all var(--transition-fast);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.auth__social-btn:hover {
-  border-color: var(--color-primary);
+.auth__social-btn:hover:not(:disabled) {
+  border-color: var(--color-text-primary);
   background: var(--color-bg-secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.auth__social-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .auth__footer {
   text-align: center;
-  margin-top: var(--space-6);
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
+  margin-top: var(--space-8);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
 }
 
 .auth__link {
   color: var(--color-text-primary);
   font-weight: var(--font-semibold);
-  text-decoration: underline;
+  text-decoration: none;
+  border-bottom: 2px solid var(--color-accent);
+  transition: all var(--transition-fast);
+}
+
+.auth__link:hover {
+  color: var(--color-accent);
 }
 
 /* Auth Error / Success / Info Messages */
 .auth__error {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: var(--radius-md);
   color: #dc2626;
   font-size: var(--text-sm);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
   line-height: var(--leading-relaxed);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .auth__error svg {
@@ -1276,25 +1321,27 @@
 .auth__success {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   border-radius: var(--radius-md);
   color: #16a34a;
   font-size: var(--text-sm);
+  animation: slideDown 0.3s ease-out;
 }
 
 .auth__info {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: var(--radius-md);
   color: #2563eb;
   font-size: var(--text-sm);
+  animation: slideDown 0.3s ease-out;
 }
 
 /* Auth Success Card (Verify Email, Reset Password) */
@@ -1304,6 +1351,7 @@
   background: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-6);
+  border: 1px solid var(--color-border);
 }
 
 .auth__success-card .auth__title {

@@ -50,12 +50,12 @@ export default function Login() {
     <div className="auth">
       <h1 className="auth__title">Welcome Back</h1>
       <p className="auth__subtitle">
-        Sign in to access your account and orders
+        Sign in to continue to your account
       </p>
 
       {authError && (
         <div className="auth__error">
-          <AlertCircle size={16} />
+          <AlertCircle size={18} />
           <span>{authError}</span>
         </div>
       )}
@@ -65,17 +65,18 @@ export default function Login() {
         onSubmit={handleLogin}
       >
         <div className="input-group">
-          <label className="input-group__label">Email Address</label>
+          <label className="input-group__label">Email</label>
           <div style={{ position: 'relative' }}>
             <input
               type="email"
               className="input"
-              placeholder="you@email.com"
+              placeholder="you@example.com"
               style={{ paddingLeft: 'var(--space-10)' }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="email"
             />
             <Mail
               size={18}
@@ -105,6 +106,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isAuthLoading}
+              autoComplete="current-password"
             />
             <Lock
               size={18}
@@ -125,7 +127,14 @@ export default function Login() {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: 'var(--color-text-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
               }}
+              disabled={isAuthLoading}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -140,16 +149,20 @@ export default function Login() {
             fontSize: 'var(--text-sm)',
           }}
         >
-          <label className="checkbox">
+          <label className="checkbox" style={{ margin: 0 }}>
             <input type="checkbox" className="checkbox__input" />
-            Remember me
+            <span>Remember me</span>
           </label>
           <Link
             to="/forgot-password"
             style={{
-              color: 'var(--color-text-muted)',
-              textDecoration: 'underline',
+              color: 'var(--color-text-secondary)',
+              textDecoration: 'none',
+              fontWeight: 'var(--font-medium)',
+              transition: 'color 0.2s',
             }}
+            onMouseEnter={(e) => e.target.style.color = 'var(--color-text-primary)'}
+            onMouseLeave={(e) => e.target.style.color = 'var(--color-text-secondary)'}
           >
             Forgot password?
           </Link>
@@ -171,7 +184,7 @@ export default function Login() {
         </button>
       </form>
 
-      <div className="auth__divider">or continue with</div>
+      <div className="auth__divider">or</div>
 
       <div className="auth__social">
         <button
@@ -197,14 +210,14 @@ export default function Login() {
               fill="#EA4335"
             />
           </svg>
-          Sign in with Google
+          Continue with Google
         </button>
       </div>
 
       <p className="auth__footer">
         Don&apos;t have an account?{' '}
         <Link to="/register" className="auth__link">
-          Create one
+          Create account
         </Link>
       </p>
     </div>
