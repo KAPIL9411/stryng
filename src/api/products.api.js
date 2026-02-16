@@ -25,13 +25,13 @@ const CACHE_TTL = {
 const RETRY_CONFIG = {
   READ: {
     maxRetries: 2, // Reduced from 3 for faster failure
-    timeout: 15000, // Reduced from 20s
-    retryDelay: 300,
+    timeout: 30000, // Increased from 15s to 30s for initial load
+    retryDelay: 500, // Reduced from 300 for faster retry
     exponentialBackoff: true,
   },
   WRITE: {
     maxRetries: 3,
-    timeout: 25000, // Reduced from 30s
+    timeout: 30000, // Increased from 25s
     retryDelay: 1000,
     exponentialBackoff: true,
   },
@@ -187,6 +187,70 @@ export const fetchProducts = async (page = 1, limit = 24, filters = {}) => {
     if (staleCache) {
       console.warn('⚠️ Returning stale cache due to error');
       return staleCache;
+    }
+    
+    // FIX: On first load timeout, retry once more with longer timeout
+    if (error.message?.includes('timeout') && page === 1) {
+      console.warn('⚠️ First load timeout, retrying with extended timeout...');
+      try {
+        const start = (page - 1) * limit;
+        const end = start + limit - 1;
+
+        let query = supabase
+          .from(API_ENDPOINTS.PRODUCTS)
+          .select(LISTING_FIELDS, { count: 'exact' })
+          .range(start, end);
+
+        // Apply basic filters
+        if (filters.category && filters.category.length > 0) {
+          const categories = Array.isArray(filters.category) ? filters.category : [filters.category];
+          query = query.in('category', categories);
+        }
+
+        // Simple sort
+        query = query.order('id', { ascending: true });
+
+        const { data, count, error: retryError } = await query;
+
+        if (!retryError && data) {
+          const products = data.map(p => ({
+            id: p.id,
+            name: p.name || 'Untitled Product',
+            slug: p.slug || '',
+            price: p.price || 0,
+            originalPrice: p.original_price || p.price || 0,
+            discount: p.discount || 0,
+            images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
+            brand: p.brand || '',
+            category: p.category || '',
+            colors: Array.isArray(p.colors) ? p.colors : [],
+            isNew: p.is_new || false,
+            isTrending: p.is_trending || false,
+            rating: p.rating || 0,
+            reviewCount: p.reviews_count || 0,
+            stock: p.stock ?? 0,
+            lowStockThreshold: p.low_stock_threshold ?? 5,
+          }));
+
+          const response = {
+            products,
+            pagination: {
+              currentPage: page,
+              totalItems: count || 0,
+              totalPages: Math.ceil((count || 0) / limit),
+              hasNext: end < (count || 0) - 1,
+            },
+          };
+
+          // Cache the successful retry
+          inMemoryCache.set(cacheKey, response, CACHE_TTL.PRODUCTS_LIST);
+
+          console.log('✅ Retry successful');
+          return response;
+        }
+      } catch (retryError) {
+        console.error('❌ Retry also failed:', retryError);
+      }
     }
     
     // User-friendly error message
@@ -617,12 +681,12 @@ export const fetchAllProducts = async () => {
       return cached;
     }
 
-    // FIX: Use pagination for large datasets to prevent timeout
+    // FIX: Use DETAIL_FIELDS for admin edit functionality
     const { data, error } = await withRetry(
       async () => {
         const result = await supabase
           .from(API_ENDPOINTS.PRODUCTS)
-          .select(LISTING_FIELDS)
+          .select(DETAIL_FIELDS) // Changed from LISTING_FIELDS to get all fields
           .limit(1000); // Limit to prevent timeout
 
         if (result.error) {
@@ -646,19 +710,28 @@ export const fetchAllProducts = async () => {
       id: p.id,
       name: p.name || 'Untitled Product',
       slug: p.slug || '',
+      description: p.description || '',
       price: p.price || 0,
       originalPrice: p.original_price || p.price || 0,
+      original_price: p.original_price || p.price || 0,
       discount: p.discount || 0,
       images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
       brand: p.brand || '',
       category: p.category || '',
       colors: Array.isArray(p.colors) ? p.colors : [],
+      sizes: Array.isArray(p.sizes) ? p.sizes : [],
       isNew: p.is_new || false,
       isTrending: p.is_trending || false,
+      is_new: p.is_new || false,
+      is_trending: p.is_trending || false,
       rating: p.rating || 0,
       reviewCount: p.reviews_count || 0,
+      reviews_count: p.reviews_count || 0,
       stock: p.stock ?? 0,
       lowStockThreshold: p.low_stock_threshold ?? 5,
+      low_stock_threshold: p.low_stock_threshold ?? 5,
+      sku: p.sku || '',
+      track_inventory: p.track_inventory !== false,
     }));
 
     // Cache for 5 minutes

@@ -560,6 +560,7 @@
   gap: var(--space-3);
   align-items: center;
   margin-bottom: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .color-picker {
@@ -568,6 +569,21 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
+  padding: 2px;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+}
+
+.color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
 }
 
 .size-selector {

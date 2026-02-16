@@ -28,9 +28,9 @@ class APIClient {
    */
   async execute(requestFn, options = {}) {
     const {
-      maxRetries = 3,
-      timeout = 30000,
-      retryDelay = 1000,
+      maxRetries = 2,
+      timeout = 30000, // Increased default timeout
+      retryDelay = 500, // Reduced for faster retry
       exponentialBackoff = true,
       deduplicationKey = null,
     } = options;
@@ -61,29 +61,38 @@ class APIClient {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-          // Execute request
-          const result = await Promise.race([
-            requestFn(controller.signal),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Request timeout')), timeout)
-            ),
-          ]);
+          try {
+            // Execute request with abort signal
+            const result = await requestFn(controller.signal);
+            clearTimeout(timeoutId);
 
-          clearTimeout(timeoutId);
+            // Success - reset circuit breaker
+            this.circuitBreaker.failures = 0;
+            if (this.circuitBreaker.state === 'HALF_OPEN') {
+              this.circuitBreaker.state = 'CLOSED';
+            }
 
-          // Success - reset circuit breaker
-          this.circuitBreaker.failures = 0;
-          if (this.circuitBreaker.state === 'HALF_OPEN') {
-            this.circuitBreaker.state = 'CLOSED';
+            return result;
+          } catch (error) {
+            clearTimeout(timeoutId);
+            
+            // Check if it was an abort (timeout)
+            if (error.name === 'AbortError' || controller.signal.aborted) {
+              throw new Error('Request timeout');
+            }
+            
+            throw error;
           }
-
-          return result;
         } catch (error) {
           lastError = error;
-          console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, error.message);
+          
+          // Only log on first attempt to reduce console noise
+          if (attempt === 1) {
+            console.error(`❌ Attempt ${attempt}/${maxRetries} failed:`, error.message);
+          }
 
           // Don't retry on client errors (4xx)
-          if (error.code === '23505' || error.status >= 400 && error.status < 500) {
+          if (error.code === '23505' || (error.status >= 400 && error.status < 500)) {
             throw error;
           }
 

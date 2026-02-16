@@ -918,7 +918,16 @@ const useStore = create(
         set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
       closeMobileMenu: () => set({ isMobileMenuOpen: false }),
 
-      // Toast removed - no longer needed
+      // Toast notifications
+      toast: null,
+      showToast: (message, type = 'success') => {
+        set({ toast: { message, type } });
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          set({ toast: null });
+        }, 3000);
+      },
+      hideToast: () => set({ toast: null }),
     }),
     {
       name: 'stryng-storage',

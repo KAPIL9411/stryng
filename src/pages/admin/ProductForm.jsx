@@ -8,6 +8,79 @@ import { useAllProducts } from '../../hooks/useProducts';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
 
+// Common color names to hex mapping
+const COLOR_MAP = {
+  // Basic colors
+  black: '#000000',
+  white: '#FFFFFF',
+  red: '#FF0000',
+  blue: '#0000FF',
+  green: '#008000',
+  yellow: '#FFFF00',
+  orange: '#FFA500',
+  purple: '#800080',
+  pink: '#FFC0CB',
+  brown: '#A52A2A',
+  gray: '#808080',
+  grey: '#808080',
+  
+  // Extended colors
+  navy: '#000080',
+  'navy blue': '#000080',
+  maroon: '#800000',
+  olive: '#808000',
+  lime: '#00FF00',
+  aqua: '#00FFFF',
+  teal: '#008080',
+  silver: '#C0C0C0',
+  gold: '#FFD700',
+  beige: '#F5F5DC',
+  ivory: '#FFFFF0',
+  khaki: '#F0E68C',
+  lavender: '#E6E6FA',
+  mint: '#98FF98',
+  coral: '#FF7F50',
+  salmon: '#FA8072',
+  peach: '#FFDAB9',
+  cream: '#FFFDD0',
+  
+  // Fashion colors
+  burgundy: '#800020',
+  crimson: '#DC143C',
+  scarlet: '#FF2400',
+  indigo: '#4B0082',
+  violet: '#EE82EE',
+  magenta: '#FF00FF',
+  cyan: '#00FFFF',
+  turquoise: '#40E0D0',
+  emerald: '#50C878',
+  jade: '#00A86B',
+  charcoal: '#36454F',
+  slate: '#708090',
+  tan: '#D2B48C',
+  camel: '#C19A6B',
+  mustard: '#FFDB58',
+  rust: '#B7410E',
+  wine: '#722F37',
+  plum: '#8E4585',
+  mauve: '#E0B0FF',
+  rose: '#FF007F',
+  
+  // Light/Dark variants
+  'light blue': '#ADD8E6',
+  'dark blue': '#00008B',
+  'light green': '#90EE90',
+  'dark green': '#006400',
+  'light gray': '#D3D3D3',
+  'dark gray': '#A9A9A9',
+  'light pink': '#FFB6C1',
+  'dark red': '#8B0000',
+  'light yellow': '#FFFFE0',
+  'sky blue': '#87CEEB',
+  'forest green': '#228B22',
+  'midnight blue': '#191970',
+};
+
 export default function ProductForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -135,7 +208,19 @@ export default function ProductForm() {
 
   const handleColorChange = (index, field, value) => {
     const newColors = [...colors];
-    newColors[index][field] = value;
+    
+    if (field === 'name') {
+      newColors[index][field] = value;
+      
+      // Auto-fill hex code based on color name
+      const colorKey = value.toLowerCase().trim();
+      if (COLOR_MAP[colorKey]) {
+        newColors[index].hex = COLOR_MAP[colorKey];
+      }
+    } else {
+      newColors[index][field] = value;
+    }
+    
     setColors(newColors);
   };
 
@@ -445,25 +530,47 @@ export default function ProductForm() {
           {/* Colors */}
           <div className="form-section">
             <h2>Colors</h2>
+            <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '1rem' }}>
+              Type a color name (e.g., "blue", "navy", "burgundy") and the hex code will be filled automatically
+            </p>
             {colors.map((color, index) => (
               <div key={index} className="color-input-group">
                 <input
                   type="text"
-                  placeholder="Color name"
+                  placeholder="Type color name (e.g., Navy Blue, Red, Black)"
                   value={color.name}
                   onChange={(e) =>
                     handleColorChange(index, 'name', e.target.value)
                   }
                   className="form-input"
+                  style={{ flex: 1 }}
                 />
-                <input
-                  type="color"
-                  value={color.hex}
-                  onChange={(e) =>
-                    handleColorChange(index, 'hex', e.target.value)
-                  }
-                  className="color-picker"
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    className="color-preview"
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      backgroundColor: color.hex,
+                      border: '2px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                    title={`${color.name || 'Unnamed'} (${color.hex})`}
+                  />
+                  <input
+                    type="text"
+                    value={color.hex}
+                    onChange={(e) =>
+                      handleColorChange(index, 'hex', e.target.value)
+                    }
+                    className="form-input"
+                    placeholder="#000000"
+                    pattern="^#[0-9A-Fa-f]{6}$"
+                    style={{ width: '100px', fontFamily: 'monospace', fontSize: '0.875rem' }}
+                    title="Hex color code (auto-filled)"
+                    readOnly
+                  />
+                </div>
                 {colors.length > 1 && (
                   <button
                     type="button"
