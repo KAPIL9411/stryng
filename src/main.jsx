@@ -3,9 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { reportWebVitals } from './utils/reportWebVitals.js';
-import { initBannerPreload } from './lib/preloadBanners.js';
-import { setupAuthErrorHandler } from './utils/authErrorHandler.js';
-import './utils/cacheManager.js'; // Initialize cache manager for admin console
 
 // Styles
 import './styles/variables.css';
@@ -18,11 +15,29 @@ import './styles/utilities.css';
 import './styles/checkout.css';
 import './styles/addresses.css';
 
-// Setup global auth error handler
-setupAuthErrorHandler();
+// Initialize features with error handling
+try {
+  // Setup global auth error handler
+  const { setupAuthErrorHandler } = await import('./utils/authErrorHandler.js');
+  setupAuthErrorHandler();
+} catch (error) {
+  console.warn('⚠️ Auth error handler initialization failed:', error);
+}
 
-// Preload banners immediately for instant home page loading
-initBannerPreload();
+try {
+  // Initialize cache manager for admin console
+  await import('./utils/cacheManager.js');
+} catch (error) {
+  console.warn('⚠️ Cache manager initialization failed:', error);
+}
+
+try {
+  // Preload banners immediately for instant home page loading
+  const { initBannerPreload } = await import('./lib/preloadBanners.js');
+  initBannerPreload();
+} catch (error) {
+  console.warn('⚠️ Banner preload initialization failed:', error);
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -33,4 +48,8 @@ createRoot(document.getElementById('root')).render(
 );
 
 // Initialize Web Vitals tracking
-reportWebVitals();
+try {
+  reportWebVitals();
+} catch (error) {
+  console.warn('⚠️ Web Vitals initialization failed:', error);
+}

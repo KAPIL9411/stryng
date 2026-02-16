@@ -20,16 +20,25 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Track if we're already handling an auth error to prevent loops
+let isHandlingAuthError = false;
+
 // Handle auth errors globally
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'TOKEN_REFRESHED') {
     console.log('✅ Token refreshed successfully');
+    isHandlingAuthError = false; // Reset flag on successful refresh
   }
   
   if (event === 'SIGNED_OUT') {
     console.log('👋 User signed out');
     // Clear any cached data
-    localStorage.removeItem('stryng-storage');
+    try {
+      localStorage.removeItem('stryng-storage');
+    } catch (e) {
+      console.warn('Could not clear storage:', e);
+    }
+    isHandlingAuthError = false; // Reset flag
   }
   
   if (event === 'USER_UPDATED') {
@@ -37,28 +46,43 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-// Handle refresh token errors
+// Handle refresh token errors with safety checks
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   try {
     const response = await originalFetch(...args);
     
-    // Check for auth errors
-    if (response.status === 400 && args[0]?.includes?.('auth/v1/token')) {
+    // Only handle auth token errors, and only once
+    if (
+      !isHandlingAuthError &&
+      response.status === 400 && 
+      args[0]?.includes?.('auth/v1/token')
+    ) {
       const clonedResponse = response.clone();
       try {
         const data = await clonedResponse.json();
-        if (data.error === 'Invalid Refresh Token: Refresh Token Not Found') {
+        if (data.error && data.error.includes('Invalid Refresh Token')) {
+          isHandlingAuthError = true; // Set flag to prevent loops
           console.warn('⚠️ Invalid refresh token detected - clearing session');
-          // Clear session
-          await supabase.auth.signOut();
-          // Clear storage
-          localStorage.clear();
-          sessionStorage.clear();
-          // Redirect to login if not already there
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-          }
+          
+          // Use setTimeout to avoid blocking the current request
+          setTimeout(async () => {
+            try {
+              // Clear session
+              await supabase.auth.signOut();
+              // Clear storage
+              localStorage.clear();
+              sessionStorage.clear();
+              // Redirect to login if not already there
+              if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login?session_expired=true';
+              }
+            } catch (e) {
+              console.error('Error during auth cleanup:', e);
+            } finally {
+              isHandlingAuthError = false;
+            }
+          }, 100);
         }
       } catch (e) {
         // Ignore JSON parse errors

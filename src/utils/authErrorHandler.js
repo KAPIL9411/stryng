@@ -5,22 +5,45 @@
 
 import { supabase } from '../lib/supabaseClient';
 
+// Track if we're already handling an error to prevent loops
+let isHandling = false;
+let lastHandledTime = 0;
+const THROTTLE_MS = 5000; // Don't handle same error within 5 seconds
+
 /**
  * Handle invalid refresh token error
  * Clears session and redirects to login
  */
 export const handleInvalidRefreshToken = async () => {
+  // Throttle to prevent rapid repeated calls
+  const now = Date.now();
+  if (isHandling || (now - lastHandledTime) < THROTTLE_MS) {
+    console.log('⏳ Auth error handling throttled');
+    return;
+  }
+  
+  isHandling = true;
+  lastHandledTime = now;
+  
   try {
     console.warn('⚠️ Handling invalid refresh token...');
     
-    // Sign out from Supabase
-    await supabase.auth.signOut();
+    // Sign out from Supabase (with error handling)
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Sign out error (non-critical):', e);
+    }
     
-    // Clear all storage
-    localStorage.clear();
-    sessionStorage.clear();
+    // Clear all storage (with error handling)
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn('Storage clear error (non-critical):', e);
+    }
     
-    // Clear IndexedDB caches
+    // Clear IndexedDB caches (with error handling)
     if ('indexedDB' in window) {
       try {
         const dbs = await indexedDB.databases();
@@ -36,14 +59,21 @@ export const handleInvalidRefreshToken = async () => {
     
     console.log('✅ Session cleared');
     
-    // Redirect to login
+    // Redirect to login (only if not already there)
     if (!window.location.pathname.includes('/login')) {
       window.location.href = '/login?session_expired=true';
     }
   } catch (error) {
     console.error('Error handling invalid refresh token:', error);
-    // Force redirect anyway
-    window.location.href = '/login';
+    // Force redirect anyway as last resort
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
+  } finally {
+    // Reset flag after a delay
+    setTimeout(() => {
+      isHandling = false;
+    }, 2000);
   }
 };
 
@@ -58,7 +88,6 @@ export const isAuthError = (error) => {
     'Refresh Token Not Found',
     'JWT expired',
     'invalid claim',
-    'Invalid login credentials',
   ];
   
   const errorMessage = error.message || error.error || String(error);
@@ -73,7 +102,7 @@ export const isAuthError = (error) => {
  */
 export const handleAuthError = async (error) => {
   if (isAuthError(error)) {
-    console.warn('⚠️ Auth error detected:', error);
+    console.warn('⚠️ Auth error detected:', error.message || error);
     await handleInvalidRefreshToken();
     return true;
   }
@@ -87,15 +116,17 @@ export const setupAuthErrorHandler = () => {
   // Handle unhandled promise rejections
   window.addEventListener('unhandledrejection', async (event) => {
     if (event.reason && isAuthError(event.reason)) {
-      event.preventDefault();
+      console.log('🔍 Caught unhandled auth error');
+      event.preventDefault(); // Prevent error from propagating
       await handleAuthError(event.reason);
     }
   });
   
-  // Handle global errors
+  // Handle global errors (but don't prevent all errors)
   window.addEventListener('error', async (event) => {
     if (event.error && isAuthError(event.error)) {
-      event.preventDefault();
+      console.log('🔍 Caught global auth error');
+      event.preventDefault(); // Prevent error from propagating
       await handleAuthError(event.error);
     }
   });
