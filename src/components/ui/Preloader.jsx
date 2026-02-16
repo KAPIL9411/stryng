@@ -1,18 +1,38 @@
 import { useEffect, useState } from 'react';
 
 export default function Preloader() {
-  const [loading, setLoading] = useState(true);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Simulate loading time (e.g., 2 seconds)
+    // Lock body scroll
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    
+    // Hide preloader after animation
     const timer = setTimeout(() => {
-      setLoading(false);
+      setIsVisible(false);
+      // Restore body scroll
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = '';
+      document.body.style.height = '';
     }, 1500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
   }, []);
 
-  if (!loading) return null;
+  if (!isVisible) return null;
 
   return (
     <div className="preloader">
@@ -20,12 +40,12 @@ export default function Preloader() {
         <div className="preloader__logo-container">
           <img
             src="/images/animation.webp"
-            alt="Stryng Monogram"
+            alt="Loading"
             className="preloader__logo"
+            draggable="false"
           />
           <div className="preloader__pulse-ring"></div>
         </div>
-        <h2 className="preloader__text">STRYNG</h2>
       </div>
     </div>
   );

@@ -11,12 +11,12 @@ function PagePreloader() {
         <div className="preloader__logo-container">
           <img
             src="/images/animation.webp"
-            alt="Stryng Monogram"
+            alt="Loading"
             className="preloader__logo"
+            draggable="false"
           />
           <div className="preloader__pulse-ring"></div>
         </div>
-        <h2 className="preloader__text">STRYNG</h2>
       </div>
     </div>
   );

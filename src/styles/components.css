@@ -621,19 +621,25 @@
 /* ---- Preloader ---- */
 .preloader {
   position: fixed;
-  inset: 0;
-  background: var(--color-bg-primary);
-  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--color-bg-primary);
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: fadeOut 0.5s ease 2.2s forwards;
+  animation: preloaderFadeOut 0.5s ease 1.5s forwards;
+  pointer-events: all;
 }
 
 .preloader__content {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-4);
 }
 
@@ -650,80 +656,53 @@
   width: 60px;
   height: 60px;
   object-fit: contain;
+  position: relative;
   z-index: 2;
-  animation: heartbeat 1.5s ease-in-out infinite;
+  animation: logoHeartbeat 1.5s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .preloader__pulse-ring {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   border: 2px solid var(--color-accent);
-  border-radius: var(--radius-full);
-  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  border-radius: 50%;
+  animation: pulseRing 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }
 
-.preloader__text {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: var(--font-bold);
-  letter-spacing: 0.2em;
-  color: var(--color-text-primary);
-  opacity: 0;
-  animation: fadeInUp 0.5s ease 0.5s forwards;
-}
-
-@keyframes heartbeat {
-  0% {
+@keyframes logoHeartbeat {
+  0%, 100% {
     transform: scale(1);
   }
-
-  15% {
-    transform: scale(1.15);
+  14%, 42% {
+    transform: scale(1.08);
   }
-
-  30% {
-    transform: scale(1);
-  }
-
-  45% {
-    transform: scale(1.15);
-  }
-
-  60% {
-    transform: scale(1);
-  }
-
-  100% {
+  28%, 70% {
     transform: scale(1);
   }
 }
 
-@keyframes pulse-ring {
+@keyframes pulseRing {
   0% {
     transform: scale(0.8);
     opacity: 0.8;
   }
-
   100% {
     transform: scale(2);
     opacity: 0;
   }
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
+@keyframes preloaderFadeOut {
+  0% {
     opacity: 1;
-    transform: translateY(0);
+    visibility: visible;
   }
-}
-
-@keyframes fadeOut {
-  to {
+  100% {
     opacity: 0;
     visibility: hidden;
   }
