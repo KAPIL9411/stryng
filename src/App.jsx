@@ -46,6 +46,7 @@ import Preloader from './components/ui/Preloader';
 import Toast from './components/ui/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import SuspenseWrapper from './components/common/SuspenseWrapper';
+import SessionExpired from './components/SessionExpired';
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin Styles
@@ -132,6 +133,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Preloader />
       <Toast />
+      <SessionExpired />
       <ScrollToTop />
       <ErrorBoundary>
         <SuspenseWrapper>

@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { reportWebVitals } from './utils/reportWebVitals.js';
 import { initBannerPreload } from './lib/preloadBanners.js';
+import { setupAuthErrorHandler } from './utils/authErrorHandler.js';
 import './utils/cacheManager.js'; // Initialize cache manager for admin console
 
 // Styles
@@ -16,6 +17,9 @@ import './styles/pages.css';
 import './styles/utilities.css';
 import './styles/checkout.css';
 import './styles/addresses.css';
+
+// Setup global auth error handler
+setupAuthErrorHandler();
 
 // Preload banners immediately for instant home page loading
 initBannerPreload();
