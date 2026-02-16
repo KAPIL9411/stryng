@@ -11,7 +11,7 @@ import { queryKeys } from '../../lib/queryClient';
 export default function ProductForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { createProduct, updateProduct, showToast } = useStore();
+  const { createProduct, updateProduct } = useStore();
   const { data: products = [], isLoading: isLoadingProducts } =
     useAllProducts();
   const queryClient = useQueryClient();
@@ -37,7 +37,6 @@ export default function ProductForm() {
 
       if (!product) {
         console.error('Product not found:', id);
-        showToast('Product not found', 'error');
         navigate('/admin/products');
         return;
       }
@@ -87,7 +86,7 @@ export default function ProductForm() {
       );
       setSizes(product.sizes || []);
     }
-  }, [isEditing, id, products, setValue, navigate, showToast]);
+  }, [isEditing, id, products, setValue, navigate]);
 
   // Auto-generate slug from name
   const productName = watch('name');
@@ -159,17 +158,14 @@ export default function ProductForm() {
     
     // Validation
     if (images.length === 0) {
-      showToast('Please upload at least one image', 'error');
       return;
     }
 
     if (colors.some((c) => !c.name || !c.hex)) {
-      showToast('Please fill in all color fields', 'error');
       return;
     }
 
     if (sizes.length === 0) {
-      showToast('Please select at least one size', 'error');
       return;
     }
 
@@ -188,7 +184,6 @@ export default function ProductForm() {
         const timestamp = Date.now();
         slug = `${slug}-${timestamp}`;
         console.log(`⚠️ Slug collision detected. Modified slug to: ${slug}`);
-        showToast('Slug was modified to ensure uniqueness', 'info');
       }
     }
 
@@ -259,25 +254,13 @@ export default function ProductForm() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products-all'] });
 
-      // Show success message
-      showToast(
-        isEditing
-          ? 'Product updated successfully'
-          : 'Product created successfully',
-        'success'
-      );
-
       // Navigate back to products list
       setTimeout(() => {
         navigate('/admin/products');
       }, 500);
     } catch (error) {
       console.error('❌ Error saving product:', error);
-      const errorMessage = error.message || error.toString();
-      showToast(
-        `Failed to ${isEditing ? 'update' : 'create'} product: ${errorMessage}`,
-        'error'
-      );
+    }
     } finally {
       setSubmitting(false);
     }

@@ -19,7 +19,7 @@ import { getStockStatus } from '../../lib/inventory';
 const formatPrice = (price) => `₹${Number(price).toLocaleString('en-IN')}`;
 
 export default function AdminProducts() {
-  const { deleteProduct, showToast } = useStore();
+  const { deleteProduct } = useStore();
   const queryClient = useQueryClient();
   const { data: products = [], isLoading, error, refetch } = useAllProducts();
   const [searchTerm, setSearchTerm] = useState('');
@@ -84,7 +84,6 @@ export default function AdminProducts() {
       await refetch();
     } catch (error) {
       console.error('Seeding error:', error);
-      showToast('Failed to seed products', 'error');
     } finally {
       setIsSeeding(false);
     }

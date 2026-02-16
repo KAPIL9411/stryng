@@ -124,7 +124,7 @@ OrderItem.displayName = 'OrderItem';
 
 export default function CheckoutOptimized() {
   const navigate = useNavigate();
-  const { cart, getCartTotal, clearCart, showToast, user } = useStore();
+  const { cart, getCartTotal, clearCart, user } = useStore();
 
   // Prevent double submission
   const isCreatingOrder = useRef(false);
@@ -170,9 +170,8 @@ export default function CheckoutOptimized() {
   const copyUPIId = useCallback(() => {
     navigator.clipboard.writeText(MERCHANT_VPA);
     setCopiedUPI(true);
-    showToast('UPI ID copied!', 'success');
     setTimeout(() => setCopiedUPI(false), 2000);
-  }, [showToast]);
+  }, []);
 
   const handleTransactionIdChange = useCallback((e) => {
     setTransactionId(e.target.value);
@@ -185,7 +184,6 @@ export default function CheckoutOptimized() {
   // Redirect if empty cart or not logged in
   useEffect(() => {
     if (!user) {
-      showToast('Please login to checkout', 'error');
       navigate('/login');
       return;
     }
@@ -237,7 +235,6 @@ export default function CheckoutOptimized() {
 
   const handlePlaceOrder = useCallback(async () => {
     if (!selectedAddress) {
-      showToast('Please select a delivery address', 'error');
       return;
     }
 
@@ -283,18 +280,16 @@ export default function CheckoutOptimized() {
       if (result.success) {
         setOrderId(result.data.id);
         setCurrentStep(2);
-        showToast('Order created! Please complete payment', 'success');
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error creating order:', error);
-      showToast(error.message || 'Failed to create order', 'error');
     } finally {
       isCreatingOrder.current = false;
       setIsProcessing(false);
     }
-  }, [selectedAddress, orderId, showToast, total, cart]);
+  }, [selectedAddress, orderId, total, cart]);
 
   const handlePaymentConfirmation = useCallback(async () => {
     if (!orderId || isConfirmingPayment.current) {
@@ -310,18 +305,16 @@ export default function CheckoutOptimized() {
       if (result.success) {
         clearCart();
         setCurrentStep(3);
-        showToast('Payment confirmation received!', 'success');
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error confirming payment:', error);
-      showToast(error.message || 'Failed to confirm payment', 'error');
       isConfirmingPayment.current = false;
     } finally {
       setIsProcessing(false);
     }
-  }, [orderId, transactionId, clearCart, showToast]);
+  }, [orderId, transactionId, clearCart]);
 
   return (
     <>

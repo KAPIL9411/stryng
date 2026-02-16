@@ -44,7 +44,7 @@ function StarRating({ rating, size = 16 }) {
 
 export default function ProductDetail() {
   const { slug } = useParams();
-  const { addToCart, toggleWishlist, wishlist, showToast } = useStore();
+  const { addToCart, toggleWishlist, wishlist } = useStore();
 
   // Fetch single product by slug using React Query
   const {
@@ -134,18 +134,15 @@ export default function ProductDetail() {
 
   const handleAddToCart = () => {
     if (isOutOfStock) {
-      showToast('This product is out of stock', 'error');
       return;
     }
 
     if (!selectedSize && product.sizes.length > 0) {
-      showToast('Please select a size', 'error');
       return;
     }
 
     // Check if quantity exceeds available stock
     if (product.stock !== undefined && quantity > product.stock) {
-      showToast(`Only ${product.stock} items available in stock`, 'error');
       return;
     }
 
@@ -364,10 +361,6 @@ export default function ProductDetail() {
                       product.stock !== undefined &&
                       quantity >= product.stock
                     ) {
-                      showToast(
-                        `Only ${product.stock} items available`,
-                        'error'
-                      );
                       return;
                     }
                     setQuantity((q) => q + 1);

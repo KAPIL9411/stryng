@@ -31,7 +31,20 @@ const useStore = create(
 
         // Check if user is logged in
         if (!user) {
-          get().showToast('Please login to add items to cart', 'error');
+          // Save pending cart item to localStorage
+          const pendingCartItem = {
+            product,
+            size,
+            color,
+            quantity,
+            timestamp: Date.now()
+          };
+          localStorage.setItem('pendingCartItem', JSON.stringify(pendingCartItem));
+          
+          // Redirect to login page
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
           return;
         }
 
@@ -43,7 +56,6 @@ const useStore = create(
             currentProduct.lowStockThreshold
           );
           if (!stockStatus.available) {
-            get().showToast('This product is out of stock', 'error');
             return;
           }
 
@@ -58,10 +70,6 @@ const useStore = create(
           const totalQty = currentCartQty + quantity;
 
           if (totalQty > currentProduct.stock) {
-            get().showToast(
-              `Only ${currentProduct.stock} items available in stock`,
-              'error'
-            );
             return;
           }
         }
@@ -77,7 +85,6 @@ const useStore = create(
           const newCart = [...cart];
           newCart[existingItemIndex].quantity += quantity;
           set({ cart: newCart });
-          get().showToast(`Updated quantity for ${product.name}`, 'success');
         } else {
           set({
             cart: [
@@ -91,11 +98,27 @@ const useStore = create(
               },
             ],
           });
-          get().showToast(`Added ${product.name} to cart`, 'success');
         }
 
         // Track analytics
         trackAddToCart(product, quantity);
+      },
+
+      // Process pending cart item after login
+      processPendingCartItem: () => {
+        const pendingItem = localStorage.getItem('pendingCartItem');
+        if (pendingItem) {
+          try {
+            const { product, size, color, quantity } = JSON.parse(pendingItem);
+            // Remove from localStorage
+            localStorage.removeItem('pendingCartItem');
+            // Add to cart
+            get().addToCart(product, size, color, quantity);
+          } catch (error) {
+            console.error('Error processing pending cart item:', error);
+            localStorage.removeItem('pendingCartItem');
+          }
+        }
       },
 
       removeFromCart: (cartId) => {
@@ -105,7 +128,6 @@ const useStore = create(
         set((state) => ({
           cart: state.cart.filter((item) => item.cartId !== cartId),
         }));
-        get().showToast('Removed item from cart', 'error');
 
         // Track analytics
         if (item) {
@@ -154,7 +176,6 @@ const useStore = create(
 
         // Check if user is logged in
         if (!user) {
-          get().showToast('Please login to add items to wishlist', 'error');
           return;
         }
 
@@ -162,10 +183,8 @@ const useStore = create(
 
         if (isInWishlist) {
           set({ wishlist: wishlist.filter((item) => item.id !== product.id) });
-          get().showToast('Removed from wishlist', 'error');
         } else {
           set({ wishlist: [...wishlist, product] });
-          get().showToast('Added to wishlist', 'success');
 
           // Track analytics
           trackAddToWishlist(product);
@@ -425,10 +444,14 @@ const useStore = create(
             };
           }
           set({ isAuthLoading: false, authError: null });
-          get().showToast('Welcome back!', 'success');
 
           // Track analytics
           trackLogin('email');
+
+          // Process any pending cart item
+          setTimeout(() => {
+            get().processPendingCartItem();
+          }, 500);
 
           return { success: true };
         } catch (err) {
@@ -531,7 +554,6 @@ const useStore = create(
             return { success: false, error: friendlyMsg };
           }
           set({ isAuthLoading: false });
-          get().showToast('Password updated successfully!', 'success');
           return { success: true };
         } catch (err) {
           const friendlyMsg = getAuthErrorMessage(err);
@@ -603,7 +625,6 @@ const useStore = create(
             // Don't throw - we've already cleared local state
           }
 
-          get().showToast('Logged out successfully', 'success');
           return { success: true };
         } catch (error) {
           console.error('Logout failed:', error);
@@ -737,7 +758,6 @@ const useStore = create(
 
           if (error) throw error;
           await get().fetchBanners();
-          get().showToast('Banner created', 'success');
           return { error: null };
         } catch (error) {
           console.error('Error creating banner:', error);
@@ -754,7 +774,6 @@ const useStore = create(
 
           if (error) throw error;
           await get().fetchBanners();
-          get().showToast('Banner updated', 'success');
           return { error: null };
         } catch (error) {
           console.error('Error updating banner:', error);
@@ -771,7 +790,6 @@ const useStore = create(
 
           if (error) throw error;
           await get().fetchBanners();
-          get().showToast('Banner deleted', 'success');
           return { error: null };
         } catch (error) {
           console.error('Error deleting banner:', error);
@@ -783,7 +801,6 @@ const useStore = create(
       createOrder: async (orderData) => {
         const { user } = get();
         if (!user) {
-          get().showToast('Please login to place an order', 'error');
           return null;
         }
 
@@ -846,10 +863,6 @@ const useStore = create(
 
           if (error) {
             console.error('Order creation failed:', error);
-            get().showToast(
-              'Failed to place order. Please try again.',
-              'error'
-            );
             return null;
           }
 
@@ -872,10 +885,6 @@ const useStore = create(
               console.error('Error inserting order items:', itemsError);
               // Rollback order if items fail
               await supabase.from('orders').delete().eq('id', orderId);
-              get().showToast(
-                'Failed to save order items. Please try again.',
-                'error'
-              );
               return null;
             }
           }
@@ -883,10 +892,6 @@ const useStore = create(
           return data[0];
         } catch (err) {
           console.error('Unexpected error creating order:', err);
-          get().showToast(
-            'An unexpected error occurred. Please try again.',
-            'error'
-          );
           return null;
         }
       },
@@ -919,12 +924,7 @@ const useStore = create(
         set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
       closeMobileMenu: () => set({ isMobileMenuOpen: false }),
 
-      toast: null,
-      showToast: (message, type = 'info') => {
-        set({ toast: { message, type } });
-        setTimeout(() => set({ toast: null }), 3000);
-      },
-      hideToast: () => set({ toast: null }),
+      // Toast removed - no longer needed
     }),
     {
       name: 'stryng-storage',

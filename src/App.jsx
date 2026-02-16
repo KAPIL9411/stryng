@@ -43,7 +43,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // UI
 import Preloader from './components/ui/Preloader';
-import Toast from './components/ui/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import SuspenseWrapper from './components/common/SuspenseWrapper';
 import SessionExpired from './components/SessionExpired';
@@ -65,7 +64,7 @@ function ScrollToTop() {
 }
 
 function App() {
-  const { initializeAuth } = useStore();
+  const { initializeAuth, user, processPendingCartItem } = useStore();
 
   useEffect(() => {
     // Make queryClient available globally for logout
@@ -129,10 +128,16 @@ function App() {
     initialize();
   }, [initializeAuth]);
 
+  // Process pending cart item when user logs in
+  useEffect(() => {
+    if (user) {
+      processPendingCartItem();
+    }
+  }, [user, processPendingCartItem]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Preloader />
-      <Toast />
       <SessionExpired />
       <ScrollToTop />
       <ErrorBoundary>

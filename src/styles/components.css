@@ -497,30 +497,102 @@
   cursor: pointer;
 }
 
-/* ---- Toast ---- */
+/* ---- Toast (Myntra/Amazon/Flipkart Style) ---- */
 .toast {
   position: fixed;
-  bottom: var(--space-6);
-  right: var(--space-6);
-  padding: var(--space-4) var(--space-6);
+  top: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 320px;
+  max-width: 500px;
+  padding: var(--space-3) var(--space-4);
+  background: #fff;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xl);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: var(--z-toast);
   display: flex;
   align-items: center;
   gap: var(--space-3);
   font-size: var(--text-sm);
+  border-left: 4px solid;
+}
+
+.toast__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast__message {
+  flex: 1;
+  margin: 0;
   font-weight: var(--font-medium);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.toast__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.toast__close:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .toast--success {
-  background: var(--color-success);
-  color: var(--color-secondary);
+  border-left-color: #10b981;
+}
+
+.toast--success .toast__icon {
+  color: #10b981;
 }
 
 .toast--error {
-  background: var(--color-error);
-  color: var(--color-secondary);
+  border-left-color: #ef4444;
+}
+
+.toast--error .toast__icon {
+  color: #ef4444;
+}
+
+.toast--info {
+  border-left-color: #3b82f6;
+}
+
+.toast--info .toast__icon {
+  color: #3b82f6;
+}
+
+.toast--cart {
+  border-left-color: var(--color-accent);
+}
+
+.toast--cart .toast__icon {
+  color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+  .toast {
+    top: var(--space-4);
+    left: var(--space-4);
+    right: var(--space-4);
+    transform: none;
+    min-width: auto;
+    max-width: none;
+  }
 }
 
 /* ---- Skeleton Loader ---- */

@@ -1,5 +1,5 @@
 import useStore from '../../store/useStore';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Info, ShoppingCart } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export default function Toast() {
@@ -7,42 +7,57 @@ export default function Toast() {
 
   if (!toast) return null;
 
-  const icons = {
-    success: <CheckCircle size={20} />,
-    error: <AlertCircle size={20} />,
-    info: <Info size={20} />,
+  const getIcon = () => {
+    switch (toast.type) {
+      case 'success':
+        return <CheckCircle size={20} strokeWidth={2.5} />;
+      case 'error':
+        return <AlertCircle size={20} strokeWidth={2.5} />;
+      case 'info':
+        return <Info size={20} strokeWidth={2.5} />;
+      case 'cart':
+        return <ShoppingCart size={20} strokeWidth={2.5} />;
+      default:
+        return <CheckCircle size={20} strokeWidth={2.5} />;
+    }
   };
 
-  const styles = {
-    success: 'toast--success',
-    error: 'toast--error',
-    info: 'toast--info', // We'll add this style if needed, or default
+  const getStyles = () => {
+    switch (toast.type) {
+      case 'success':
+        return 'toast--success';
+      case 'error':
+        return 'toast--error';
+      case 'info':
+        return 'toast--info';
+      case 'cart':
+        return 'toast--cart';
+      default:
+        return 'toast--success';
+    }
   };
 
   return (
     <AnimatePresence>
       {toast && (
         <motion.div
-          initial={{ opacity: 0, y: 50, x: 50 }}
-          animate={{ opacity: 1, y: 0, x: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          className={`toast ${styles[toast.type] || ''}`}
-          onClick={hideToast}
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          className={`toast ${getStyles()}`}
         >
-          {icons[toast.type]}
-          <span>{toast.message}</span>
+          <div className="toast__icon">
+            {getIcon()}
+          </div>
+          <p className="toast__message">{toast.message}</p>
           <button
             onClick={(e) => {
               e.stopPropagation();
               hideToast();
             }}
-            style={{
-              marginLeft: 'auto',
-              background: 'none',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
+            className="toast__close"
+            aria-label="Close"
           >
             <X size={16} />
           </button>

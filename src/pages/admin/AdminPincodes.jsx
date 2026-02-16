@@ -19,7 +19,6 @@ import {
 } from '../../api/pincodes.api';
 
 export default function AdminPincodes() {
-  const { showToast } = useStore();
   const [pincodes, setPincodes] = useState([]);
   const [filteredPincodes, setFilteredPincodes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,8 +49,6 @@ export default function AdminPincodes() {
     const response = await getAllServiceablePincodes();
     if (response.success) {
       setPincodes(response.data);
-    } else {
-      showToast('Failed to load pincodes', 'error');
     }
     setLoading(false);
   };
