@@ -1,6 +1,6 @@
 /**
  * React Query Hooks for Banners
- * Provides caching and mutations for banners
+ * Provides caching and mutations for banners with instant loading
  * @module hooks/useBanners
  */
 
@@ -10,25 +10,31 @@ import * as bannersApi from '../api/banners.api';
 import useStore from '../store/useStore';
 
 /**
- * Hook to fetch active banners
- * Optimized for fast initial load
+ * Hook to fetch active banners with instant loading
+ * Uses multi-layer cache for zero loading time
  */
 export const useBanners = (options = {}) => {
   return useQuery({
     queryKey: queryKeys.banners.active(),
     queryFn: bannersApi.fetchBanners,
-    staleTime: 5 * 60 * 1000, // 5 minutes - reduced for fresher data
-    cacheTime: 30 * 60 * 1000, // 30 minutes - keep in cache longer
-    refetchOnWindowFocus: false, // Don't refetch on focus for better performance
+    staleTime: 5 * 60 * 1000, // 5 minutes - data considered fresh
+    cacheTime: 60 * 60 * 1000, // 60 minutes - keep in React Query cache
+    refetchOnWindowFocus: false, // Don't refetch on focus
     refetchOnMount: false, // Don't refetch if data exists
+    refetchOnReconnect: true, // Refetch when internet reconnects
     retry: 2, // Retry failed requests
     retryDelay: 1000, // Wait 1s between retries
+    // Enable background refetching for fresh data
+    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes in background
+    // Optimistic updates - show cached data immediately
+    placeholderData: (previousData) => previousData,
     ...options,
   });
 };
 
 /**
  * Hook to create/update/delete banners (admin)
+ * Automatically clears cache on mutations
  */
 export const useBannerMutations = () => {
   const queryClient = useQueryClient();
@@ -37,6 +43,7 @@ export const useBannerMutations = () => {
   const createMutation = useMutation({
     mutationFn: bannersApi.createBanner,
     onSuccess: () => {
+      // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
       showToast('Banner created successfully', 'success');
     },
@@ -49,6 +56,7 @@ export const useBannerMutations = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, bannerData }) => bannersApi.updateBanner(id, bannerData),
     onSuccess: () => {
+      // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
       showToast('Banner updated successfully', 'success');
     },
@@ -61,6 +69,7 @@ export const useBannerMutations = () => {
   const deleteMutation = useMutation({
     mutationFn: bannersApi.deleteBanner,
     onSuccess: () => {
+      // Invalidate React Query cache
       queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
       showToast('Banner deleted successfully', 'success');
     },
