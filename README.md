@@ -33,6 +33,7 @@ See `PROJECT_STATUS_SUMMARY.md` for complete details.
 - 💳 **Multiple Payment Options** - UPI and Cash on Delivery
 - 🎨 **Product Filtering** - By category, price, size, color
 - 📄 **Pagination** - Fast loading with 12 products per page
+- 🎟️ **Coupon System** - Apply discount codes at checkout
 
 ### Admin Features
 - 📊 **Dashboard** - Overview of orders and products
@@ -40,6 +41,7 @@ See `PROJECT_STATUS_SUMMARY.md` for complete details.
 - 🖼️ **Image Upload** - Cloudinary integration
 - 🎯 **Banner Management** - Homepage carousel control
 - 📋 **Order Management** - View and update order status
+- 🎟️ **Coupon Management** - Create and manage discount codes
 
 ### Technical Features
 - ⚡ **Performance Optimized** - Code splitting, lazy loading
@@ -903,6 +905,61 @@ See `PLATFORM_STATUS.md` for detailed deployment guide.
 - **FIXES_APPLIED.md** - All improvements made
 - **PRODUCTION_CHECKLIST.md** - Pre-deployment checklist
 - **IMPLEMENTATION_COMPLETE.md** - Latest features
+- **docs/COUPON_API.md** - Coupon API documentation
+- **docs/COUPON_ADMIN_GUIDE.md** - Admin guide for coupon management
+- **docs/COUPON_DATABASE_SCHEMA.md** - Database schema documentation
+
+## 🎟️ Coupon System
+
+The platform includes a comprehensive coupon/discount code system for promotional campaigns.
+
+### Features
+- **Discount Types**: Percentage or fixed amount discounts
+- **Conditions**: Minimum order value, usage limits, validity periods
+- **Per-User Limits**: Control how many times each user can use a coupon
+- **Admin Management**: Full CRUD operations for coupons
+- **Usage Tracking**: Monitor coupon usage and statistics
+- **Checkout Integration**: Apply coupons during checkout with real-time validation
+
+### For Customers
+1. Browse available coupons at checkout
+2. Enter coupon code in the input field
+3. See discount applied immediately
+4. View savings in order summary
+
+### For Admins
+1. Access **Coupons** from admin sidebar
+2. Create new coupons with custom rules
+3. Monitor usage statistics
+4. Enable/disable coupons instantly
+5. View detailed usage reports
+
+### Documentation
+- **API Reference**: See `docs/COUPON_API.md`
+- **Admin Guide**: See `docs/COUPON_ADMIN_GUIDE.md`
+- **Database Schema**: See `docs/COUPON_DATABASE_SCHEMA.md`
+
+### Example Coupons
+```javascript
+// Welcome offer: ₹100 off on first order
+{
+  code: 'WELCOME10',
+  type: 'fixed',
+  value: 100,
+  minOrder: 500,
+  perUser: 1
+}
+
+// Flash sale: 50% off (max ₹1000)
+{
+  code: 'FLASH50',
+  type: 'percentage',
+  value: 50,
+  maxDiscount: 1000,
+  minOrder: 2000,
+  maxUses: 100
+}
+```
 
 ## 🧪 Testing
 
@@ -936,7 +993,7 @@ None! All critical bugs have been fixed.
 - [ ] Product reviews and ratings
 - [ ] Advanced search (Algolia)
 - [ ] Email notifications
-- [ ] Coupon system
+- [x] Coupon system ✅
 
 ### Phase 3 (Future)
 - [ ] Mobile app (React Native)

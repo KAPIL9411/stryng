@@ -13,6 +13,7 @@ import {
   Settings,
   BarChart3,
   MapPin,
+  Tag,
 } from 'lucide-react';
 import useStore from '../../store/useStore';
 import { useState } from 'react';
@@ -21,6 +22,7 @@ const sidebarItems = [
   { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/admin' },
   { icon: <Package size={20} />, label: 'Products', path: '/admin/products' },
   { icon: <ShoppingCart size={20} />, label: 'Orders', path: '/admin/orders' },
+  { icon: <Tag size={20} />, label: 'Coupons', path: '/admin/coupons' },
   { icon: <Image size={20} />, label: 'Banners', path: '/admin/banners' },
   { icon: <MapPin size={20} />, label: 'Pincodes', path: '/admin/pincodes' },
 ];

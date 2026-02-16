@@ -315,6 +315,12 @@ export default function OrderTracking() {
                 <span>Shipping</span>
                 <span>FREE</span>
               </div>
+              {order.coupon_discount > 0 && (
+                <div className="cart-summary__row" style={{ color: '#28a745' }}>
+                  <span>Coupon Discount ({order.coupon_code})</span>
+                  <span>-{formatPrice(order.coupon_discount)}</span>
+                </div>
+              )}
               <div className="cart-summary__row">
                 <span>Tax (GST 18%)</span>
                 <span>

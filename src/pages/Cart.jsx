@@ -4,12 +4,13 @@ import {
   Plus,
   X,
   ArrowRight,
-  Tag,
   ShoppingBag,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
 import { useMemo, useCallback, memo } from 'react';
+import CouponInput from '../components/checkout/CouponInput';
+import AppliedCoupon from '../components/checkout/AppliedCoupon';
 
 // Memoized CartItem component to prevent unnecessary re-renders
 const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
@@ -95,7 +96,7 @@ const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
 CartItem.displayName = 'CartItem';
 
 export default function Cart() {
-  const { cart, updateQuantity, removeFromCart } =
+  const { cart, updateQuantity, removeFromCart, couponDiscount } =
     useStore();
 
   // Memoize expensive calculations
@@ -110,13 +111,13 @@ export default function Cart() {
   );
 
   const tax = useMemo(
-    () => Math.round(subtotal * 0.18),
-    [subtotal]
+    () => Math.round((subtotal - couponDiscount) * 0.18),
+    [subtotal, couponDiscount]
   );
 
   const total = useMemo(
-    () => subtotal + shipping + tax,
-    [subtotal, shipping, tax]
+    () => subtotal + shipping + tax - couponDiscount,
+    [subtotal, shipping, tax, couponDiscount]
   );
 
   const formattedSubtotal = useMemo(
@@ -355,6 +356,12 @@ export default function Cart() {
               <span>Shipping</span>
               <span>{formattedShipping}</span>
             </div>
+            {couponDiscount > 0 && (
+              <div className="cart-summary__row" style={{ color: 'var(--color-success)' }}>
+                <span>Coupon Discount</span>
+                <span>-{formatPrice(couponDiscount)}</span>
+              </div>
+            )}
             <div className="cart-summary__row">
               <span>Tax (GST 18%)</span>
               <span>{formattedTax}</span>
@@ -364,15 +371,9 @@ export default function Cart() {
               <span>{formattedTotal}</span>
             </div>
 
-            <div className="cart-summary__coupon">
-              <input
-                type="text"
-                className="cart-summary__coupon-input"
-                placeholder="Coupon code"
-              />
-              <button className="btn btn--secondary btn--sm">
-                <Tag size={14} /> Apply
-              </button>
+            <div style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+              <AppliedCoupon />
+              <CouponInput orderTotal={subtotal} />
             </div>
 
             <Link

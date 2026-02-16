@@ -36,7 +36,9 @@ const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
 const AdminOrderDetails = lazy(() => import('./pages/admin/AdminOrderDetails'));
 const AdminBanners = lazy(() => import('./pages/admin/AdminBanners'));
 const AdminPincodes = lazy(() => import('./pages/admin/AdminPincodes'));
+const AdminCoupons = lazy(() => import('./pages/admin/AdminCoupons'));
 const ProductForm = lazy(() => import('./pages/admin/ProductForm'));
+const CouponForm = lazy(() => import('./pages/admin/CouponForm'));
 
 // Auth
 import ProtectedRoute from './components/ProtectedRoute';
@@ -286,6 +288,36 @@ function App() {
                   <AdminRoute>
                     <AdminLayout>
                       <AdminPincodes />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/coupons"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <AdminCoupons />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/coupons/new"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <CouponForm />
+                    </AdminLayout>
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="admin/coupons/:id/edit"
+                element={
+                  <AdminRoute>
+                    <AdminLayout>
+                      <CouponForm />
                     </AdminLayout>
                   </AdminRoute>
                 }

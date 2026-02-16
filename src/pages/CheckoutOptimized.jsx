@@ -22,6 +22,9 @@ import { trackBeginCheckout } from '../lib/analytics';
 import { getUserAddresses } from '../api/addresses.api';
 import { createOrder, markPaymentAsPaid } from '../api/orders.api';
 import SEO from '../components/SEO';
+import CouponInput from '../components/checkout/CouponInput';
+import AppliedCoupon from '../components/checkout/AppliedCoupon';
+import AvailableCoupons from '../components/checkout/AvailableCoupons';
 
 // UPI Configuration
 const MERCHANT_VPA = 'kurmikapil154@okicici';
@@ -124,7 +127,7 @@ OrderItem.displayName = 'OrderItem';
 
 export default function CheckoutOptimized() {
   const navigate = useNavigate();
-  const { cart, getCartTotal, clearCart, user } = useStore();
+  const { cart, getCartTotal, clearCart, user, couponDiscount, clearCoupon } = useStore();
 
   // Prevent double submission
   const isCreatingOrder = useRef(false);
@@ -144,8 +147,8 @@ export default function CheckoutOptimized() {
   // Cart Calculations - memoized for performance
   const subtotal = useMemo(() => getCartTotal(), [getCartTotal]);
   const shippingCost = 0;
-  const tax = useMemo(() => Math.round(subtotal * 0.18), [subtotal]);
-  const total = useMemo(() => subtotal + shippingCost + tax, [subtotal, shippingCost, tax]);
+  const tax = useMemo(() => Math.round((subtotal - couponDiscount) * 0.18), [subtotal, couponDiscount]);
+  const total = useMemo(() => subtotal + shippingCost + tax - couponDiscount, [subtotal, shippingCost, tax, couponDiscount]);
 
   const formattedSubtotal = useMemo(() => formatPrice(subtotal), [subtotal]);
   const formattedTax = useMemo(() => formatPrice(tax), [tax]);
@@ -246,6 +249,8 @@ export default function CheckoutOptimized() {
     setIsProcessing(true);
 
     try {
+      const { appliedCoupon, couponDiscount } = useStore.getState();
+      
       const orderData = {
         total,
         items: cart.map((item) => ({
@@ -273,6 +278,11 @@ export default function CheckoutOptimized() {
           pincode: selectedAddress.pincode,
         },
         paymentMethod: 'upi',
+        coupon: appliedCoupon ? {
+          id: appliedCoupon.id,
+          code: appliedCoupon.code,
+          discount: couponDiscount,
+        } : null,
       };
 
       const result = await createOrder(orderData);
@@ -304,6 +314,7 @@ export default function CheckoutOptimized() {
 
       if (result.success) {
         clearCart();
+        clearCoupon();
         setCurrentStep(3);
       } else {
         throw new Error(result.error);
@@ -314,7 +325,7 @@ export default function CheckoutOptimized() {
     } finally {
       setIsProcessing(false);
     }
-  }, [orderId, transactionId, clearCart]);
+  }, [orderId, transactionId, clearCart, clearCoupon]);
 
   return (
     <>
@@ -624,6 +635,12 @@ export default function CheckoutOptimized() {
                     <span>Shipping</span>
                     <span className="free-text">FREE</span>
                   </div>
+                  {couponDiscount > 0 && (
+                    <div className="total-row coupon-discount">
+                      <span>Coupon Discount</span>
+                      <span className="discount-amount">-{formatPrice(couponDiscount)}</span>
+                    </div>
+                  )}
                   <div className="total-row">
                     <span>Tax (GST 18%)</span>
                     <span>{formattedTax}</span>
@@ -633,6 +650,15 @@ export default function CheckoutOptimized() {
                     <span>{formattedTotal}</span>
                   </div>
                 </div>
+
+                {/* Coupon Section */}
+                {currentStep === 1 && (
+                  <div className="coupon-section">
+                    <AppliedCoupon />
+                    <CouponInput orderTotal={subtotal} />
+                    <AvailableCoupons orderTotal={subtotal} />
+                  </div>
+                )}
 
                 {selectedAddress && currentStep === 1 && (
                   <div className="delivery-info">
@@ -703,6 +729,12 @@ export default function CheckoutOptimized() {
                     <span>Shipping</span>
                     <span className="free-text">FREE</span>
                   </div>
+                  {couponDiscount > 0 && (
+                    <div className="total-row coupon-discount">
+                      <span>Coupon Discount</span>
+                      <span className="discount-amount">-{formatPrice(couponDiscount)}</span>
+                    </div>
+                  )}
                   <div className="total-row">
                     <span>Tax (GST 18%)</span>
                     <span>{formattedTax}</span>

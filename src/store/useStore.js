@@ -177,6 +177,25 @@ const useStore = create(
         return validateCartStock(cart, products);
       },
 
+      /* ---- Coupon State & Actions ---- */
+      appliedCoupon: null,
+      couponDiscount: 0,
+
+      applyCoupon: (coupon, discount) => set({ 
+        appliedCoupon: coupon, 
+        couponDiscount: discount 
+      }),
+
+      removeCoupon: () => set({ 
+        appliedCoupon: null, 
+        couponDiscount: 0 
+      }),
+
+      clearCoupon: () => set({ 
+        appliedCoupon: null, 
+        couponDiscount: 0 
+      }),
+
       /* ---- Wishlist State & Actions ---- */
       wishlist: [],
 
@@ -934,6 +953,8 @@ const useStore = create(
       partialize: (state) => ({
         cart: state.cart,
         wishlist: state.wishlist,
+        appliedCoupon: state.appliedCoupon,
+        couponDiscount: state.couponDiscount,
         // Don't persist user/products heavily, depend on auth listener/bootstrap
       }),
     }

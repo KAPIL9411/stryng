@@ -241,6 +241,17 @@ export default function OrderHistory() {
                       >
                         {formatPrice(order.total)}
                       </div>
+                      {order.coupon_discount > 0 && (
+                        <div
+                          style={{
+                            fontSize: '0.8rem',
+                            color: '#28a745',
+                            marginTop: '0.25rem',
+                          }}
+                        >
+                          Saved {formatPrice(order.coupon_discount)} with {order.coupon_code}
+                        </div>
+                      )}
                     </div>
                   </div>
 

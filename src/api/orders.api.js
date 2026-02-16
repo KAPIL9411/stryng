@@ -41,6 +41,9 @@ export async function createOrder(orderData) {
         payment_status: 'pending',
         payment_method: orderData.paymentMethod || 'upi',
         address: orderData.address,
+        coupon_id: orderData.coupon?.id || null,
+        coupon_code: orderData.coupon?.code || null,
+        coupon_discount: orderData.coupon?.discount || 0,
         timeline: [
           {
             status: 'pending',
@@ -82,7 +85,47 @@ export async function createOrder(orderData) {
 
     if (paymentError) throw paymentError;
 
-    // 6. Return success
+    // 6. Record coupon usage if coupon was applied
+    if (orderData.coupon?.id) {
+      // Record in coupon_usage table
+      const { error: usageError } = await supabase
+        .from('coupon_usage')
+        .insert({
+          coupon_id: orderData.coupon.id,
+          user_id: user.id,
+          order_id: orderId,
+          discount_amount: orderData.coupon.discount,
+        });
+
+      if (usageError) {
+        console.error('Error recording coupon usage:', usageError);
+        // Don't fail the order if coupon usage recording fails
+      }
+
+      // Increment used_count using the new function
+      const { error: incrementError } = await supabase.rpc('increment_coupon_usage', {
+        p_coupon_id: orderData.coupon.id,
+      });
+
+      if (incrementError) {
+        console.error('Error incrementing coupon usage:', incrementError);
+        // Try alternative method if RPC doesn't work
+        const { data: coupon } = await supabase
+          .from('coupons')
+          .select('used_count')
+          .eq('id', orderData.coupon.id)
+          .single();
+
+        if (coupon) {
+          await supabase
+            .from('coupons')
+            .update({ used_count: (coupon.used_count || 0) + 1 })
+            .eq('id', orderData.coupon.id);
+        }
+      }
+    }
+
+    // 7. Return success
     return {
       success: true,
       data: order,
