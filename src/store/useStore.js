@@ -583,19 +583,11 @@ const useStore = create(
 
       logout: async () => {
         try {
-          // Sign out from Supabase
-          const { error } = await supabase.auth.signOut();
-
-          if (error) {
-            console.error('Logout error:', error);
-            throw error;
-          }
-
-          // Clear all user-related state
+          // Clear all user-related state immediately for instant UI update
           set({
             user: null,
-            cart: [], // Clear cart on logout
-            wishlist: [], // Clear wishlist on logout
+            cart: [],
+            wishlist: [],
           });
 
           // Clear React Query cache
@@ -603,10 +595,20 @@ const useStore = create(
             window.queryClient.clear();
           }
 
+          // Sign out from Supabase
+          const { error } = await supabase.auth.signOut();
+
+          if (error) {
+            console.error('Logout error:', error);
+            // Don't throw - we've already cleared local state
+          }
+
           get().showToast('Logged out successfully', 'success');
+          return { success: true };
         } catch (error) {
           console.error('Logout failed:', error);
-          get().showToast('Logout failed. Please try again.', 'error');
+          // Still return success since we cleared local state
+          return { success: true };
         }
       },
 

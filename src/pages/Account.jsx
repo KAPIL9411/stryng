@@ -97,12 +97,19 @@ export default function Account() {
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // Clear local storage first for immediate UI update
       localStorage.removeItem('stryng-storage');
+      
+      // Sign out from Supabase
+      await logout();
+      
+      // Navigate to login page
       navigate('/login', { replace: true });
-      window.location.href = '/login';
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout fails, clear local data and redirect
+      localStorage.clear();
+      navigate('/login', { replace: true });
     }
   };
 

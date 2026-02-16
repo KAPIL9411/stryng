@@ -33,15 +33,19 @@ export default function AdminLayout({ children }) {
 
   const handleLogout = async () => {
     try {
-      await logout();
-      // Clear any local storage if needed
+      // Clear local storage first for immediate UI update
       localStorage.removeItem('stryng-storage');
-      // Force navigation to login
+      
+      // Sign out from Supabase
+      await logout();
+      
+      // Navigate to login page
       navigate('/login', { replace: true });
-      // Force page reload to clear all state
-      window.location.href = '/login';
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout fails, clear local data and redirect
+      localStorage.clear();
+      navigate('/login', { replace: true });
     }
   };
 
