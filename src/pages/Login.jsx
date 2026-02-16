@@ -18,7 +18,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const redirectTo = location.state?.from || '/account';
+  const redirectTo = location.state?.from || '/';
 
   // If already signed in, redirect away
   useEffect(() => {

@@ -32,7 +32,7 @@ export default function Register() {
 
   // If already signed in, redirect to account
   useEffect(() => {
-    if (user) navigate('/account', { replace: true });
+    if (user) navigate('/', { replace: true });
   }, [user]);
 
   // Clear errors on mount
@@ -68,7 +68,7 @@ export default function Register() {
 
     const result = await register(email, password, name.trim());
     if (result.success) {
-      navigate('/account');
+      navigate('/');
     }
   };
 
