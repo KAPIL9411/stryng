@@ -92,7 +92,17 @@ window.fetch = async (...args) => {
               sessionStorage.clear();
               // Redirect to login if not already there
               if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login?session_expired=true';
+                // Use custom event for navigation
+                window.dispatchEvent(new CustomEvent('requireAuth', { 
+                  detail: { redirectTo: '/login?session_expired=true' } 
+                }));
+                
+                // Fallback to direct navigation
+                setTimeout(() => {
+                  if (!window.location.pathname.includes('/login')) {
+                    window.location.replace('/login?session_expired=true');
+                  }
+                }, 100);
               }
             } catch (e) {
               // Silently handle cleanup errors

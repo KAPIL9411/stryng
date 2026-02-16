@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -65,6 +65,7 @@ function ScrollToTop() {
 
 function App() {
   const { initializeAuth, user, processPendingCartItem } = useStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Make queryClient available globally for logout
@@ -134,6 +135,17 @@ function App() {
       processPendingCartItem();
     }
   }, [user, processPendingCartItem]);
+
+  // Listen for auth requirement events from store
+  useEffect(() => {
+    const handleRequireAuth = (event) => {
+      const { redirectTo } = event.detail;
+      navigate(redirectTo);
+    };
+
+    window.addEventListener('requireAuth', handleRequireAuth);
+    return () => window.removeEventListener('requireAuth', handleRequireAuth);
+  }, [navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>

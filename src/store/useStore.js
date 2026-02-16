@@ -41,10 +41,19 @@ const useStore = create(
           };
           localStorage.setItem('pendingCartItem', JSON.stringify(pendingCartItem));
           
-          // Redirect to login page
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
+          // Trigger a custom event that the app can listen to for navigation
+          window.dispatchEvent(new CustomEvent('requireAuth', { 
+            detail: { redirectTo: '/login' } 
+          }));
+          
+          // Fallback: if event doesn't work, use window.location.replace after a delay
+          setTimeout(() => {
+            const stillPending = localStorage.getItem('pendingCartItem');
+            if (stillPending && !window.location.pathname.includes('/login')) {
+              window.location.replace('/login');
+            }
+          }, 100);
+          
           return;
         }
 

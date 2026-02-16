@@ -61,13 +61,23 @@ export const handleInvalidRefreshToken = async () => {
     
     // Redirect to login (only if not already there)
     if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login?session_expired=true';
+      // Use custom event for navigation in production
+      window.dispatchEvent(new CustomEvent('requireAuth', { 
+        detail: { redirectTo: '/login?session_expired=true' } 
+      }));
+      
+      // Fallback to direct navigation after a delay
+      setTimeout(() => {
+        if (!window.location.pathname.includes('/login')) {
+          window.location.replace('/login?session_expired=true');
+        }
+      }, 100);
     }
   } catch (error) {
     console.error('Error handling invalid refresh token:', error);
     // Force redirect anyway as last resort
     if (!window.location.pathname.includes('/login')) {
-      window.location.href = '/login';
+      window.location.replace('/login');
     }
   } finally {
     // Reset flag after a delay
