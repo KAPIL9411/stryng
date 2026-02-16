@@ -48,6 +48,7 @@ export default function Account() {
   const [isLoading, setIsLoading] = useState(false);
   const [addresses, setAddresses] = useState([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false); // Track if data is already loaded
 
   const displayName =
     user?.full_name ||
@@ -56,33 +57,43 @@ export default function Account() {
     'User';
   const userEmail = user?.email || '';
 
+  // Function to refresh addresses (can be called when returning from addresses page)
+  const refreshAddresses = async () => {
+    const response = await getUserAddresses();
+    if (response.success) {
+      setAddresses(response.data);
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
-    } else {
-      const loadOrders = async () => {
+    } else if (!dataLoaded) {
+      // Load both orders and addresses immediately on page load
+      const loadData = async () => {
         setIsLoading(true);
-        const orders = await fetchUserOrders();
-        setUserOrders(orders || []);
-        setIsLoading(false);
-      };
-      loadOrders();
-    }
-  }, [user, navigate, fetchUserOrders]);
-
-  useEffect(() => {
-    if (activeTab === 'addresses' && user) {
-      const loadAddresses = async () => {
         setLoadingAddresses(true);
-        const response = await getUserAddresses();
-        if (response.success) {
-          setAddresses(response.data);
+        
+        // Fetch orders and addresses in parallel for faster loading
+        const [orders, addressesResponse] = await Promise.all([
+          fetchUserOrders(),
+          getUserAddresses()
+        ]);
+        
+        setUserOrders(orders || []);
+        
+        if (addressesResponse.success) {
+          setAddresses(addressesResponse.data);
         }
+        
+        setIsLoading(false);
         setLoadingAddresses(false);
+        setDataLoaded(true); // Mark data as loaded
       };
-      loadAddresses();
+      
+      loadData();
     }
-  }, [activeTab, user]);
+  }, [user, navigate, fetchUserOrders, dataLoaded]);
 
   const handleLogout = async () => {
     try {
