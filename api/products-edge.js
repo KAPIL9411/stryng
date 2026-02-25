@@ -22,6 +22,15 @@ export default async function handler(request) {
   const type = searchParams.get('type') || 'list';
   
   try {
+    // Log environment for debugging
+    console.log('Edge function called:', {
+      type,
+      hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+      hasUrl: !!process.env.SUPABASE_URL,
+      hasViteKey: !!process.env.VITE_SUPABASE_ANON_KEY,
+      hasKey: !!process.env.SUPABASE_ANON_KEY,
+    });
+    
     // Route to appropriate handler
     switch (type) {
       case 'list':
@@ -39,7 +48,12 @@ export default async function handler(request) {
     console.error('❌ Edge function error:', error);
     return jsonResponse({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      stack: error.stack,
+      env: {
+        hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+        hasUrl: !!process.env.SUPABASE_URL,
+      }
     }, 500);
   }
 }

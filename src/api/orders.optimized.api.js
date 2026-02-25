@@ -82,28 +82,42 @@ export async function createOrderOptimized(orderData) {
       payment_status: 'pending',
     };
 
-    // 5. Execute all operations in parallel for maximum speed
-    const [orderResult, itemsResult, paymentResult] = await Promise.all([
-      supabase.from('orders').insert(orderRecord).select().single(),
+    // 5. Create order first (must succeed before items/payments)
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert(orderRecord)
+      .select()
+      .single();
+
+    if (orderError) {
+      console.error('Order creation failed:', orderError);
+      throw orderError;
+    }
+
+    // 6. Create items and payment in parallel (only after order succeeds)
+    const [itemsResult, paymentResult] = await Promise.all([
       supabase.from('order_items').insert(orderItems),
       supabase.from('payments').insert(paymentRecord),
     ]);
 
-    // 6. Check for errors
-    if (orderResult.error) throw orderResult.error;
-    if (itemsResult.error) throw itemsResult.error;
-    if (paymentResult.error) throw paymentResult.error;
+    // 7. Check for errors (rollback if needed)
+    if (itemsResult.error || paymentResult.error) {
+      console.error('Items/Payment creation failed, rolling back order');
+      // Rollback: delete the order
+      await supabase.from('orders').delete().eq('id', orderId);
+      throw itemsResult.error || paymentResult.error;
+    }
 
-    // 7. Handle coupon usage in background (non-blocking)
+    // 8. Handle coupon usage in background (non-blocking)
     if (orderData.coupon?.id) {
       handleCouponUsage(orderData.coupon.id, user.id, orderId, orderData.coupon.discount)
         .catch(err => console.error('Coupon usage error (non-critical):', err));
     }
 
-    // 8. Return success immediately
+    // 9. Return success immediately
     return {
       success: true,
-      data: orderResult.data,
+      data: order,
     };
   } catch (error) {
     console.error('Error creating order:', error);
