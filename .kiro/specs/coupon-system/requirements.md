@@ -226,7 +226,7 @@ Implement a comprehensive coupon/discount code system similar to Amazon/Flipkart
 - `CouponInput.jsx` - Input field with apply button
 - `AppliedCoupon.jsx` - Display applied coupon
 - `AvailableCoupons.jsx` - List of available coupons
-- Integration in `CheckoutOptimized.jsx`
+- Integration in `Checkout.jsx` (new industry-standard checkout)
 
 ### State Management
 - Add coupon state to Zustand store

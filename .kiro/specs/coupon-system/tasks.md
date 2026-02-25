@@ -82,7 +82,7 @@
 - [x] 5.9 Add apply button for each coupon
 
 ### Checkout Page Updates
-- [x] 5.10 Integrate CouponInput in CheckoutOptimized.jsx
+- [x] 5.10 Integrate CouponInput in Checkout.jsx (new industry-standard checkout)
 - [x] 5.11 Update order summary to show coupon discount
 - [x] 5.12 Update total calculation with discount
 - [x] 5.13 Pass coupon data to order creation

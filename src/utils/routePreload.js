@@ -38,7 +38,7 @@ export const createPreloadHandler = (importFn, routeName) => {
 
 // Preload functions for common routes
 export const preloadCheckout = () => preloadRoute(
-  () => import('../pages/CheckoutOptimized'),
+  () => import('../pages/Checkout'),
   'checkout'
 );
 

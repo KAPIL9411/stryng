@@ -163,7 +163,8 @@ const Home = lazy(() => import('./pages/Home'));
 const ProductListing = lazy(() => import('./pages/ProductListing'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/CheckoutOptimized'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
 const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 
 // Component-based code splitting for heavy components

@@ -12,7 +12,6 @@ import './styles/header-footer.css';
 import './styles/components.css';
 import './styles/pages.css';
 import './styles/utilities.css';
-import './styles/checkout.css';
 import './styles/checkout-coupon.css';
 import './styles/addresses.css';
 import './styles/search.css';

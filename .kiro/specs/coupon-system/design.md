@@ -280,7 +280,7 @@ src/
 
 ### Checkout Integration
 
-Update `CheckoutOptimized.jsx`:
+Update `Checkout.jsx` (new industry-standard checkout):
 1. Add coupon input section after address selection
 2. Display applied coupon in order summary
 3. Update total calculation to include discount

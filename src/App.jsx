@@ -15,7 +15,8 @@ const Home = lazy(() => import('./pages/Home'));
 const ProductListing = lazy(() => import('./pages/ProductListing'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
 const Cart = lazy(() => import('./pages/Cart'));
-const CheckoutOptimized = lazy(() => import('./pages/CheckoutOptimized'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -52,6 +53,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Admin Styles
 import './styles/admin.css';
+import './styles/checkout-new.css';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -190,7 +192,15 @@ function App() {
                 path="checkout"
                 element={
                   <ProtectedRoute>
-                    <CheckoutOptimized />
+                    <Checkout />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="order-success/:orderId"
+                element={
+                  <ProtectedRoute>
+                    <OrderSuccess />
                   </ProtectedRoute>
                 }
               />
