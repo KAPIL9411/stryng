@@ -1,15 +1,15 @@
 /**
- * Products API - Ultra-Fast with Edge Functions
- * Uses Vercel Edge Functions for 100x faster product loading (FREE)
+ * Products API - Admin Write Operations + Non-Edge Reads
+ * Read operations (public) → products-edge.api.js (cached, fast)
+ * Write operations (admin) → this file (direct Supabase, cache-busting)
  * @module api/products
  */
 
 import { supabase } from '../lib/supabaseClient';
 import { API_ENDPOINTS } from '../config/constants';
 import { inMemoryCache } from '../services/InMemoryCacheService';
-import { withRetry } from '../utils/apiClient';
 
-// Import edge-optimized read functions (100x faster)
+// Re-export all public read functions from the optimized edge module
 export {
   fetchProducts,
   fetchProductBySlug,
@@ -17,420 +17,267 @@ export {
   clearProductsCache,
 } from './products-edge.api';
 
-// Retry configuration for write operations
-const RETRY_CONFIG = {
-  WRITE: {
-    maxRetries: 3,
-    timeout: 30000,
-    retryDelay: 1000,
-    exponentialBackoff: true,
-  },
-};
+// ─── Write operation timeouts ─────────────────────────────────────────────────
+const WRITE_TIMEOUT_MS = 20000;
+const DELETE_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms)
+    ),
+  ]);
+}
 
 /**
- * Fetch all products (for admin)
- * @returns {Promise<Array>} All products
+ * Invalidate all product-related caches (memory + edge)
+ */
+async function invalidateAllCaches() {
+  // Legacy InMemoryCache (if still in use elsewhere)
+  inMemoryCache?.invalidatePattern?.('products:*');
+  inMemoryCache?.invalidatePattern?.('product:*');
+
+  // Edge module cache
+  const { clearProductsCache } = await import('./products-edge.api');
+  clearProductsCache();
+}
+
+// ─── Admin Read (bypasses cache - always fresh) ───────────────────────────────
+
+/**
+ * Fetch ALL products for admin panel (no pagination, no cache)
+ * @returns {Promise<Array>}
  */
 export const fetchAllProducts = async () => {
-  const startTime = performance.now();
-  const cacheKey = 'products:all';
-
   try {
-    const cached = inMemoryCache.get(cacheKey);
-    if (cached) {
-      const duration = performance.now() - startTime;
-      console.log(`⚡ Cache HIT - All Products (${duration.toFixed(2)}ms)`);
-      return cached;
-    }
-
-    const { data, error } = await withRetry(
-      async () => {
-        const result = await supabase
-          .from(API_ENDPOINTS.PRODUCTS)
-          .select('*')
-          .limit(1000);
-
-        if (result.error) {
-          throw new Error(result.error.message || 'Failed to fetch products');
-        }
-
-        return result;
-      },
-      {
-        maxRetries: 2,
-        timeout: 30000,
-        retryDelay: 500,
-        exponentialBackoff: true,
-        deduplicationKey: cacheKey,
-      }
+    const { data, error } = await withTimeout(
+      supabase.from(API_ENDPOINTS.PRODUCTS).select('*').order('id').limit(2000),
+      WRITE_TIMEOUT_MS,
+      'fetchAllProducts'
     );
 
-    if (error || !data) {
-      console.warn('⚠️ No products found, returning empty array');
-      return [];
-    }
-
-    const products = data.map((p) => ({
-      id: p.id,
-      name: p.name || 'Untitled Product',
-      slug: p.slug || '',
-      description: p.description || '',
-      price: p.price || 0,
-      originalPrice: p.original_price || p.price || 0,
-      original_price: p.original_price || p.price || 0,
-      discount: p.discount || 0,
-      images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-      brand: p.brand || '',
-      category: p.category || '',
-      colors: Array.isArray(p.colors) ? p.colors : [],
-      sizes: Array.isArray(p.sizes) ? p.sizes : [],
-      isNew: p.is_new || false,
-      isTrending: p.is_trending || false,
-      is_new: p.is_new || false,
-      is_trending: p.is_trending || false,
-      rating: p.rating || 0,
-      reviewCount: p.reviews_count || 0,
-      reviews_count: p.reviews_count || 0,
-      stock: p.stock ?? 0,
-      lowStockThreshold: p.low_stock_threshold ?? 5,
-      low_stock_threshold: p.low_stock_threshold ?? 5,
-      sku: p.sku || '',
-      track_inventory: p.track_inventory !== false,
-    }));
-
-    // Cache for 5 minutes
-    inMemoryCache.set(cacheKey, products, 300);
-
-    const duration = performance.now() - startTime;
-    console.log(`⚡ DB Query - All Products (${duration.toFixed(2)}ms) - ${products.length} products`);
-
-    return products;
-  } catch (error) {
-    console.error('❌ fetchAllProducts error:', error);
-    
-    const staleCache = inMemoryCache.get(cacheKey, true);
-    if (staleCache) {
-      console.warn('⚠️ Returning stale cache for all products');
-      return staleCache;
-    }
-    
-    return [];
+    if (error) throw new Error(error.message);
+    return (data || []).map(normalizeAdminProduct);
+  } catch (err) {
+    console.error('❌ fetchAllProducts:', err.message);
+    throw err;
   }
 };
 
+function normalizeAdminProduct(p) {
+  return {
+    id: p.id,
+    name: p.name || 'Untitled Product',
+    slug: p.slug || '',
+    description: p.description || '',
+    price: p.price || 0,
+    originalPrice: p.original_price || p.price || 0,
+    original_price: p.original_price || p.price || 0,
+    discount: p.discount || 0,
+    images: Array.isArray(p.images) ? p.images : p.images ? [p.images] : [],
+    brand: p.brand || '',
+    category: p.category || '',
+    colors: Array.isArray(p.colors) ? p.colors : [],
+    sizes: Array.isArray(p.sizes) ? p.sizes : [],
+    isNew: p.is_new || false,
+    isTrending: p.is_trending || false,
+    is_new: p.is_new || false,
+    is_trending: p.is_trending || false,
+    rating: p.rating || 0,
+    reviewCount: p.reviews_count || 0,
+    reviews_count: p.reviews_count || 0,
+    stock: p.stock ?? 0,
+    lowStockThreshold: p.low_stock_threshold ?? 5,
+    low_stock_threshold: p.low_stock_threshold ?? 5,
+    sku: p.sku || '',
+    track_inventory: p.track_inventory !== false,
+  };
+}
+
+// ─── Create ───────────────────────────────────────────────────────────────────
+
 /**
- * Create new product (admin)
- * @param {Object} productData - Product data
- * @returns {Promise<Object>} Created product
+ * Create a new product
+ * @param {Object} productData
+ * @returns {Promise<Object>}
  */
 export const createProduct = async (productData) => {
+  if (!productData?.name?.trim()) throw new Error('Product name is required');
+  if (!productData?.slug?.trim()) throw new Error('Product slug is required');
+
   try {
-    if (!productData.name || !productData.slug) {
-      throw new Error('Product name and slug are required');
-    }
-
-    const deduplicationKey = `create-product-${productData.slug}`;
-
-    const result = await withRetry(
-      async () => {
-        const queryResult = await supabase
-          .from(API_ENDPOINTS.PRODUCTS)
-          .insert([productData])
-          .select();
-
-        if (queryResult.error) {
-          throw queryResult.error;
-        }
-
-        if (!queryResult.data || queryResult.data.length === 0) {
-          throw new Error('Failed to create product');
-        }
-
-        return queryResult;
-      },
-      {
-        ...RETRY_CONFIG.WRITE,
-        deduplicationKey,
-      }
+    const { data, error } = await withTimeout(
+      supabase.from(API_ENDPOINTS.PRODUCTS).insert([productData]).select().single(),
+      WRITE_TIMEOUT_MS,
+      'createProduct'
     );
 
-    // Invalidate caches
-    inMemoryCache.invalidatePattern('products:*');
-    const { clearProductsCache } = await import('./products-edge.api');
-    clearProductsCache();
+    if (error) throw error;
+    if (!data) throw new Error('No data returned after insert');
 
-    console.log('✅ Product created successfully');
-    return result.data[0];
-  } catch (error) {
-    console.error('❌ Product create error:', error);
-
-    if (error.code === '23505') {
-      if (error.message?.includes('slug')) {
-        throw new Error('A product with this name already exists. Please use a different name.');
-      } else if (error.message?.includes('sku')) {
-        throw new Error('A product with this SKU already exists. Please use a different SKU.');
-      }
-      throw new Error('This product already exists in the database.');
-    }
-
-    if (error.message?.includes('timeout') || error.message?.includes('unavailable')) {
-      throw new Error('Unable to save product. Please check your internet connection and try again.');
-    }
-
-    throw error;
+    await invalidateAllCaches();
+    console.log('✅ Product created:', data.id);
+    return data;
+  } catch (err) {
+    throw translateWriteError(err, 'create');
   }
 };
 
+// ─── Update ───────────────────────────────────────────────────────────────────
+
 /**
- * Update product (admin)
- * @param {string} id - Product ID
- * @param {Object} productData - Updated product data
- * @returns {Promise<Object>} Updated product
+ * Update an existing product
+ * @param {string} id
+ * @param {Object} productData
+ * @returns {Promise<Object>}
  */
 export const updateProduct = async (id, productData) => {
+  if (!id) throw new Error('Product ID is required');
+
   try {
-    if (!id) {
-      throw new Error('Product ID is required');
-    }
-
-    const deduplicationKey = `update-product-${id}`;
-
-    const result = await withRetry(
-      async () => {
-        const queryResult = await supabase
-          .from(API_ENDPOINTS.PRODUCTS)
-          .update(productData)
-          .eq('id', id)
-          .select();
-
-        if (queryResult.error) {
-          throw queryResult.error;
-        }
-
-        if (!queryResult.data || queryResult.data.length === 0) {
-          throw new Error('Product not found');
-        }
-
-        return queryResult;
-      },
-      {
-        ...RETRY_CONFIG.WRITE,
-        deduplicationKey,
-      }
+    const { data, error } = await withTimeout(
+      supabase.from(API_ENDPOINTS.PRODUCTS).update(productData).eq('id', id).select().single(),
+      WRITE_TIMEOUT_MS,
+      'updateProduct'
     );
 
-    // Invalidate caches
-    inMemoryCache.invalidatePattern('products:*');
-    inMemoryCache.invalidatePattern('product:*');
-    const { clearProductsCache } = await import('./products-edge.api');
-    clearProductsCache();
+    if (error) throw error;
+    if (!data) throw new Error('Product not found or no rows updated');
 
-    console.log('✅ Product updated successfully');
-    return result.data[0];
-  } catch (error) {
-    console.error('❌ Product update error:', error);
-
-    if (error.message?.includes('not found')) {
-      throw new Error('Product not found. It may have been deleted.');
-    }
-
-    if (error.message?.includes('timeout') || error.message?.includes('unavailable')) {
-      throw new Error('Unable to update product. Please check your internet connection and try again.');
-    }
-
-    throw error;
+    await invalidateAllCaches();
+    console.log('✅ Product updated:', id);
+    return data;
+  } catch (err) {
+    throw translateWriteError(err, 'update');
   }
 };
 
+// ─── Delete ───────────────────────────────────────────────────────────────────
+
 /**
- * Delete product (admin)
- * @param {string} id - Product ID
+ * Delete a product
+ * @param {string} id
  * @returns {Promise<void>}
  */
 export const deleteProduct = async (id) => {
+  if (!id) throw new Error('Product ID is required');
+
   try {
-    if (!id) {
-      throw new Error('Product ID is required');
-    }
-
-    const { error } = await withRetry(
-      async () => {
-        const result = await supabase
-          .from(API_ENDPOINTS.PRODUCTS)
-          .delete()
-          .eq('id', id);
-
-        if (result.error) {
-          throw result.error;
-        }
-
-        return result;
-      },
-      {
-        maxRetries: 2,
-        timeout: 15000,
-        retryDelay: 1000,
-        exponentialBackoff: true,
-        deduplicationKey: `delete-product-${id}`,
-      }
+    const { error } = await withTimeout(
+      supabase.from(API_ENDPOINTS.PRODUCTS).delete().eq('id', id),
+      DELETE_TIMEOUT_MS,
+      'deleteProduct'
     );
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    // Invalidate caches
-    inMemoryCache.invalidatePattern('products:*');
-    inMemoryCache.invalidatePattern('product:*');
-    const { clearProductsCache } = await import('./products-edge.api');
-    clearProductsCache();
-    
-    console.log('✅ Product deleted successfully');
-  } catch (error) {
-    console.error('❌ Product delete error:', error);
-    
-    if (error.message?.includes('timeout') || error.message?.includes('unavailable')) {
-      throw new Error('Unable to delete product. Please check your internet connection and try again.');
-    }
-    
-    throw error;
+    await invalidateAllCaches();
+    console.log('✅ Product deleted:', id);
+  } catch (err) {
+    throw translateWriteError(err, 'delete');
   }
 };
 
+// ─── Search & Suggestions ─────────────────────────────────────────────────────
+
 /**
- * Search products (uses edge function automatically via fetchProducts)
+ * Search products - delegates to fetchProducts with search filter
  */
 export const searchProducts = async (page = 1, limit = 24, filters = {}) => {
-  // Edge function doesn't support search yet, fallback to direct query
   const { fetchProducts } = await import('./products-edge.api');
   return fetchProducts(page, limit, filters);
 };
 
 /**
- * Get autocomplete suggestions
+ * Autocomplete suggestions (debounce on the caller side)
+ * @param {string} query
+ * @param {number} limit
+ * @returns {Promise<Array>}
  */
 export const getAutocompleteSuggestions = async (query, limit = 10) => {
-  if (!query || query.trim().length < 2) return [];
+  const trimmed = query?.trim();
+  if (!trimmed || trimmed.length < 2) return [];
 
   try {
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Autocomplete timeout')), 5000)
+    const { data, error } = await withTimeout(
+      supabase.rpc('autocomplete_products', {
+        search_prefix: trimmed,
+        suggestion_limit: limit,
+      }),
+      5000,
+      'autocomplete'
     );
 
-    const queryPromise = supabase.rpc('autocomplete_products', {
-      search_prefix: query.trim(),
-      suggestion_limit: limit,
-    });
-
-    const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
-
-    if (error) {
-      console.error('❌ Autocomplete error:', error);
-      return [];
-    }
-
+    if (error) { console.error('Autocomplete error:', error.message); return []; }
     return data || [];
-  } catch (error) {
-    console.error('❌ getAutocompleteSuggestions error:', error);
+  } catch {
     return [];
   }
 };
 
 /**
- * Get trending searches
+ * Trending searches (cached, refreshed every 30 min)
  */
+const _trendingCache = { data: null, ts: 0 };
+const TRENDING_CACHE_TTL = 30 * 60 * 1000;
+
 export const getTrendingSearches = async (daysBack = 7, limit = 10) => {
-  const cacheKey = `trending:searches:${daysBack}:${limit}`;
-  
-  const cached = inMemoryCache.get(cacheKey);
-  if (cached) return cached;
+  if (_trendingCache.data && Date.now() - _trendingCache.ts < TRENDING_CACHE_TTL) {
+    return _trendingCache.data;
+  }
 
   try {
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Trending searches timeout')), 8000)
+    const { data, error } = await withTimeout(
+      supabase.rpc('get_trending_searches', { days_back: daysBack, result_limit: limit }),
+      8000,
+      'trending searches'
     );
 
-    const queryPromise = supabase.rpc('get_trending_searches', {
-      days_back: daysBack,
-      result_limit: limit,
-    });
-
-    const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
-
-    if (error) {
-      console.error('❌ Trending searches error:', error);
-      return [];
-    }
-
+    if (error) { console.error('Trending searches error:', error.message); return []; }
     const result = data || [];
-    inMemoryCache.set(cacheKey, result, 1800);
-
+    _trendingCache.data = result;
+    _trendingCache.ts = Date.now();
     return result;
-  } catch (error) {
-    console.error('❌ getTrendingSearches error:', error);
-    return [];
+  } catch {
+    return _trendingCache.data || [];
   }
 };
 
 /**
- * Fetch trending products (uses edge function)
+ * Trending products (cached via SWR in edge module)
  */
 export const fetchTrendingProducts = async (limit = 12) => {
+  const { fetchProducts } = await import('./products-edge.api');
   try {
-    const response = await fetch(`/api/products-edge?type=trending&limit=${limit}`);
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data) {
-        return result.data.map(p => ({
-          id: p.id,
-          name: p.name || 'Untitled Product',
-          slug: p.slug || '',
-          price: p.price || 0,
-          originalPrice: p.original_price || p.price || 0,
-          discount: p.discount || 0,
-          images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-          brand: p.brand || '',
-          category: p.category || '',
-          colors: Array.isArray(p.colors) ? p.colors : [],
-          isNew: p.is_new || false,
-          isTrending: p.is_trending || false,
-          rating: p.rating || 0,
-          reviewCount: p.reviews_count || 0,
-          stock: p.stock ?? 0,
-        }));
-      }
-    }
-
-    // Fallback to Supabase
-    const { data, error } = await supabase
-      .from(API_ENDPOINTS.PRODUCTS)
-      .select('id,name,slug,price,original_price,discount,images,brand,category,colors,is_new,is_trending,rating,reviews_count,stock')
-      .eq('is_trending', true)
-      .order('reviews_count', { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-
-    return (data || []).map(p => ({
-      id: p.id,
-      name: p.name || 'Untitled Product',
-      slug: p.slug || '',
-      price: p.price || 0,
-      originalPrice: p.original_price || p.price || 0,
-      discount: p.discount || 0,
-      images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-      brand: p.brand || '',
-      category: p.category || '',
-      colors: Array.isArray(p.colors) ? p.colors : [],
-      isNew: p.is_new || false,
-      isTrending: p.is_trending || false,
-      rating: p.rating || 0,
-      reviewCount: p.reviews_count || 0,
-      stock: p.stock ?? 0,
-    }));
-  } catch (error) {
-    console.error('❌ fetchTrendingProducts error:', error);
+    // Use standard fetchProducts with isTrending filter
+    // (edge function handles this path)
+    const res = await fetchProducts(1, limit, { sort: 'popularity', isTrending: true });
+    return res.products || [];
+  } catch {
     return [];
   }
 };
+
+// ─── Error Translation ────────────────────────────────────────────────────────
+function translateWriteError(err, operation) {
+  const msg = err?.message || '';
+  const code = err?.code || '';
+
+  if (code === '23505') {
+    if (msg.includes('slug')) return new Error('A product with this name already exists.');
+    if (msg.includes('sku')) return new Error('A product with this SKU already exists.');
+    return new Error('This product already exists in the database.');
+  }
+  if (msg.includes('timeout')) {
+    return new Error(`Unable to ${operation} product — request timed out. Please try again.`);
+  }
+  if (msg.includes('not found') || msg.includes('no rows')) {
+    return new Error('Product not found. It may have been deleted.');
+  }
+  if (msg.includes('JWT') || msg.includes('auth')) {
+    return new Error('Session expired. Please refresh the page and try again.');
+  }
+  // Return original error for unexpected cases (don't swallow stack traces in dev)
+  return err;
+}

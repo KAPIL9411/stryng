@@ -25,7 +25,7 @@ import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
 import { getCachedAddresses } from '../lib/preloadAddresses';
 import { getUserAddresses } from '../api/addresses.api';
-import { createOrderOptimized, markPaymentAsPaidOptimized } from '../api/orders.optimized.api';
+import { createOrder, markPaymentAsPaid } from '../api/orders.api';
 import SEO from '../components/SEO';
 
 // UPI Configuration
@@ -235,7 +235,7 @@ export default function Checkout() {
       console.log('📦 Order data prepared:', { total, itemCount: cart.length });
       
       const startTime = Date.now();
-      const result = await createOrderOptimized(orderData);
+      const result = await createOrder(orderData);
       const endTime = Date.now();
       
       // Clear timeout if request completes
@@ -271,7 +271,7 @@ export default function Checkout() {
     try {
       console.log('💳 Confirming payment for order:', orderId);
       
-      const result = await markPaymentAsPaidOptimized(orderId, transactionId);
+      const result = await markPaymentAsPaid(orderId, transactionId);
 
       if (result.success) {
         console.log('✅ Payment confirmed successfully');

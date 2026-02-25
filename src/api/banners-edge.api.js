@@ -1,218 +1,179 @@
 /**
- * Banners API with Vercel Edge Config
- * Ultra-fast banner loading using edge functions
+ * Banners Edge API - Optimized with SWR + request deduplication
+ * Same patterns as products-edge.api.js for consistency
  * @module api/banners-edge
  */
 
 import { supabase } from '../lib/supabaseClient';
 import { API_ENDPOINTS } from '../config/constants';
 
-// Edge function URL (will be /api/banners-edge after deployment)
+// ─── Constants ───────────────────────────────────────────────────────────────
 const EDGE_API_URL = '/api/banners-edge';
+const MEMORY_TTL = 5 * 60 * 1000;   // 5 min
+const STALE_TTL = 30 * 60 * 1000;   // 30 min stale fallback
+const EDGE_TIMEOUT = 3000;           // 3s — banners are small, fail fast
+const SUPABASE_TIMEOUT = 6000;
 
-// Fallback cache in memory (for instant loading)
-let memoryCache = null;
-let cacheTimestamp = null;
-const MEMORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// ─── Memory Cache ─────────────────────────────────────────────────────────────
+// Object-based instead of module-level mutable variables to avoid stale closure bugs
+const cache = { data: null, ts: 0 };
 
-/**
- * Fetch banners from Edge Config (ultra-fast)
- * Falls back to Supabase if edge function fails
- * @returns {Promise<Array>} Active banners
- */
-export const fetchBanners = async () => {
+function cacheGet() {
+  if (!cache.data) return null;
+  if (Date.now() - cache.ts > MEMORY_TTL) return null;
+  return cache.data;
+}
+
+function cacheSet(data) {
+  cache.data = data;
+  cache.ts = Date.now();
+}
+
+function cacheGetStale() {
+  if (!cache.data) return null;
+  if (Date.now() - cache.ts > STALE_TTL) return null;
+  return cache.data;
+}
+
+// ─── Request Deduplication ────────────────────────────────────────────────────
+let inflightRequest = null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms)
+    ),
+  ]);
+}
+
+function normalizeBanner(b) {
+  return {
+    id: b.id,
+    title: b.title || '',
+    subtitle: b.subtitle || '',
+    image_url: b.image_url || b.image || '',
+    image: b.image_url || b.image || '',
+    link: b.link || b.cta_link || '',
+    cta_text: b.cta_text || '',
+    cta_link: b.cta_link || b.link || '',
+    active: b.active !== false,
+    sort_order: b.sort_order ?? 0,
+    mobile_image_url: b.mobile_image_url || b.image_url || b.image || '',
+  };
+}
+
+// ─── Core Fetch ───────────────────────────────────────────────────────────────
+async function fetchFromNetwork() {
+  // Try edge function first
   try {
-    // Return memory cache if fresh (instant)
-    if (memoryCache && cacheTimestamp && Date.now() - cacheTimestamp < MEMORY_CACHE_TTL) {
-      console.log('⚡ Banners from memory cache (instant)');
-      // Refresh in background
-      refreshBannersInBackground();
-      return memoryCache;
-    }
-
-    console.log('📡 Fetching banners from edge function...');
-    
-    // Try edge function first (deployed on Vercel)
-    try {
-      const response = await fetch(EDGE_API_URL, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        // Check if response is JSON
-        if (contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          
-          if (result.success && result.data) {
-            console.log(`✅ Banners loaded from ${result.source} (${result.cached ? 'cached' : 'fresh'})`);
-            
-            // Update memory cache
-            memoryCache = result.data;
-            cacheTimestamp = Date.now();
-            
-            return result.data;
-          }
-        } else {
-          console.warn('⚠️ Edge function returned non-JSON response (not deployed yet)');
+    const res = await withTimeout(fetch(EDGE_API_URL), EDGE_TIMEOUT, 'banners edge');
+    if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data.map(normalizeBanner);
         }
       }
-    } catch (edgeError) {
-      console.warn('⚠️ Edge function not available:', edgeError.message);
     }
+    throw new Error('Edge: bad response');
+  } catch (edgeErr) {
+    console.warn('⚠️ Banners edge fallback:', edgeErr.message);
+  }
 
-    // Fallback: Direct Supabase query
-    console.log('📡 Fetching banners from Supabase (fallback)...');
-    const { data, error } = await supabase
+  // Fallback: Supabase direct
+  const { data, error } = await withTimeout(
+    supabase
       .from(API_ENDPOINTS.BANNERS)
       .select('*')
       .eq('active', true)
-      .order('sort_order', { ascending: true });
+      .order('sort_order', { ascending: true }),
+    SUPABASE_TIMEOUT,
+    'banners supabase'
+  );
 
-    if (error) {
-      console.error('❌ Supabase fetch error:', error);
-      
-      // Return stale cache if available
-      if (memoryCache) {
-        console.log('⚠️ Returning stale cache due to error');
-        return memoryCache;
-      }
-      
-      throw error;
-    }
+  if (error) throw new Error(error.message);
+  return (data || []).map(normalizeBanner);
+}
 
-    const banners = data || [];
-
-    // Update memory cache
-    memoryCache = banners;
-    cacheTimestamp = Date.now();
-
-    console.log(`✅ Loaded ${banners.length} banners from Supabase`);
-    return banners;
-
-  } catch (error) {
-    console.error('❌ Banner fetch error:', error);
-    
-    // Return stale cache if available
-    if (memoryCache) {
-      console.log('⚠️ Returning stale cache due to error');
-      return memoryCache;
-    }
-    
-    // Return empty array instead of throwing
-    return [];
-  }
-};
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Refresh banners in background (stale-while-revalidate)
+ * Fetch active banners with SWR caching
+ * @returns {Promise<Array>}
  */
-const refreshBannersInBackground = async () => {
+export const fetchBanners = async () => {
+  // 1. Fresh memory cache → return immediately + background refresh
+  const fresh = cacheGet();
+  if (fresh) {
+    revalidateInBackground();
+    return fresh;
+  }
+
+  // 2. In-flight deduplication → wait for existing request
+  if (inflightRequest) {
+    return inflightRequest;
+  }
+
+  // 3. Fetch from network
+  inflightRequest = fetchFromNetwork()
+    .then((banners) => {
+      cacheSet(banners);
+      return banners;
+    })
+    .catch((err) => {
+      console.error('❌ fetchBanners failed:', err.message);
+      // Stale fallback — better something than nothing
+      const stale = cacheGetStale();
+      if (stale) {
+        console.warn('⚠️ Returning stale banners');
+        return stale;
+      }
+      return [];
+    })
+    .finally(() => {
+      inflightRequest = null;
+    });
+
+  return inflightRequest;
+};
+
+async function revalidateInBackground() {
+  if (inflightRequest) return; // already revalidating
   try {
-    const response = await fetch(EDGE_API_URL);
-    if (response.ok) {
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          memoryCache = result.data;
-          cacheTimestamp = Date.now();
-          console.log('🔄 Background: Banners cache updated');
-        }
-      }
-    }
-  } catch (error) {
-    // Silent fail for background refresh
-    console.warn('Background banner refresh failed (non-critical):', error.message);
+    const banners = await fetchFromNetwork();
+    cacheSet(banners);
+  } catch {
+    // Silent — background refresh failure is non-critical
   }
-};
+}
 
 /**
- * Clear banner cache (call after admin updates)
- */
-export const clearBannersCache = () => {
-  memoryCache = null;
-  cacheTimestamp = null;
-  console.log('🗑️ Banner cache cleared');
-};
-
-/**
- * Preload banner images for instant display
- * @param {Array} banners - Banner array
+ * Preload banner images so they're in browser cache before render
+ * @param {Array} banners
  */
 export const preloadBannerImages = (banners) => {
-  if (!banners || banners.length === 0) return;
-
-  banners.forEach((banner) => {
-    const img = new Image();
-    img.src = banner.image_url || banner.image;
+  if (!banners?.length || typeof window === 'undefined') return;
+  banners.forEach((b) => {
+    const url = b.image_url || b.image;
+    if (!url) return;
+    const img = new window.Image();
+    img.src = url;
+    // Also preload mobile variant if different
+    if (b.mobile_image_url && b.mobile_image_url !== url) {
+      const mobileImg = new window.Image();
+      mobileImg.src = b.mobile_image_url;
+    }
   });
-
-  console.log(`🖼️ Preloading ${banners.length} banner images`);
 };
 
 /**
- * Create new banner (admin)
- * @param {Object} bannerData - Banner data
- * @returns {Promise<Object>} Created banner
+ * Clear banner cache (call after admin writes)
  */
-export const createBanner = async (bannerData) => {
-  const { data, error } = await supabase
-    .from(API_ENDPOINTS.BANNERS)
-    .insert([bannerData])
-    .select();
-
-  if (error) {
-    console.error('❌ Banner create error:', error);
-    throw error;
-  }
-
-  clearBannersCache();
-  return data[0];
-};
-
-/**
- * Update banner (admin)
- * @param {string} id - Banner ID
- * @param {Object} bannerData - Updated banner data
- * @returns {Promise<Object>} Updated banner
- */
-export const updateBanner = async (id, bannerData) => {
-  const { data, error } = await supabase
-    .from(API_ENDPOINTS.BANNERS)
-    .update(bannerData)
-    .eq('id', id)
-    .select();
-
-  if (error) {
-    console.error('❌ Banner update error:', error);
-    throw error;
-  }
-
-  clearBannersCache();
-  return data[0];
-};
-
-/**
- * Delete banner (admin)
- * @param {string} id - Banner ID
- * @returns {Promise<void>}
- */
-export const deleteBanner = async (id) => {
-  const { error } = await supabase
-    .from(API_ENDPOINTS.BANNERS)
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('❌ Banner delete error:', error);
-    throw error;
-  }
-
-  clearBannersCache();
+export const clearBannersCache = () => {
+  cache.data = null;
+  cache.ts = 0;
+  inflightRequest = null;
 };

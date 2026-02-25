@@ -1,250 +1,273 @@
 /**
- * Products API with Vercel Edge Functions + IndexedDB
- * Ultra-fast product loading with multi-layer caching
- * FREE solution - 100x faster than direct database queries
+ * Products Edge API - Optimized with SWR pattern + request deduplication
+ * Fixes: race conditions, inconsistent loads, stale cache issues
+ * Industry-standard pattern used by Myntra, AJIO, Amazon
  * @module api/products-edge
  */
 
 import { supabase } from '../lib/supabaseClient';
 import { API_ENDPOINTS } from '../config/constants';
 
-// Edge function URL
+// ─── Constants ───────────────────────────────────────────────────────────────
 const EDGE_API_URL = '/api/products-edge';
+const MEMORY_TTL = 5 * 60 * 1000;       // 5 min - memory
+const INDEXED_DB_TTL = 15 * 60 * 1000;  // 15 min - IndexedDB
+const STALE_TTL = 60 * 60 * 1000;       // 1 hr - stale fallback
+const EDGE_TIMEOUT = 4000;               // 4s edge timeout (fail fast)
+const SUPABASE_TIMEOUT = 8000;           // 8s DB timeout
 
-// Memory cache (instant access)
+// ─── Memory Cache (Map with timestamps) ──────────────────────────────────────
 const memoryCache = new Map();
-const MEMORY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// IndexedDB for persistent cache
-let db = null;
+function mcGet(key) {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > MEMORY_TTL) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
 
-/**
- * Initialize IndexedDB for persistent caching
- */
-async function initIndexedDB() {
-  if (db) return db;
+function mcSet(key, data) {
+  memoryCache.set(key, { data, ts: Date.now() });
+  // Prevent unbounded growth
+  if (memoryCache.size > 200) {
+    const oldest = [...memoryCache.entries()]
+      .sort((a, b) => a[1].ts - b[1].ts)
+      .slice(0, 50)
+      .map(([k]) => k);
+    oldest.forEach((k) => memoryCache.delete(k));
+  }
+}
 
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('StryngProductsCache', 1);
+function mcGetStale(key) {
+  const entry = memoryCache.get(key);
+  return entry ? entry.data : null;
+}
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
+// ─── Request Deduplication (prevents multiple identical in-flight requests) ──
+const inflightRequests = new Map();
 
-    request.onupgradeneeded = (event) => {
-      const database = event.target.result;
-      
-      // Create object stores
-      if (!database.objectStoreNames.contains('products')) {
-        const store = database.createObjectStore('products', { keyPath: 'cacheKey' });
-        store.createIndex('timestamp', 'timestamp', { unique: false });
+async function dedupe(key, fetcher) {
+  if (inflightRequests.has(key)) {
+    return inflightRequests.get(key);
+  }
+  const promise = fetcher().finally(() => inflightRequests.delete(key));
+  inflightRequests.set(key, promise);
+  return promise;
+}
+
+// ─── IndexedDB Cache ──────────────────────────────────────────────────────────
+let _db = null;
+let _dbInitPromise = null;
+
+function getDB() {
+  if (_db) return Promise.resolve(_db);
+  if (_dbInitPromise) return _dbInitPromise;
+
+  _dbInitPromise = new Promise((resolve) => {
+    // Bail out in non-browser environments (SSR, tests)
+    if (typeof indexedDB === 'undefined') {
+      resolve(null);
+      return;
+    }
+    const req = indexedDB.open('StryngProductsCache_v2', 1);
+    req.onerror = () => { _dbInitPromise = null; resolve(null); };
+    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('products')) {
+        const store = db.createObjectStore('products', { keyPath: 'key' });
+        store.createIndex('ts', 'ts');
       }
     };
   });
+  return _dbInitPromise;
 }
 
-/**
- * Get from IndexedDB cache
- */
-async function getFromIndexedDB(cacheKey, ttl = 5 * 60 * 1000) {
+async function idbGet(key, ttl = INDEXED_DB_TTL) {
   try {
-    const database = await initIndexedDB();
-    const transaction = database.transaction(['products'], 'readonly');
-    const store = transaction.objectStore('products');
-    
+    const db = await getDB();
+    if (!db) return null;
     return new Promise((resolve) => {
-      const request = store.get(cacheKey);
-      
-      request.onsuccess = () => {
-        const cached = request.result;
-        
-        if (!cached) {
-          resolve(null);
-          return;
-        }
-
-        // Check if expired
-        if (Date.now() - cached.timestamp > ttl) {
-          resolve(null);
-          return;
-        }
-
-        console.log(`💾 IndexedDB cache HIT: ${cacheKey}`);
-        resolve(cached.data);
+      const tx = db.transaction('products', 'readonly');
+      const req = tx.objectStore('products').get(key);
+      req.onsuccess = () => {
+        const rec = req.result;
+        if (!rec || Date.now() - rec.ts > ttl) { resolve(null); return; }
+        resolve(rec.data);
       };
-      
-      request.onerror = () => resolve(null);
+      req.onerror = () => resolve(null);
     });
-  } catch (error) {
-    console.warn('IndexedDB get error:', error);
-    return null;
-  }
+  } catch { return null; }
 }
 
-/**
- * Save to IndexedDB cache
- */
-async function saveToIndexedDB(cacheKey, data) {
+async function idbSet(key, data) {
   try {
-    const database = await initIndexedDB();
-    const transaction = database.transaction(['products'], 'readwrite');
-    const store = transaction.objectStore('products');
-    
-    store.put({
-      cacheKey,
-      data,
-      timestamp: Date.now(),
-    });
-  } catch (error) {
-    console.warn('IndexedDB save error:', error);
-  }
+    const db = await getDB();
+    if (!db) return;
+    const tx = db.transaction('products', 'readwrite');
+    tx.objectStore('products').put({ key, data, ts: Date.now() });
+  } catch { /* non-critical */ }
 }
 
-/**
- * Clear old IndexedDB cache entries
- */
-export async function clearOldCache() {
+async function idbGetStale(key) {
+  return idbGet(key, STALE_TTL);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms)
+    ),
+  ]);
+}
+
+function normalizeProduct(p) {
+  return {
+    id: p.id,
+    name: p.name || 'Untitled Product',
+    slug: p.slug || '',
+    price: p.price || 0,
+    originalPrice: p.original_price || p.price || 0,
+    original_price: p.original_price || p.price || 0,
+    discount: p.discount || 0,
+    images: Array.isArray(p.images) ? p.images : p.images ? [p.images] : [],
+    brand: p.brand || '',
+    category: p.category || '',
+    colors: Array.isArray(p.colors) ? p.colors : [],
+    isNew: p.is_new || p.isNew || false,
+    isTrending: p.is_trending || p.isTrending || false,
+    is_new: p.is_new || false,
+    is_trending: p.is_trending || false,
+    rating: p.rating || 0,
+    reviewCount: p.reviews_count || p.reviewCount || 0,
+    reviews_count: p.reviews_count || 0,
+    stock: p.stock ?? 0,
+    lowStockThreshold: p.low_stock_threshold ?? p.lowStockThreshold ?? 5,
+    low_stock_threshold: p.low_stock_threshold ?? 5,
+  };
+}
+
+// ─── Cache-aside with SWR (Stale While Revalidate) ───────────────────────────
+async function fetchWithSWR(cacheKey, fetcher) {
+  // 1. Memory cache (instant, <1ms)
+  const mem = mcGet(cacheKey);
+  if (mem) {
+    revalidateInBackground(cacheKey, fetcher); // refresh silently
+    return { data: mem, source: 'memory' };
+  }
+
+  // 2. IndexedDB (fast, ~5ms)
+  const idb = await idbGet(cacheKey);
+  if (idb) {
+    mcSet(cacheKey, idb);
+    revalidateInBackground(cacheKey, fetcher);
+    return { data: idb, source: 'indexeddb' };
+  }
+
+  // 3. Network fetch (with deduplication)
   try {
-    const database = await initIndexedDB();
-    const transaction = database.transaction(['products'], 'readwrite');
-    const store = transaction.objectStore('products');
-    const index = store.index('timestamp');
-    
-    const cutoff = Date.now() - (24 * 60 * 60 * 1000); // 24 hours
-    const range = IDBKeyRange.upperBound(cutoff);
-    
-    const request = index.openCursor(range);
-    
-    request.onsuccess = (event) => {
-      const cursor = event.target.result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      }
-    };
-  } catch (error) {
-    console.warn('Clear old cache error:', error);
+    const data = await dedupe(cacheKey, fetcher);
+    mcSet(cacheKey, data);
+    idbSet(cacheKey, data); // fire-and-forget
+    return { data, source: 'network' };
+  } catch (err) {
+    // 4. Stale fallback - better stale than broken
+    const staleIdb = await idbGetStale(cacheKey);
+    if (staleIdb) {
+      console.warn(`⚠️ Serving stale cache for ${cacheKey}`);
+      mcSet(cacheKey, staleIdb);
+      return { data: staleIdb, source: 'stale' };
+    }
+    const staleMem = mcGetStale(cacheKey);
+    if (staleMem) return { data: staleMem, source: 'stale-memory' };
+    throw err;
   }
 }
 
+async function revalidateInBackground(cacheKey, fetcher) {
+  try {
+    const data = await dedupe(`bg:${cacheKey}`, fetcher);
+    mcSet(cacheKey, data);
+    idbSet(cacheKey, data);
+  } catch {
+    // Silent - background refresh failure is not critical
+  }
+}
+
+// ─── Edge Function Fetch (with timeout + JSON validation) ────────────────────
+async function fetchFromEdge(params) {
+  const url = `${EDGE_API_URL}?${new URLSearchParams(params)}`;
+  const res = await withTimeout(fetch(url), EDGE_TIMEOUT, 'edge function');
+  if (!res.ok) throw new Error(`Edge: HTTP ${res.status}`);
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) throw new Error('Edge: non-JSON response');
+  const json = await res.json();
+  if (!json.success || !json.data) throw new Error('Edge: invalid payload');
+  return json.data;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 /**
- * Fetch products with multi-layer caching
- * @param {number} page 
- * @param {number} limit 
- * @param {Object} filters 
- * @returns {Promise<Object>}
+ * Fetch paginated products with multi-layer caching + SWR
  */
 export const fetchProducts = async (page = 1, limit = 24, filters = {}) => {
-  const cacheKey = `products:${page}:${limit}:${JSON.stringify(filters)}`;
-  
-  try {
-    // Layer 1: Memory cache (instant)
-    const memoryCached = memoryCache.get(cacheKey);
-    if (memoryCached && Date.now() - memoryCached.timestamp < MEMORY_CACHE_TTL) {
-      console.log('⚡ Memory cache HIT (instant)');
-      // Refresh in background
-      refreshProductsInBackground(page, limit, filters, cacheKey);
-      return memoryCached.data;
-    }
+  const cacheKey = `products:list:${page}:${limit}:${JSON.stringify(filters)}`;
 
-    // Layer 2: IndexedDB cache (very fast)
-    const indexedDBCached = await getFromIndexedDB(cacheKey, 10 * 60 * 1000);
-    if (indexedDBCached) {
-      // Update memory cache
-      memoryCache.set(cacheKey, {
-        data: indexedDBCached,
-        timestamp: Date.now(),
-      });
-      // Refresh in background
-      refreshProductsInBackground(page, limit, filters, cacheKey);
-      return indexedDBCached;
-    }
-
-    // Layer 3: Edge function (fast)
-    console.log('📡 Fetching from edge function...');
-    const params = new URLSearchParams({
-      type: 'list',
-      page: page.toString(),
-      limit: limit.toString(),
-    });
-
-    if (filters.category) {
-      params.append('category', filters.category);
-    }
-    if (filters.sort) {
-      params.append('sort', filters.sort);
-    }
-
+  const fetcher = async () => {
+    // Try edge function first (faster CDN response)
     try {
-      const response = await fetch(`${EDGE_API_URL}?${params.toString()}`);
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        // Check if response is JSON
-        if (contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          
-          if (result.success && result.data) {
-            console.log(`✅ Products loaded from ${result.source}`);
-            
-            // Cache in all layers
-            const responseData = result.data;
-            memoryCache.set(cacheKey, {
-              data: responseData,
-              timestamp: Date.now(),
-            });
-            await saveToIndexedDB(cacheKey, responseData);
-            
-            return responseData;
-          }
-        } else {
-          console.warn('⚠️ Edge function returned non-JSON response (not deployed yet)');
-        }
-      }
-    } catch (edgeError) {
-      console.warn('⚠️ Edge function error:', edgeError.message);
+      const params = {
+        type: 'list',
+        page: String(page),
+        limit: String(limit),
+      };
+      if (filters.category?.length) params.category = [].concat(filters.category).join(',');
+      if (filters.sort) params.sort = filters.sort;
+      if (filters.search) params.search = filters.search;
+
+      const data = await fetchFromEdge(params);
+      return normalizeListResponse(data, page, limit);
+    } catch (edgeErr) {
+      console.warn('⚠️ Edge fallback:', edgeErr.message);
     }
 
-    // Layer 4: Fallback to Supabase
-    console.log('📡 Fetching from Supabase (edge function not available)...');
-    return await fetchProductsFromSupabase(page, limit, filters, cacheKey);
+    // Fallback: Supabase direct
+    return fetchListFromSupabase(page, limit, filters);
+  };
 
-  } catch (error) {
-    console.error('❌ fetchProducts error:', error);
-    
-    // Try stale cache
-    const staleMemory = memoryCache.get(cacheKey);
-    if (staleMemory) {
-      console.warn('⚠️ Returning stale memory cache');
-      return staleMemory.data;
-    }
-
-    const staleIndexedDB = await getFromIndexedDB(cacheKey, 24 * 60 * 60 * 1000);
-    if (staleIndexedDB) {
-      console.warn('⚠️ Returning stale IndexedDB cache');
-      return staleIndexedDB;
-    }
-
-    // Last resort: empty result
-    return {
-      products: [],
-      pagination: {
-        currentPage: page,
-        totalItems: 0,
-        totalPages: 0,
-        hasNext: false,
-      },
-    };
+  try {
+    const { data } = await fetchWithSWR(cacheKey, fetcher);
+    return data;
+  } catch (err) {
+    console.error('❌ fetchProducts failed:', err.message);
+    return emptyListResponse(page);
   }
 };
 
-/**
- * Fetch products directly from Supabase (fallback)
- */
-async function fetchProductsFromSupabase(page, limit, filters, cacheKey) {
+function normalizeListResponse(data, page, limit) {
+  // Handle both edge and supabase response shapes
+  if (Array.isArray(data)) {
+    return {
+      products: data.map(normalizeProduct),
+      pagination: { currentPage: page, totalItems: data.length, totalPages: 1, hasNext: false },
+    };
+  }
+  if (data.products) {
+    return {
+      products: data.products.map(normalizeProduct),
+      pagination: data.pagination || emptyPagination(page),
+    };
+  }
+  return emptyListResponse(page);
+}
+
+async function fetchListFromSupabase(page, limit, filters) {
   const start = (page - 1) * limit;
   const end = start + limit - 1;
 
@@ -253,49 +276,30 @@ async function fetchProductsFromSupabase(page, limit, filters, cacheKey) {
     .select('id,name,slug,price,original_price,discount,images,brand,category,colors,is_new,is_trending,rating,reviews_count,stock,low_stock_threshold', { count: 'exact' })
     .range(start, end);
 
-  if (filters.category) {
-    query = query.eq('category', filters.category);
+  // Apply filters
+  const categories = [].concat(filters.category || []).filter(Boolean);
+  if (categories.length === 1) query = query.eq('category', categories[0]);
+  else if (categories.length > 1) query = query.in('category', categories);
+
+  if (filters.search) {
+    query = query.ilike('name', `%${filters.search}%`);
   }
+  if (filters.minPrice != null) query = query.gte('price', filters.minPrice);
+  if (filters.maxPrice != null) query = query.lte('price', filters.maxPrice);
 
   switch (filters.sort) {
-    case 'price-low':
-      query = query.order('price', { ascending: true });
-      break;
-    case 'price-high':
-      query = query.order('price', { ascending: false });
-      break;
-    case 'newest':
-      query = query.order('created_at', { ascending: false });
-      break;
-    default:
-      query = query.order('id', { ascending: true });
+    case 'price-low':  query = query.order('price', { ascending: true }); break;
+    case 'price-high': query = query.order('price', { ascending: false }); break;
+    case 'newest':     query = query.order('created_at', { ascending: false }); break;
+    case 'popularity': query = query.order('reviews_count', { ascending: false }); break;
+    default:           query = query.order('id', { ascending: true });
   }
 
-  const { data, count, error } = await query;
+  const { data, count, error } = await withTimeout(query, SUPABASE_TIMEOUT, 'supabase list');
+  if (error) throw new Error(error.message);
 
-  if (error) throw error;
-
-  const products = (data || []).map(p => ({
-    id: p.id,
-    name: p.name || 'Untitled Product',
-    slug: p.slug || '',
-    price: p.price || 0,
-    originalPrice: p.original_price || p.price || 0,
-    discount: p.discount || 0,
-    images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-    brand: p.brand || '',
-    category: p.category || '',
-    colors: Array.isArray(p.colors) ? p.colors : [],
-    isNew: p.is_new || false,
-    isTrending: p.is_trending || false,
-    rating: p.rating || 0,
-    reviewCount: p.reviews_count || 0,
-    stock: p.stock ?? 0,
-    lowStockThreshold: p.low_stock_threshold ?? 5,
-  }));
-
-  const response = {
-    products,
+  return {
+    products: (data || []).map(normalizeProduct),
     pagination: {
       currentPage: page,
       totalItems: count || 0,
@@ -303,244 +307,124 @@ async function fetchProductsFromSupabase(page, limit, filters, cacheKey) {
       hasNext: end < (count || 0) - 1,
     },
   };
-
-  // Cache the result
-  memoryCache.set(cacheKey, {
-    data: response,
-    timestamp: Date.now(),
-  });
-  await saveToIndexedDB(cacheKey, response);
-
-  console.log(`✅ Loaded ${products.length} products from Supabase`);
-  return response;
-}
-
-/**
- * Refresh products in background (stale-while-revalidate)
- */
-async function refreshProductsInBackground(page, limit, filters, cacheKey) {
-  try {
-    const params = new URLSearchParams({
-      type: 'list',
-      page: page.toString(),
-      limit: limit.toString(),
-    });
-
-    if (filters.category) params.append('category', filters.category);
-    if (filters.sort) params.append('sort', filters.sort);
-
-    const response = await fetch(`${EDGE_API_URL}?${params.toString()}`);
-    
-    if (response.ok) {
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          memoryCache.set(cacheKey, {
-            data: result.data,
-            timestamp: Date.now(),
-          });
-          await saveToIndexedDB(cacheKey, result.data);
-          console.log('🔄 Background: Products cache updated');
-        }
-      }
-    }
-  } catch (error) {
-    // Silent fail for background refresh
-    console.warn('Background refresh failed (non-critical):', error.message);
-  }
 }
 
 /**
  * Fetch single product by slug
  */
 export const fetchProductBySlug = async (slug) => {
-  const cacheKey = `product:${slug}`;
-  
-  try {
-    // Memory cache
-    const memoryCached = memoryCache.get(cacheKey);
-    if (memoryCached && Date.now() - memoryCached.timestamp < MEMORY_CACHE_TTL) {
-      console.log('⚡ Memory cache HIT (instant)');
-      return memoryCached.data;
-    }
+  if (!slug) throw new Error('slug is required');
+  const cacheKey = `product:slug:${slug}`;
 
-    // IndexedDB cache
-    const indexedDBCached = await getFromIndexedDB(cacheKey, 15 * 60 * 1000);
-    if (indexedDBCached) {
-      memoryCache.set(cacheKey, {
-        data: indexedDBCached,
-        timestamp: Date.now(),
-      });
-      return indexedDBCached;
-    }
-
-    // Edge function
+  const fetcher = async () => {
+    // Try edge function
     try {
-      const response = await fetch(`${EDGE_API_URL}?type=detail&slug=${encodeURIComponent(slug)}`);
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const product = {
-              ...result.data,
-              originalPrice: result.data.original_price || result.data.price || 0,
-              reviewCount: result.data.reviews_count || 0,
-              isNew: result.data.is_new || false,
-              isTrending: result.data.is_trending || false,
-              images: Array.isArray(result.data.images) ? result.data.images : (result.data.images ? [result.data.images] : []),
-            };
+      const data = await fetchFromEdge({ type: 'detail', slug });
+      return normalizeProduct(data);
+    } catch { /* fallback */ }
 
-            memoryCache.set(cacheKey, {
-              data: product,
-              timestamp: Date.now(),
-            });
-            await saveToIndexedDB(cacheKey, product);
+    // Supabase fallback
+    const { data, error } = await withTimeout(
+      supabase.from(API_ENDPOINTS.PRODUCTS).select('*').eq('slug', slug).single(),
+      SUPABASE_TIMEOUT,
+      'supabase product'
+    );
+    if (error || !data) throw new Error(`Product not found: ${slug}`);
+    return normalizeProduct(data);
+  };
 
-            return product;
-          }
-        }
-      }
-    } catch (edgeError) {
-      console.warn('⚠️ Edge function error:', edgeError.message);
-    }
-
-    // Fallback to Supabase
-    const { data, error } = await supabase
-      .from(API_ENDPOINTS.PRODUCTS)
-      .select('*')
-      .eq('slug', slug)
-      .single();
-
-    if (error || !data) throw new Error('Product not found');
-
-    const product = {
-      ...data,
-      originalPrice: data.original_price || data.price || 0,
-      reviewCount: data.reviews_count || 0,
-      isNew: data.is_new || false,
-      isTrending: data.is_trending || false,
-      images: Array.isArray(data.images) ? data.images : (data.images ? [data.images] : []),
-    };
-
-    memoryCache.set(cacheKey, {
-      data: product,
-      timestamp: Date.now(),
-    });
-    await saveToIndexedDB(cacheKey, product);
-
-    return product;
-  } catch (error) {
-    console.error('❌ fetchProductBySlug error:', error);
-    
-    // Try stale cache
-    const staleMemory = memoryCache.get(cacheKey);
-    if (staleMemory) return staleMemory.data;
-
-    const staleIndexedDB = await getFromIndexedDB(cacheKey, 24 * 60 * 60 * 1000);
-    if (staleIndexedDB) return staleIndexedDB;
-
-    throw error;
-  }
+  const { data } = await fetchWithSWR(cacheKey, fetcher);
+  return data;
 };
 
 /**
- * Fetch products by IDs (for cart/wishlist)
+ * Fetch products by IDs (cart/wishlist) - batched
  */
 export const fetchProductsByIds = async (ids) => {
-  if (!ids || ids.length === 0) return [];
+  if (!ids?.length) return [];
 
-  const cacheKey = `products:ids:${ids.sort().join(',')}`;
-  
-  try {
-    // Memory cache
-    const memoryCached = memoryCache.get(cacheKey);
-    if (memoryCached && Date.now() - memoryCached.timestamp < MEMORY_CACHE_TTL) {
-      return memoryCached.data;
-    }
+  const sortedIds = [...ids].sort();
+  const cacheKey = `products:ids:${sortedIds.join(',')}`;
 
-    // Edge function
+  const fetcher = async () => {
+    // Try edge function
     try {
-      const response = await fetch(`${EDGE_API_URL}?type=ids&ids=${ids.join(',')}`);
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const products = result.data.map(p => ({
-              id: p.id,
-              name: p.name || 'Untitled Product',
-              slug: p.slug || '',
-              price: p.price || 0,
-              originalPrice: p.original_price || p.price || 0,
-              discount: p.discount || 0,
-              images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-              brand: p.brand || '',
-              category: p.category || '',
-              colors: Array.isArray(p.colors) ? p.colors : [],
-              stock: p.stock ?? 0,
-            }));
+      const data = await fetchFromEdge({ type: 'ids', ids: sortedIds.join(',') });
+      return (Array.isArray(data) ? data : []).map(normalizeProduct);
+    } catch { /* fallback */ }
 
-            memoryCache.set(cacheKey, {
-              data: products,
-              timestamp: Date.now(),
-            });
+    // Supabase fallback
+    const { data, error } = await withTimeout(
+      supabase
+        .from(API_ENDPOINTS.PRODUCTS)
+        .select('id,name,slug,price,original_price,discount,images,brand,category,colors,stock')
+        .in('id', sortedIds),
+      SUPABASE_TIMEOUT,
+      'supabase ids'
+    );
+    if (error) throw new Error(error.message);
+    return (data || []).map(normalizeProduct);
+  };
 
-            return products;
-          }
-        }
-      }
-    } catch (edgeError) {
-      console.warn('⚠️ Edge function error:', edgeError.message);
-    }
-
-    // Fallback to Supabase
-    const { data, error } = await supabase
-      .from(API_ENDPOINTS.PRODUCTS)
-      .select('id,name,slug,price,original_price,discount,images,brand,category,colors,stock')
-      .in('id', ids);
-
-    if (error) throw error;
-
-    const products = (data || []).map(p => ({
-      id: p.id,
-      name: p.name || 'Untitled Product',
-      slug: p.slug || '',
-      price: p.price || 0,
-      originalPrice: p.original_price || p.price || 0,
-      discount: p.discount || 0,
-      images: Array.isArray(p.images) ? p.images : (p.images ? [p.images] : []),
-      brand: p.brand || '',
-      category: p.category || '',
-      colors: Array.isArray(p.colors) ? p.colors : [],
-      stock: p.stock ?? 0,
-    }));
-
-    memoryCache.set(cacheKey, {
-      data: products,
-      timestamp: Date.now(),
-    });
-
-    return products;
-  } catch (error) {
-    console.error('❌ fetchProductsByIds error:', error);
+  try {
+    const { data } = await fetchWithSWR(cacheKey, fetcher);
+    return data;
+  } catch {
     return [];
   }
 };
 
 /**
- * Clear all caches
+ * Clear all product caches (call after admin writes)
  */
 export const clearProductsCache = () => {
-  memoryCache.clear();
+  // Clear memory
+  const productKeys = [...memoryCache.keys()].filter((k) =>
+    k.startsWith('products:') || k.startsWith('product:')
+  );
+  productKeys.forEach((k) => memoryCache.delete(k));
+
+  // Clear inflight
+  inflightRequests.clear();
+
+  // Clear IndexedDB asynchronously
+  getDB().then((db) => {
+    if (!db) return;
+    const tx = db.transaction('products', 'readwrite');
+    tx.objectStore('products').clear();
+  }).catch(() => {});
+
   console.log('🗑️ Products cache cleared');
 };
 
-// Clear old cache on load
-clearOldCache();
+/**
+ * Evict old IndexedDB entries (run on app start)
+ */
+export async function evictOldCache() {
+  try {
+    const db = await getDB();
+    if (!db) return;
+    const tx = db.transaction('products', 'readwrite');
+    const store = tx.objectStore('products');
+    const index = store.index('ts');
+    const cutoff = Date.now() - STALE_TTL;
+    const range = IDBKeyRange.upperBound(cutoff);
+    const req = index.openCursor(range);
+    req.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) { cursor.delete(); cursor.continue(); }
+    };
+  } catch { /* non-critical */ }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function emptyPagination(page) {
+  return { currentPage: page, totalItems: 0, totalPages: 0, hasNext: false };
+}
+
+function emptyListResponse(page) {
+  return { products: [], pagination: emptyPagination(page) };
+}
+
+// Run eviction on module load (non-blocking)
+evictOldCache();

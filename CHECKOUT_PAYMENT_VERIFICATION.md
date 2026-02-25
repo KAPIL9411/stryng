@@ -48,10 +48,10 @@ handlePlaceOrder() {
 }
 ```
 
-### Backend (orders.optimized.api.js)
+### Backend (orders.api.js)
 
 ```javascript
-createOrderOptimized() {
+createOrder() {
   1. Check if already creating (prevent duplicates)
   2. Get authenticated user
   3. Skip duplicate check (for speed)
@@ -289,7 +289,7 @@ useEffect(() => {
 
 - `src/pages/Checkout.jsx` - Main checkout component
 - `src/pages/OrderSuccess.jsx` - Success page
-- `src/api/orders.optimized.api.js` - Order API
+- `src/api/orders.api.js` - Order API
 - `src/styles/checkout-new.css` - Checkout styles
 - `src/lib/supabaseClient.js` - Database client
 - `PAYMENT_STUCK_DEBUG.md` - Debugging guide
