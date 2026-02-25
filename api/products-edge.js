@@ -17,20 +17,30 @@ const CACHE_DURATION = {
   TRENDING: 900, // 15 minutes
 };
 
+// Hardcoded credentials as fallback (will be overridden by env vars)
+const FALLBACK_SUPABASE_URL = 'https://gztnpezilwunmjocjglk.supabase.co';
+const FALLBACK_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6dG5wZXppbHd1bm1qb2NqZ2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5MzQzMDYsImV4cCI6MjA4NjUxMDMwNn0.XjLlR3sRpskl351Hs9IYiz5OUWrC4Fi_LDGBydFs9yE';
+
+/**
+ * Get Supabase credentials with multiple fallbacks
+ */
+function getSupabaseCredentials() {
+  const url = process.env.VITE_SUPABASE_URL || 
+              process.env.SUPABASE_URL || 
+              FALLBACK_SUPABASE_URL;
+              
+  const key = process.env.VITE_SUPABASE_ANON_KEY || 
+              process.env.SUPABASE_ANON_KEY || 
+              FALLBACK_SUPABASE_KEY;
+  
+  return { url, key };
+}
+
 export default async function handler(request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || 'list';
   
   try {
-    // Log environment for debugging
-    console.log('Edge function called:', {
-      type,
-      hasViteUrl: !!process.env.VITE_SUPABASE_URL,
-      hasUrl: !!process.env.SUPABASE_URL,
-      hasViteKey: !!process.env.VITE_SUPABASE_ANON_KEY,
-      hasKey: !!process.env.SUPABASE_ANON_KEY,
-    });
-    
     // Route to appropriate handler
     switch (type) {
       case 'list':
@@ -49,11 +59,7 @@ export default async function handler(request) {
     return jsonResponse({ 
       success: false, 
       error: error.message,
-      stack: error.stack,
-      env: {
-        hasViteUrl: !!process.env.VITE_SUPABASE_URL,
-        hasUrl: !!process.env.SUPABASE_URL,
-      }
+      details: error.toString(),
     }, 500);
   }
 }
@@ -67,19 +73,7 @@ async function handleProductsList(searchParams) {
   const category = searchParams.get('category');
   const sort = searchParams.get('sort');
   
-  // Try both VITE_ and non-VITE_ prefixed env vars (Vercel compatibility)
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing env vars:', { 
-      hasViteUrl: !!process.env.VITE_SUPABASE_URL,
-      hasUrl: !!process.env.SUPABASE_URL,
-      hasViteKey: !!process.env.VITE_SUPABASE_ANON_KEY,
-      hasKey: !!process.env.SUPABASE_ANON_KEY
-    });
-    throw new Error('Supabase credentials not configured');
-  }
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseCredentials();
 
   // Build query
   const start = (page - 1) * limit;
@@ -116,7 +110,7 @@ async function handleProductsList(searchParams) {
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase fetch failed: ${response.statusText}`);
+    throw new Error(`Supabase fetch failed: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -149,8 +143,7 @@ async function handleProductDetail(searchParams) {
     return jsonResponse({ error: 'Slug required' }, 400);
   }
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseCredentials();
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?slug=eq.${encodeURIComponent(slug)}&select=*`,
@@ -163,7 +156,7 @@ async function handleProductDetail(searchParams) {
   );
 
   if (!response.ok) {
-    throw new Error(`Supabase fetch failed: ${response.statusText}`);
+    throw new Error(`Supabase fetch failed: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -186,8 +179,7 @@ async function handleProductDetail(searchParams) {
 async function handleTrending(searchParams) {
   const limit = parseInt(searchParams.get('limit') || '12');
   
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseCredentials();
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?select=id,name,slug,price,original_price,discount,images,brand,category,colors,is_new,is_trending,rating,reviews_count,stock&is_trending=eq.true&order=reviews_count.desc&limit=${limit}`,
@@ -200,7 +192,7 @@ async function handleTrending(searchParams) {
   );
 
   if (!response.ok) {
-    throw new Error(`Supabase fetch failed: ${response.statusText}`);
+    throw new Error(`Supabase fetch failed: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -229,8 +221,7 @@ async function handleProductsByIds(searchParams) {
     return jsonResponse({ success: true, data: [] }, 200);
   }
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseCredentials();
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?select=id,name,slug,price,original_price,discount,images,brand,category,colors,stock&id=in.(${ids.join(',')})`,
@@ -243,7 +234,7 @@ async function handleProductsByIds(searchParams) {
   );
 
   if (!response.ok) {
-    throw new Error(`Supabase fetch failed: ${response.statusText}`);
+    throw new Error(`Supabase fetch failed: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
