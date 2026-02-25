@@ -1,5 +1,13 @@
 import { supabase } from '../lib/supabaseClient';
 
+// Import edge-optimized functions for user-facing operations
+export {
+  checkPincode,
+  searchPincodes,
+  preloadPincodes,
+  clearPincodesCache,
+} from './pincodes-edge.api';
+
 /**
  * ADMIN: Get all serviceable pincodes
  */
@@ -141,29 +149,6 @@ export async function getAddressStatistics() {
     return { success: true, data };
   } catch (error) {
     console.error('Error fetching address statistics:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * Search pincodes by city or state
- */
-export async function searchPincodes(searchTerm) {
-  try {
-    const { data, error } = await supabase
-      .from('serviceable_pincodes')
-      .select('*')
-      .or(
-        `city.ilike.%${searchTerm}%,state.ilike.%${searchTerm}%,pincode.ilike.%${searchTerm}%`
-      )
-      .eq('is_active', true)
-      .limit(20);
-
-    if (error) throw error;
-
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error searching pincodes:', error);
     return { success: false, error: error.message };
   }
 }

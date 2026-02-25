@@ -50,6 +50,14 @@ try {
   console.warn('⚠️ Product preload initialization failed:', error);
 }
 
+try {
+  // Preload pincodes for instant pincode checking
+  const { preloadPincodes } = await import('./api/pincodes-edge.api.js');
+  preloadPincodes();
+} catch (error) {
+  console.warn('⚠️ Pincode preload initialization failed:', error);
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
