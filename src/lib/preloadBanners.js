@@ -4,20 +4,25 @@
  * This ensures instant display on home page
  */
 
-import { fetchBanners } from '../api/banners.api';
+import { fetchBanners } from '../api/banners-edge.api';
+import { queryClient } from './queryClient';
+import { queryKeys } from './queryClient';
 
 /**
- * Preload banners in background
- * Called on app initialization
+ * Preload banners directly into React Query cache
+ * Called on app initialization for instant loading
  */
 export const preloadBanners = async () => {
   try {
-    console.log('🚀 Preloading banners...');
+    console.log('🚀 Preloading banners into cache...');
     
-    // Fetch banners (will use cache if available, or fetch from DB)
-    await fetchBanners();
+    // Fetch banners using edge API (will use memory/IndexedDB cache if available)
+    const banners = await fetchBanners();
     
-    console.log('✅ Banners preloaded successfully');
+    // Immediately populate React Query cache
+    queryClient.setQueryData(queryKeys.banners.active(), banners);
+    
+    console.log(`✅ Banners preloaded successfully (${banners.length} banners)`);
   } catch (error) {
     console.warn('⚠️ Banner preload failed (non-critical):', error.message || error);
     // Don't throw - preload failure shouldn't break the app
@@ -26,10 +31,9 @@ export const preloadBanners = async () => {
 
 /**
  * Initialize banner preloading
- * Call this in main.jsx or App.jsx
+ * Call this in main.jsx
  */
 export const initBannerPreload = () => {
-  // Wrap in try-catch to prevent any errors from breaking the app
   try {
     // Preload immediately (but don't await - let it run in background)
     preloadBanners().catch(err => {
@@ -47,6 +51,6 @@ export const initBannerPreload = () => {
     }
   } catch (error) {
     console.warn('⚠️ Banner preload initialization failed:', error);
-    // Don't throw - this is non-critical
   }
 };
+

@@ -3,7 +3,8 @@
  * Provides admin tools for cache management
  */
 
-import { clearBannersCache } from '../lib/bannersCache';
+import { clearBannersCache } from '../api/banners-edge.api';
+import { clearProductsCache } from '../api/products-edge.api';
 
 /**
  * Clear all application caches
@@ -14,7 +15,10 @@ export const clearAllCaches = async () => {
     console.log('🗑️ Clearing all caches...');
     
     // Clear banner cache
-    await clearBannersCache();
+    clearBannersCache();
+    
+    // Clear products cache
+    clearProductsCache();
     
     // Clear React Query cache (if needed)
     if (window.queryClient) {

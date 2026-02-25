@@ -42,6 +42,14 @@ try {
   console.warn('⚠️ Banner preload initialization failed:', error);
 }
 
+try {
+  // Preload products for instant product listing
+  const { initProductPreload } = await import('./lib/preloadProducts.js');
+  initProductPreload();
+} catch (error) {
+  console.warn('⚠️ Product preload initialization failed:', error);
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
