@@ -65,6 +65,7 @@ const useStore = create(
             currentProduct.lowStockThreshold
           );
           if (!stockStatus.available) {
+            get().showToast('Product is out of stock', 'error');
             return;
           }
 
@@ -79,6 +80,7 @@ const useStore = create(
           const totalQty = currentCartQty + quantity;
 
           if (totalQty > currentProduct.stock) {
+            get().showToast(`Only ${currentProduct.stock} items available`, 'error');
             return;
           }
         }
@@ -90,6 +92,7 @@ const useStore = create(
             item.selectedColor.name === color.name
         );
 
+        // OPTIMISTIC UPDATE - Update UI instantly
         if (existingItemIndex > -1) {
           const newCart = [...cart];
           newCart[existingItemIndex].quantity += quantity;
@@ -109,8 +112,13 @@ const useStore = create(
           });
         }
 
-        // Track analytics
-        trackAddToCart(product, quantity);
+        // Show instant success feedback
+        get().showToast('Added to cart!', 'success');
+
+        // Track analytics in background (non-blocking)
+        setTimeout(() => {
+          trackAddToCart(product, quantity);
+        }, 0);
       },
 
       // Process pending cart item after login
@@ -134,18 +142,26 @@ const useStore = create(
         const { cart } = get();
         const item = cart.find((item) => item.cartId === cartId);
 
+        // OPTIMISTIC UPDATE - Remove instantly
         set((state) => ({
           cart: state.cart.filter((item) => item.cartId !== cartId),
         }));
 
-        // Track analytics
+        // Show instant feedback
+        get().showToast('Removed from cart', 'success');
+
+        // Track analytics in background (non-blocking)
         if (item) {
-          trackRemoveFromCart(item, item.quantity);
+          setTimeout(() => {
+            trackRemoveFromCart(item, item.quantity);
+          }, 0);
         }
       },
 
       updateQuantity: (cartId, delta) => {
         const { cart } = get();
+        
+        // OPTIMISTIC UPDATE - Update instantly
         const newCart = cart.map((item) => {
           if (item.cartId === cartId) {
             const newQty = Math.max(1, item.quantity + delta);
@@ -153,7 +169,10 @@ const useStore = create(
           }
           return item;
         });
+        
         set({ cart: newCart });
+        
+        // No need for toast on quantity change - too noisy
       },
 
       clearCart: () => set({ cart: [] }),

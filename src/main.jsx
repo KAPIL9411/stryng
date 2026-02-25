@@ -58,6 +58,14 @@ try {
   console.warn('⚠️ Pincode preload initialization failed:', error);
 }
 
+try {
+  // Setup address preloading on user login
+  const { setupAddressPreload } = await import('./lib/preloadAddresses.js');
+  setupAddressPreload();
+} catch (error) {
+  console.warn('⚠️ Address preload setup failed:', error);
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
