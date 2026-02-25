@@ -22,6 +22,8 @@ function generateOrderId() {
  * All operations in one database call for maximum speed
  */
 export async function createOrderOptimized(orderData) {
+  console.log('🔵 createOrderOptimized called, isCreatingOrder:', isCreatingOrder);
+  
   // Prevent multiple simultaneous calls
   if (isCreatingOrder) {
     console.log('⚠️ Order creation already in progress, please wait...');
@@ -32,39 +34,31 @@ export async function createOrderOptimized(orderData) {
   }
 
   isCreatingOrder = true;
+  console.log('🟢 Setting isCreatingOrder = true');
 
   try {
     // 1. Get user (from cache if possible)
+    console.log('📝 Step 1: Getting user...');
+    const startAuth = Date.now();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log(`⏱️ Auth check took ${Date.now() - startAuth}ms`);
+    
     if (authError || !user) {
       throw new Error('Please login to place an order');
     }
+    console.log('✅ User authenticated:', user.id);
 
-    // 2. Check for recent duplicate orders (within last 10 seconds)
-    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
-    const { data: recentOrders } = await supabase
-      .from('orders')
-      .select('id, total, created_at')
-      .eq('user_id', user.id)
-      .eq('total', orderData.total)
-      .gte('created_at', tenSecondsAgo)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (recentOrders && recentOrders.length > 0) {
-      console.log('⚠️ Duplicate order detected (same total within 10s), returning existing order');
-      return {
-        success: true,
-        data: recentOrders[0],
-        isDuplicate: true,
-      };
-    }
+    // 2. Skip duplicate check for now (causing delays) - will add back later if needed
+    console.log('📝 Step 2: Skipping duplicate check for speed...');
 
     // 3. Generate order ID
+    console.log('📝 Step 3: Generating order ID...');
     const orderId = generateOrderId();
     const now = new Date().toISOString();
+    console.log('✅ Order ID generated:', orderId);
 
     // 4. Prepare all data for single transaction
+    console.log('📝 Step 4: Preparing order data...');
     const orderRecord = {
       id: orderId,
       user_id: user.id,
@@ -100,46 +94,63 @@ export async function createOrderOptimized(orderData) {
       payment_method: orderData.paymentMethod || 'upi',
       payment_status: 'pending',
     };
+    console.log('✅ Order data prepared');
 
     // 5. Create order first (must succeed before items/payments)
+    console.log('📝 Step 5: Creating order in database...');
+    const startOrderInsert = Date.now();
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert(orderRecord)
       .select()
       .single();
+    console.log(`⏱️ Order insert took ${Date.now() - startOrderInsert}ms`);
 
     if (orderError) {
-      console.error('Order creation failed:', orderError);
+      console.error('❌ Order creation failed:', orderError);
       throw orderError;
     }
+    console.log('✅ Order created successfully:', order.id);
 
     // 6. Create items and payment in parallel (only after order succeeds)
+    console.log('📝 Step 6: Creating order items and payment...');
+    const startParallel = Date.now();
     const [itemsResult, paymentResult] = await Promise.all([
       supabase.from('order_items').insert(orderItems),
       supabase.from('payments').insert(paymentRecord),
     ]);
+    console.log(`⏱️ Parallel inserts took ${Date.now() - startParallel}ms`);
 
     // 7. Check for errors (rollback if needed)
     if (itemsResult.error || paymentResult.error) {
-      console.error('Items/Payment creation failed, rolling back order');
+      console.error('❌ Items/Payment creation failed, rolling back order');
       // Rollback: delete the order
       await supabase.from('orders').delete().eq('id', orderId);
       throw itemsResult.error || paymentResult.error;
     }
+    console.log('✅ Order items and payment created successfully');
 
     // 8. Handle coupon usage in background (non-blocking)
     if (orderData.coupon?.id) {
+      console.log('📝 Step 7: Handling coupon usage (background)...');
       handleCouponUsage(orderData.coupon.id, user.id, orderId, orderData.coupon.discount)
         .catch(err => console.error('Coupon usage error (non-critical):', err));
     }
 
     // 9. Return success immediately
+    console.log('✅ Order creation complete! Returning success...');
     return {
       success: true,
       data: order,
     };
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error('💥 Error creating order:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
     
     // Provide user-friendly error messages
     let errorMessage = error.message || 'Failed to create order';
@@ -156,6 +167,7 @@ export async function createOrderOptimized(orderData) {
     };
   } finally {
     // Always reset the flag
+    console.log('🔴 Resetting isCreatingOrder = false');
     isCreatingOrder = false;
   }
 }

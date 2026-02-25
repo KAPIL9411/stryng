@@ -18,14 +18,19 @@ import {
   Edit3,
   CreditCard,
   CheckCircle2,
-  AlertCircle,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
 import { getCachedAddresses } from '../lib/preloadAddresses';
 import { getUserAddresses } from '../api/addresses.api';
-import { createOrderOptimized } from '../api/orders.optimized.api';
+import { createOrderOptimized, markPaymentAsPaidOptimized } from '../api/orders.optimized.api';
 import SEO from '../components/SEO';
+
+// UPI Configuration
+const MERCHANT_VPA = 'kurmikapil154@okicici';
+const MERCHANT_NAME = 'Stryng Clothing';
 
 // Memoized AddressCard component
 const AddressCard = memo(({ address, isSelected, onSelect, onEdit }) => {
@@ -127,7 +132,10 @@ export default function Checkout() {
   const [addresses, setAddresses] = useState([]);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1); // 1: Address, 2: Review & Pay
+  const [currentStep, setCurrentStep] = useState(1); // 1: Address, 2: Review & Pay, 3: Payment Verification
+  const [orderId, setOrderId] = useState(null);
+  const [transactionId, setTransactionId] = useState('');
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   // Calculations
   const subtotal = useMemo(() => getCartTotal(), [getCartTotal]);
@@ -141,12 +149,23 @@ export default function Checkout() {
       navigate('/login');
       return;
     }
-    if (cart.length === 0) {
+    if (cart.length === 0 && currentStep !== 3) {
       navigate('/cart');
       return;
     }
-    loadAddresses();
-  }, [user, cart, navigate]);
+  }, [user, cart, navigate, currentStep]);
+
+  // Load addresses on mount
+  useEffect(() => {
+    if (user && currentStep === 1) {
+      loadAddresses();
+    }
+  }, [user, currentStep]);
+
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('🔍 Checkout State:', { currentStep, orderId, isPlacingOrder, cartLength: cart.length });
+  }, [currentStep, orderId, isPlacingOrder, cart.length]);
 
   // Load addresses (instant from cache)
   const loadAddresses = useCallback(async () => {
@@ -166,11 +185,22 @@ export default function Checkout() {
     }
   }, []);
 
-  // Place order
+  // Place order (optimized - instant feedback)
   const handlePlaceOrder = useCallback(async () => {
-    if (!selectedAddress || isPlacingOrder) return;
+    if (!selectedAddress || isPlacingOrder) {
+      console.log('⚠️ Cannot place order:', { selectedAddress, isPlacingOrder });
+      return;
+    }
 
+    console.log('🚀 Starting order creation...');
     setIsPlacingOrder(true);
+
+    // Set a timeout to prevent infinite loading (30 seconds)
+    const timeoutId = setTimeout(() => {
+      console.error('⏰ Order creation timeout after 30 seconds');
+      setIsPlacingOrder(false);
+      alert('Order creation is taking too long. Please check your internet connection and try again.');
+    }, 30000);
 
     try {
       const { appliedCoupon } = useStore.getState();
@@ -202,22 +232,62 @@ export default function Checkout() {
         } : null,
       };
 
+      console.log('📦 Order data prepared:', { total, itemCount: cart.length });
+      
+      const startTime = Date.now();
       const result = await createOrderOptimized(orderData);
+      const endTime = Date.now();
+      
+      // Clear timeout if request completes
+      clearTimeout(timeoutId);
+      
+      console.log(`⏱️ Order creation took ${endTime - startTime}ms`);
 
       if (result.success) {
-        clearCart();
-        clearCoupon();
-        navigate(`/order-success/${result.data.id}`);
+        console.log('✅ Order created successfully:', result.data.id);
+        setOrderId(result.data.id);
+        setCurrentStep(3); // Move to payment verification
+        setIsPlacingOrder(false); // Reset immediately
       } else {
+        console.error('❌ Order creation failed:', result.error);
+        setIsPlacingOrder(false);
         alert(result.error || 'Failed to place order. Please try again.');
       }
     } catch (error) {
-      console.error('Order placement error:', error);
-      alert('Failed to place order. Please try again.');
-    } finally {
+      // Clear timeout on error
+      clearTimeout(timeoutId);
+      console.error('💥 Order placement error:', error);
       setIsPlacingOrder(false);
+      alert('Failed to place order. Please try again.');
     }
-  }, [selectedAddress, total, cart, couponDiscount, isPlacingOrder, clearCart, clearCoupon, navigate]);
+  }, [selectedAddress, total, cart, couponDiscount, isPlacingOrder]);
+
+  // Confirm payment
+  const handlePaymentConfirmation = useCallback(async () => {
+    if (!orderId || isConfirmingPayment) return;
+
+    setIsConfirmingPayment(true);
+
+    try {
+      console.log('💳 Confirming payment for order:', orderId);
+      
+      const result = await markPaymentAsPaidOptimized(orderId, transactionId);
+
+      if (result.success) {
+        console.log('✅ Payment confirmed successfully');
+        clearCart();
+        clearCoupon();
+        navigate(`/order-success/${orderId}`);
+      } else {
+        alert(result.error || 'Failed to confirm payment. Please try again.');
+      }
+    } catch (error) {
+      console.error('Payment confirmation error:', error);
+      alert('Failed to confirm payment. Please try again or contact support.');
+    } finally {
+      setIsConfirmingPayment(false);
+    }
+  }, [orderId, transactionId, isConfirmingPayment, clearCart, clearCoupon, navigate]);
 
   const handleAddressSelect = useCallback((address) => {
     setSelectedAddress(address);
@@ -232,6 +302,22 @@ export default function Checkout() {
       setCurrentStep(2);
     }
   }, [selectedAddress]);
+
+  const copyUPIId = useCallback(() => {
+    navigator.clipboard.writeText(MERCHANT_VPA);
+    // Could add a toast notification here
+  }, []);
+
+  // UPI Payment Link
+  const upiLink = useMemo(
+    () => `upi://pay?pa=${MERCHANT_VPA}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=Order%20Payment`,
+    [total]
+  );
+
+  const qrCodeUrl = useMemo(
+    () => `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiLink)}`,
+    [upiLink]
+  );
 
   if (!user || cart.length === 0) {
     return null;
@@ -270,6 +356,11 @@ export default function Checkout() {
             <div className="progress-line" />
             <div className={`progress-step ${currentStep >= 2 ? 'active' : ''}`}>
               <div className="progress-step-number">2</div>
+              <span className="progress-step-label">Review</span>
+            </div>
+            <div className="progress-line" />
+            <div className={`progress-step ${currentStep >= 3 ? 'active' : ''}`}>
+              <div className="progress-step-number">3</div>
               <span className="progress-step-label">Payment</span>
             </div>
           </div>
@@ -434,7 +525,7 @@ export default function Checkout() {
                   {isPlacingOrder ? (
                     <>
                       <Loader size={20} className="btn-spinner" />
-                      Processing...
+                      Creating Order...
                     </>
                   ) : (
                     <>
@@ -443,6 +534,128 @@ export default function Checkout() {
                     </>
                   )}
                 </button>
+              </>
+            )}
+
+            {/* Step 3: Payment Verification */}
+            {currentStep === 3 && (
+              <>
+                <div className="checkout-section">
+                  <div className="section-header">
+                    <div className="section-icon">
+                      <CheckCircle2 size={20} />
+                    </div>
+                    <h2 className="section-title">Order Created Successfully!</h2>
+                  </div>
+
+                  <div className="section-content">
+                    <div className="order-success-message">
+                      <p>Your order <strong>#{orderId || 'Processing...'}</strong> has been created.</p>
+                      <p>Please complete the payment to confirm your order.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* UPI Payment Section */}
+                {orderId && (
+                  <div className="checkout-section">
+                    <div className="section-header">
+                      <div className="section-icon">
+                        <CreditCard size={20} />
+                      </div>
+                      <h2 className="section-title">Complete Payment</h2>
+                    </div>
+
+                    <div className="section-content">
+                      {/* QR Code */}
+                      <div className="payment-qr-section">
+                        <h4>Scan QR Code</h4>
+                        <div className="qr-code-wrapper">
+                          <img
+                            src={qrCodeUrl}
+                            alt="UPI QR Code"
+                            className="qr-code-image"
+                          />
+                        </div>
+                        <p className="qr-hint">Scan with any UPI app (GPay, PhonePe, Paytm)</p>
+                      </div>
+
+                      <div className="payment-divider">
+                        <span>OR</span>
+                      </div>
+
+                      {/* UPI ID */}
+                      <div className="payment-upi-section">
+                        <h4>Pay via UPI ID</h4>
+                        <div className="upi-id-display">
+                          <span className="upi-id-text">{MERCHANT_VPA}</span>
+                          <button
+                            onClick={copyUPIId}
+                            className="upi-copy-btn"
+                            title="Copy UPI ID"
+                          >
+                            <Copy size={16} />
+                          </button>
+                        </div>
+                        <div className="payment-amount-box">
+                          <span>Amount to pay</span>
+                          <strong>{formatPrice(total)}</strong>
+                        </div>
+                        <a
+                          href={upiLink}
+                          className="btn-open-upi"
+                        >
+                          <ExternalLink size={18} />
+                          Open UPI App
+                        </a>
+                      </div>
+
+                      {/* Transaction ID Input */}
+                      <div className="transaction-id-section">
+                        <h4>After Payment</h4>
+                        <div className="input-group">
+                          <label htmlFor="transaction-id">
+                            UPI Transaction ID (Optional)
+                          </label>
+                          <input
+                            id="transaction-id"
+                            type="text"
+                            className="transaction-input"
+                            placeholder="e.g., 123456789012"
+                            value={transactionId}
+                            onChange={(e) => setTransactionId(e.target.value)}
+                          />
+                          <small className="input-hint">
+                            Helps us verify your payment faster
+                          </small>
+                        </div>
+
+                        <button
+                          onClick={handlePaymentConfirmation}
+                          disabled={isConfirmingPayment}
+                          className="btn-confirm-payment"
+                        >
+                          {isConfirmingPayment ? (
+                            <>
+                              <Loader size={20} className="btn-spinner" />
+                              Verifying Payment...
+                            </>
+                          ) : (
+                            <>
+                              <Check size={20} />
+                              I Have Completed Payment
+                            </>
+                          )}
+                        </button>
+
+                        <div className="payment-security-note">
+                          <Shield size={14} />
+                          <span>Your payment is secure and encrypted</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
