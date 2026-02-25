@@ -131,6 +131,7 @@ function normalizeProduct(p) {
     id: p.id,
     name: p.name || 'Untitled Product',
     slug: p.slug || '',
+    description: p.description || '',
     price: p.price || 0,
     originalPrice: p.original_price || p.price || 0,
     original_price: p.original_price || p.price || 0,
@@ -138,7 +139,10 @@ function normalizeProduct(p) {
     images: Array.isArray(p.images) ? p.images : p.images ? [p.images] : [],
     brand: p.brand || '',
     category: p.category || '',
+    fabric: p.fabric || '',
     colors: Array.isArray(p.colors) ? p.colors : [],
+    sizes: Array.isArray(p.sizes) ? p.sizes : [],
+    unavailableSizes: Array.isArray(p.unavailable_sizes) ? p.unavailable_sizes : [],
     isNew: p.is_new || p.isNew || false,
     isTrending: p.is_trending || p.isTrending || false,
     is_new: p.is_new || false,
@@ -149,6 +153,8 @@ function normalizeProduct(p) {
     stock: p.stock ?? 0,
     lowStockThreshold: p.low_stock_threshold ?? p.lowStockThreshold ?? 5,
     low_stock_threshold: p.low_stock_threshold ?? 5,
+    sku: p.sku || '',
+    track_inventory: p.track_inventory !== false,
   };
 }
 
