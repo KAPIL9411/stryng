@@ -248,6 +248,29 @@ export function getProgressiveImageUrls(url) {
   };
 }
 
+/**
+ * Get optimized image props for product cards
+ * @param {string} url - Original image URL
+ * @returns {Object} Image props with optimized URLs
+ */
+export function getProductCardImageProps(url) {
+  if (!url) {
+    return {
+      src: '',
+      srcSet: '',
+      sizes: '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+      loading: 'lazy',
+    };
+  }
+
+  return {
+    src: optimizeImage(url, { width: 400, quality: 'auto:good' }),
+    srcSet: generateSrcSet(url, [400, 600, 800]),
+    sizes: '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw',
+    loading: 'lazy',
+  };
+}
+
 export default {
   optimizeImage,
   getResponsiveImages,
@@ -261,4 +284,5 @@ export default {
   isCloudinaryImage,
   getImageDimensions,
   getProgressiveImageUrls,
+  getProductCardImageProps,
 };
