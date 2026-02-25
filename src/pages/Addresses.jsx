@@ -1095,7 +1095,8 @@ function AddressForm({
                 onChange={handleChange}
                 className="form-input"
                 placeholder="10-digit mobile number"
-                pattern="[0-9]{10,15}"
+                pattern="[0-9]{10}"
+                maxLength={10}
                 required
               />
             </div>

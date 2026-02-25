@@ -197,13 +197,13 @@ export async function addAddress(addressData) {
       };
     }
 
-    // Validate phone number (10-15 digits for international support)
-    const phoneRegex = /^[0-9]{10,15}$/;
+    // Validate phone number (10 digits only)
+    const phoneRegex = /^[0-9]{10}$/;
     const cleanPhone = addressData.phone.replace(/\s/g, '');
     console.log('Phone validation:', cleanPhone, 'Length:', cleanPhone.length, 'Valid:', phoneRegex.test(cleanPhone));
     
     if (!phoneRegex.test(cleanPhone)) {
-      const error = `Please enter a valid phone number (10-15 digits). You entered ${cleanPhone.length} digits: ${cleanPhone}`;
+      const error = `Please enter a valid 10-digit phone number (you entered ${cleanPhone.length} digits: ${cleanPhone})`;
       console.error(error);
       return {
         success: false,
@@ -318,14 +318,14 @@ export async function updateAddress(addressId, addressData) {
       };
     }
 
-    // Validate phone number (10-15 digits for international support)
-    const phoneRegex = /^[0-9]{10,15}$/;
+    // Validate phone number (10 digits only)
+    const phoneRegex = /^[0-9]{10}$/;
     const cleanPhone = addressData.phone.replace(/\s/g, '');
     
     if (!phoneRegex.test(cleanPhone)) {
       return {
         success: false,
-        error: `Please enter a valid phone number (10-15 digits). You entered ${cleanPhone.length} digits: ${cleanPhone}`,
+        error: `Please enter a valid 10-digit phone number (you entered ${cleanPhone.length} digits: ${cleanPhone})`,
       };
     }
 
