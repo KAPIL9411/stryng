@@ -42,20 +42,27 @@ export const fetchBanners = async () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const contentType = response.headers.get('content-type');
         
-        if (result.success && result.data) {
-          console.log(`✅ Banners loaded from ${result.source} (${result.cached ? 'cached' : 'fresh'})`);
+        // Check if response is JSON
+        if (contentType && contentType.includes('application/json')) {
+          const result = await response.json();
           
-          // Update memory cache
-          memoryCache = result.data;
-          cacheTimestamp = Date.now();
-          
-          return result.data;
+          if (result.success && result.data) {
+            console.log(`✅ Banners loaded from ${result.source} (${result.cached ? 'cached' : 'fresh'})`);
+            
+            // Update memory cache
+            memoryCache = result.data;
+            cacheTimestamp = Date.now();
+            
+            return result.data;
+          }
+        } else {
+          console.warn('⚠️ Edge function returned non-JSON response (not deployed yet)');
         }
       }
     } catch (edgeError) {
-      console.warn('⚠️ Edge function not available, falling back to Supabase:', edgeError.message);
+      console.warn('⚠️ Edge function not available:', edgeError.message);
     }
 
     // Fallback: Direct Supabase query
@@ -108,16 +115,20 @@ const refreshBannersInBackground = async () => {
   try {
     const response = await fetch(EDGE_API_URL);
     if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data) {
-        memoryCache = result.data;
-        cacheTimestamp = Date.now();
-        console.log('🔄 Background: Banners cache updated');
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          memoryCache = result.data;
+          cacheTimestamp = Date.now();
+          console.log('🔄 Background: Banners cache updated');
+        }
       }
     }
   } catch (error) {
     // Silent fail for background refresh
-    console.warn('Background banner refresh failed:', error);
+    console.warn('Background banner refresh failed (non-critical):', error.message);
   }
 };
 
