@@ -83,15 +83,20 @@ export default function Addresses() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submitted with data:', formData);
     setSubmitting(true);
 
     try {
       let response;
       if (editingAddress) {
+        console.log('Updating address:', editingAddress.id);
         response = await updateAddress(editingAddress.id, formData);
       } else {
+        console.log('Adding new address');
         response = await addAddress(formData);
       }
+
+      console.log('API response:', response);
 
       if (response.success) {
         showToast(
@@ -103,9 +108,11 @@ export default function Addresses() {
         setShowForm(false);
         fetchAddresses();
       } else {
+        console.error('API error:', response.error);
         showToast(response.error || 'Failed to save address', 'error');
       }
-    } catch {
+    } catch (error) {
+      console.error('Caught error:', error);
       showToast('An error occurred', 'error');
     } finally {
       setSubmitting(false);

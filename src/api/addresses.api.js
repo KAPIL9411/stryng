@@ -169,44 +169,131 @@ export async function getDefaultAddress() {
  */
 export async function addAddress(addressData) {
   try {
+    console.log('addAddress called with data:', addressData);
+    
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
+    
+    console.log('User:', user);
+    
+    if (!user) {
+      console.error('User not authenticated');
+      throw new Error('User not authenticated');
+    }
+
+    // Validate required fields
+    const requiredFields = ['full_name', 'phone', 'pincode', 'address_line1', 'city', 'state'];
+    const missingFields = requiredFields.filter(field => !addressData[field] || addressData[field].trim() === '');
+    
+    console.log('Missing fields:', missingFields);
+    
+    if (missingFields.length > 0) {
+      const error = `Missing required fields: ${missingFields.join(', ')}`;
+      console.error(error);
+      return {
+        success: false,
+        error,
+      };
+    }
+
+    // Validate phone number (10-15 digits for international support)
+    const phoneRegex = /^[0-9]{10,15}$/;
+    const cleanPhone = addressData.phone.replace(/\s/g, '');
+    console.log('Phone validation:', cleanPhone, 'Length:', cleanPhone.length, 'Valid:', phoneRegex.test(cleanPhone));
+    
+    if (!phoneRegex.test(cleanPhone)) {
+      const error = `Please enter a valid phone number (10-15 digits). You entered ${cleanPhone.length} digits: ${cleanPhone}`;
+      console.error(error);
+      return {
+        success: false,
+        error,
+      };
+    }
+
+    // Validate pincode (6 digits)
+    const pincodeRegex = /^[0-9]{6}$/;
+    console.log('Pincode validation:', addressData.pincode, pincodeRegex.test(addressData.pincode));
+    
+    if (!pincodeRegex.test(addressData.pincode)) {
+      const error = 'Please enter a valid 6-digit pincode';
+      console.error(error);
+      return {
+        success: false,
+        error,
+      };
+    }
 
     // Check if pincode is serviceable (optional check)
+    console.log('Checking pincode serviceability...');
     const serviceabilityCheck = await checkPincodeServiceability(
       addressData.pincode
     );
+    
+    console.log('Serviceability check result:', serviceabilityCheck);
     
     // Only block if explicitly not serviceable (not on errors)
     if (
       serviceabilityCheck.success &&
       serviceabilityCheck.data.is_serviceable === false
     ) {
+      const error = serviceabilityCheck.data.message || 
+        'This pincode is not serviceable. Please try a different address.';
+      console.error(error);
       return {
         success: false,
-        error:
-          serviceabilityCheck.data.message || 
-          'This pincode is not serviceable. Please try a different address.',
+        error,
       };
     }
 
+    // If this is the first address or is_default is true, unset other defaults
+    if (addressData.is_default) {
+      console.log('Unsetting other default addresses...');
+      await supabase
+        .from('customer_addresses')
+        .update({ is_default: false })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+    }
+
+    // Prepare clean address data
+    const cleanAddressData = {
+      user_id: user.id,
+      full_name: addressData.full_name.trim(),
+      phone: cleanPhone,
+      pincode: addressData.pincode.trim(),
+      address_line1: addressData.address_line1.trim(),
+      address_line2: addressData.address_line2 ? addressData.address_line2.trim() : null,
+      landmark: addressData.landmark ? addressData.landmark.trim() : null,
+      city: addressData.city.trim(),
+      state: addressData.state.trim(),
+      address_type: addressData.address_type || 'home',
+      is_default: addressData.is_default || false,
+      is_active: true,
+    };
+
+    console.log('Clean address data:', cleanAddressData);
+    console.log('Inserting into database...');
+
     const { data, error } = await supabase
       .from('customer_addresses')
-      .insert({
-        ...addressData,
-        user_id: user.id,
-      })
+      .insert(cleanAddressData)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
+    console.log('Address saved successfully:', data);
     return { success: true, data };
   } catch (error) {
     console.error('Error adding address:', error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || 'Failed to save address. Please try again.' 
+    };
   }
 }
 
@@ -219,6 +306,37 @@ export async function updateAddress(addressId, addressData) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
+
+    // Validate required fields
+    const requiredFields = ['full_name', 'phone', 'pincode', 'address_line1', 'city', 'state'];
+    const missingFields = requiredFields.filter(field => !addressData[field] || addressData[field].trim() === '');
+    
+    if (missingFields.length > 0) {
+      return {
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`,
+      };
+    }
+
+    // Validate phone number (10-15 digits for international support)
+    const phoneRegex = /^[0-9]{10,15}$/;
+    const cleanPhone = addressData.phone.replace(/\s/g, '');
+    
+    if (!phoneRegex.test(cleanPhone)) {
+      return {
+        success: false,
+        error: `Please enter a valid phone number (10-15 digits). You entered ${cleanPhone.length} digits: ${cleanPhone}`,
+      };
+    }
+
+    // Validate pincode (6 digits)
+    const pincodeRegex = /^[0-9]{6}$/;
+    if (!pincodeRegex.test(addressData.pincode)) {
+      return {
+        success: false,
+        error: 'Please enter a valid 6-digit pincode',
+      };
+    }
 
     // If pincode is being updated, check serviceability (optional check)
     if (addressData.pincode) {
@@ -240,20 +358,50 @@ export async function updateAddress(addressId, addressData) {
       }
     }
 
+    // If setting as default, unset other defaults
+    if (addressData.is_default) {
+      await supabase
+        .from('customer_addresses')
+        .update({ is_default: false })
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .neq('id', addressId);
+    }
+
+    // Prepare clean address data
+    const cleanAddressData = {
+      full_name: addressData.full_name.trim(),
+      phone: addressData.phone.replace(/\s/g, ''),
+      pincode: addressData.pincode.trim(),
+      address_line1: addressData.address_line1.trim(),
+      address_line2: addressData.address_line2 ? addressData.address_line2.trim() : null,
+      landmark: addressData.landmark ? addressData.landmark.trim() : null,
+      city: addressData.city.trim(),
+      state: addressData.state.trim(),
+      address_type: addressData.address_type || 'home',
+      is_default: addressData.is_default || false,
+    };
+
     const { data, error } = await supabase
       .from('customer_addresses')
-      .update(addressData)
+      .update(cleanAddressData)
       .eq('id', addressId)
       .eq('user_id', user.id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return { success: true, data };
   } catch (error) {
     console.error('Error updating address:', error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || 'Failed to update address. Please try again.' 
+    };
   }
 }
 
@@ -292,19 +440,34 @@ export async function setDefaultAddress(addressId) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    // First, unset all other defaults
+    await supabase
+      .from('customer_addresses')
+      .update({ is_default: false })
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    // Then set the selected address as default
     const { data, error } = await supabase
       .from('customer_addresses')
       .update({ is_default: true })
       .eq('id', addressId)
       .eq('user_id', user.id)
+      .eq('is_active', true)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     return { success: true, data };
   } catch (error) {
     console.error('Error setting default address:', error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || 'Failed to set default address. Please try again.' 
+    };
   }
 }

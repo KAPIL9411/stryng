@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Address API Tester</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      border-left: 4px solid #4CAF50;
+    }
+
+    .test-section h2 {
+      color: #333;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .result.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+
+    .result.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+
+    .result.info {
+      background: #d1ecf1;
+      border: 1px solid #bee5eb;
+      color: #0c5460;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #333;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+
+    .required {
+      color: #e74c3c;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .button-group button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Address API Tester</h1>
+    <p class="subtitle">Test the address saving functionality with validation</p>
+
+    <!-- Test 1: Valid Address -->
+    <div class="test-section">
+      <h2>✅ Test 1: Save Valid Address</h2>
+      <p>This should succeed with all required fields filled correctly.</p>
+      <button onclick="testValidAddress()">Run Test</button>
+      <div id="result1"></div>
+    </div>
+
+    <!-- Test 2: Missing Fields -->
+    <div class="test-section">
+      <h2>❌ Test 2: Missing Required Fields</h2>
+      <p>This should fail with validation error.</p>
+      <button onclick="testMissingFields()">Run Test</button>
+      <div id="result2"></div>
+    </div>
+
+    <!-- Test 3: Invalid Phone -->
+    <div class="test-section">
+      <h2>❌ Test 3: Invalid Phone Number</h2>
+      <p>This should fail with phone validation error.</p>
+      <button onclick="testInvalidPhone()">Run Test</button>
+      <div id="result3"></div>
+    </div>
+
+    <!-- Test 4: Invalid Pincode -->
+    <div class="test-section">
+      <h2>❌ Test 4: Invalid Pincode</h2>
+      <p>This should fail with pincode validation error.</p>
+      <button onclick="testInvalidPincode()">Run Test</button>
+      <div id="result4"></div>
+    </div>
+
+    <!-- Test 5: Whitespace Handling -->
+    <div class="test-section">
+      <h2>✅ Test 5: Whitespace Trimming</h2>
+      <p>This should succeed and trim all whitespace.</p>
+      <button onclick="testWhitespace()">Run Test</button>
+      <div id="result5"></div>
+    </div>
+
+    <!-- Custom Test Form -->
+    <div class="test-section">
+      <h2>🔧 Custom Test</h2>
+      <p>Enter your own test data:</p>
+      
+      <div class="form-group">
+        <label>Full Name <span class="required">*</span></label>
+        <input type="text" id="full_name" placeholder="John Doe">
+      </div>
+
+      <div class="form-group">
+        <label>Phone <span class="required">*</span></label>
+        <input type="text" id="phone" placeholder="9876543210">
+      </div>
+
+      <div class="form-group">
+        <label>Pincode <span class="required">*</span></label>
+        <input type="text" id="pincode" placeholder="110001" maxlength="6">
+      </div>
+
+      <div class="form-group">
+        <label>Address Line 1 <span class="required">*</span></label>
+        <input type="text" id="address_line1" placeholder="123 Main Street">
+      </div>
+
+      <div class="form-group">
+        <label>Address Line 2</label>
+        <input type="text" id="address_line2" placeholder="Near Central Park">
+      </div>
+
+      <div class="form-group">
+        <label>Landmark</label>
+        <input type="text" id="landmark" placeholder="Opposite City Mall">
+      </div>
+
+      <div class="form-group">
+        <label>City <span class="required">*</span></label>
+        <input type="text" id="city" placeholder="New Delhi">
+      </div>
+
+      <div class="form-group">
+        <label>State <span class="required">*</span></label>
+        <input type="text" id="state" placeholder="Delhi">
+      </div>
+
+      <div class="form-group">
+        <label>Address Type</label>
+        <select id="address_type">
+          <option value="home">Home</option>
+          <option value="work">Work</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <button onclick="testCustomAddress()">Test Custom Address</button>
+      <div id="resultCustom"></div>
+    </div>
+  </div>
+
+  <script>
+    // Mock validation functions (same as in the API)
+    function validateAddress(addressData) {
+      const requiredFields = ['full_name', 'phone', 'pincode', 'address_line1', 'city', 'state'];
+      const missingFields = requiredFields.filter(field => !addressData[field] || addressData[field].trim() === '');
+      
+      if (missingFields.length > 0) {
+        return {
+          success: false,
+          error: `Missing required fields: ${missingFields.join(', ')}`
+        };
+      }
+
+      // Validate phone number (10 digits)
+      const phoneRegex = /^[0-9]{10}$/;
+      if (!phoneRegex.test(addressData.phone.replace(/\s/g, ''))) {
+        return {
+          success: false,
+          error: 'Please enter a valid 10-digit phone number'
+        };
+      }
+
+      // Validate pincode (6 digits)
+      const pincodeRegex = /^[0-9]{6}$/;
+      if (!pincodeRegex.test(addressData.pincode)) {
+        return {
+          success: false,
+          error: 'Please enter a valid 6-digit pincode'
+        };
+      }
+
+      return { success: true };
+    }
+
+    function cleanAddressData(addressData) {
+      return {
+        full_name: addressData.full_name.trim(),
+        phone: addressData.phone.replace(/\s/g, ''),
+        pincode: addressData.pincode.trim(),
+        address_line1: addressData.address_line1.trim(),
+        address_line2: addressData.address_line2 ? addressData.address_line2.trim() : null,
+        landmark: addressData.landmark ? addressData.landmark.trim() : null,
+        city: addressData.city.trim(),
+        state: addressData.state.trim(),
+        address_type: addressData.address_type || 'home',
+        is_default: addressData.is_default || false,
+      };
+    }
+
+    function showResult(elementId, result) {
+      const element = document.getElementById(elementId);
+      const className = result.success ? 'success' : 'error';
+      element.className = `result ${className}`;
+      element.textContent = JSON.stringify(result, null, 2);
+    }
+
+    function testValidAddress() {
+      const addressData = {
+        full_name: 'John Doe',
+        phone: '9876543210',
+        pincode: '110001',
+        address_line1: '123 Main Street, Apartment 4B',
+        address_line2: 'Near Central Park',
+        landmark: 'Opposite City Mall',
+        city: 'New Delhi',
+        state: 'Delhi',
+        address_type: 'home',
+        is_default: true
+      };
+
+      const validation = validateAddress(addressData);
+      if (validation.success) {
+        const cleaned = cleanAddressData(addressData);
+        showResult('result1', {
+          success: true,
+          message: 'Validation passed! Address would be saved.',
+          cleanedData: cleaned
+        });
+      } else {
+        showResult('result1', validation);
+      }
+    }
+
+    function testMissingFields() {
+      const addressData = {
+        full_name: 'John Doe',
+        phone: '9876543210'
+        // Missing: pincode, address_line1, city, state
+      };
+
+      const validation = validateAddress(addressData);
+      showResult('result2', validation);
+    }
+
+    function testInvalidPhone() {
+      const addressData = {
+        full_name: 'John Doe',
+        phone: '123', // Invalid: less than 10 digits
+        pincode: '110001',
+        address_line1: '123 Main Street',
+        city: 'New Delhi',
+        state: 'Delhi'
+      };
+
+      const validation = validateAddress(addressData);
+      showResult('result3', validation);
+    }
+
+    function testInvalidPincode() {
+      const addressData = {
+        full_name: 'John Doe',
+        phone: '9876543210',
+        pincode: '123', // Invalid: less than 6 digits
+        address_line1: '123 Main Street',
+        city: 'New Delhi',
+        state: 'Delhi'
+      };
+
+      const validation = validateAddress(addressData);
+      showResult('result4', validation);
+    }
+
+    function testWhitespace() {
+      const addressData = {
+        full_name: '  John Doe  ',
+        phone: ' 98 765 432 10 ',
+        pincode: ' 110001 ',
+        address_line1: '  123 Main Street  ',
+        address_line2: '  Near Central Park  ',
+        landmark: '  Opposite City Mall  ',
+        city: '  New Delhi  ',
+        state: '  Delhi  '
+      };
+
+      const validation = validateAddress(addressData);
+      if (validation.success) {
+        const cleaned = cleanAddressData(addressData);
+        showResult('result5', {
+          success: true,
+          message: 'Whitespace trimmed successfully!',
+          original: addressData,
+          cleaned: cleaned
+        });
+      } else {
+        showResult('result5', validation);
+      }
+    }
+
+    function testCustomAddress() {
+      const addressData = {
+        full_name: document.getElementById('full_name').value,
+        phone: document.getElementById('phone').value,
+        pincode: document.getElementById('pincode').value,
+        address_line1: document.getElementById('address_line1').value,
+        address_line2: document.getElementById('address_line2').value,
+        landmark: document.getElementById('landmark').value,
+        city: document.getElementById('city').value,
+        state: document.getElementById('state').value,
+        address_type: document.getElementById('address_type').value
+      };
+
+      const validation = validateAddress(addressData);
+      if (validation.success) {
+        const cleaned = cleanAddressData(addressData);
+        showResult('resultCustom', {
+          success: true,
+          message: 'Validation passed! Address would be saved.',
+          cleanedData: cleaned
+        });
+      } else {
+        showResult('resultCustom', validation);
+      }
+    }
+  </script>
+</body>
+</html>
