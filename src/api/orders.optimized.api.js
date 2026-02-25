@@ -30,7 +30,22 @@ export async function createOrderOptimized(orderData) {
     const orderId = generateOrderId();
     const now = new Date().toISOString();
 
-    // 3. Prepare all data for single transaction
+    // 3. Check if order already exists (prevent duplicates)
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (existingOrder) {
+      console.log('⚠️ Order already exists, returning existing order');
+      return {
+        success: true,
+        data: existingOrder,
+      };
+    }
+
+    // 4. Prepare all data for single transaction
     const orderRecord = {
       id: orderId,
       user_id: user.id,
@@ -67,34 +82,44 @@ export async function createOrderOptimized(orderData) {
       payment_status: 'pending',
     };
 
-    // 4. Execute all operations in parallel for maximum speed
+    // 5. Execute all operations in parallel for maximum speed
     const [orderResult, itemsResult, paymentResult] = await Promise.all([
       supabase.from('orders').insert(orderRecord).select().single(),
       supabase.from('order_items').insert(orderItems),
       supabase.from('payments').insert(paymentRecord),
     ]);
 
-    // 5. Check for errors
+    // 6. Check for errors
     if (orderResult.error) throw orderResult.error;
     if (itemsResult.error) throw itemsResult.error;
     if (paymentResult.error) throw paymentResult.error;
 
-    // 6. Handle coupon usage in background (non-blocking)
+    // 7. Handle coupon usage in background (non-blocking)
     if (orderData.coupon?.id) {
       handleCouponUsage(orderData.coupon.id, user.id, orderId, orderData.coupon.discount)
         .catch(err => console.error('Coupon usage error (non-critical):', err));
     }
 
-    // 7. Return success immediately
+    // 8. Return success immediately
     return {
       success: true,
       data: orderResult.data,
     };
   } catch (error) {
     console.error('Error creating order:', error);
+    
+    // Provide user-friendly error messages
+    let errorMessage = error.message || 'Failed to create order';
+    
+    if (error.code === '23505') {
+      errorMessage = 'Order already exists. Please check your order history.';
+    } else if (error.code === '23503') {
+      errorMessage = 'Invalid product or address. Please try again.';
+    }
+    
     return {
       success: false,
-      error: error.message || 'Failed to create order',
+      error: errorMessage,
     };
   }
 }

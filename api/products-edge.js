@@ -53,10 +53,17 @@ async function handleProductsList(searchParams) {
   const category = searchParams.get('category');
   const sort = searchParams.get('sort');
   
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  // Try both VITE_ and non-VITE_ prefixed env vars (Vercel compatibility)
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing env vars:', { 
+      hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+      hasUrl: !!process.env.SUPABASE_URL,
+      hasViteKey: !!process.env.VITE_SUPABASE_ANON_KEY,
+      hasKey: !!process.env.SUPABASE_ANON_KEY
+    });
     throw new Error('Supabase credentials not configured');
   }
 
@@ -128,8 +135,8 @@ async function handleProductDetail(searchParams) {
     return jsonResponse({ error: 'Slug required' }, 400);
   }
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?slug=eq.${encodeURIComponent(slug)}&select=*`,
@@ -165,8 +172,8 @@ async function handleProductDetail(searchParams) {
 async function handleTrending(searchParams) {
   const limit = parseInt(searchParams.get('limit') || '12');
   
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?select=id,name,slug,price,original_price,discount,images,brand,category,colors,is_new,is_trending,rating,reviews_count,stock&is_trending=eq.true&order=reviews_count.desc&limit=${limit}`,
@@ -208,8 +215,8 @@ async function handleProductsByIds(searchParams) {
     return jsonResponse({ success: true, data: [] }, 200);
   }
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/products?select=id,name,slug,price,original_price,discount,images,brand,category,colors,stock&id=in.(${ids.join(',')})`,
