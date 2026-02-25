@@ -325,6 +325,7 @@ export default function CheckoutOptimized() {
 
   const handlePaymentConfirmation = useCallback(async () => {
     if (!orderId || isConfirmingPayment.current) {
+      console.log('⚠️ Payment confirmation already in progress or no order ID');
       return;
     }
 
@@ -332,20 +333,27 @@ export default function CheckoutOptimized() {
     setIsProcessing(true);
 
     try {
+      console.log('💳 Confirming payment for order:', orderId);
+      
       // Use optimized payment confirmation (2x faster)
       const result = await markPaymentAsPaidOptimized(orderId, transactionId);
 
       if (result.success) {
+        console.log('✅ Payment confirmed successfully');
         clearCart();
         clearCoupon();
         setCurrentStep(3);
       } else {
+        console.error('❌ Payment confirmation failed:', result.error);
+        alert(result.error || 'Failed to confirm payment. Please try again.');
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error confirming payment:', error);
-      isConfirmingPayment.current = false;
+      alert('Failed to confirm payment. Please try again or contact support.');
     } finally {
+      // Always reset flags
+      isConfirmingPayment.current = false;
       setIsProcessing(false);
     }
   }, [orderId, transactionId, clearCart, clearCoupon]);

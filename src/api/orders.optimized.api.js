@@ -204,14 +204,21 @@ async function handleCouponUsage(couponId, userId, orderId, discountAmount) {
  */
 export async function markPaymentAsPaidOptimized(orderId, transactionId = '') {
   try {
+    console.log('💳 Marking payment as paid for order:', orderId);
+    
     const now = new Date().toISOString();
 
-    // Get current timeline
-    const { data: currentOrder } = await supabase
+    // Get current order with timeline
+    const { data: currentOrder, error: fetchError } = await supabase
       .from('orders')
       .select('timeline')
       .eq('id', orderId)
       .single();
+
+    if (fetchError) {
+      console.error('❌ Failed to fetch order:', fetchError);
+      throw new Error('Order not found');
+    }
 
     const timeline = currentOrder?.timeline || [];
 
@@ -249,12 +256,20 @@ export async function markPaymentAsPaidOptimized(orderId, transactionId = '') {
         .single(),
     ]);
 
-    if (paymentResult.error) throw paymentResult.error;
-    if (orderResult.error) throw orderResult.error;
+    if (paymentResult.error) {
+      console.error('❌ Payment update failed:', paymentResult.error);
+      throw paymentResult.error;
+    }
+    
+    if (orderResult.error) {
+      console.error('❌ Order update failed:', orderResult.error);
+      throw orderResult.error;
+    }
 
+    console.log('✅ Payment marked as paid successfully');
     return { success: true, data: orderResult.data };
   } catch (error) {
-    console.error('Error marking payment:', error);
+    console.error('❌ Error marking payment:', error);
     return {
       success: false,
       error: error.message || 'Failed to update payment status',
