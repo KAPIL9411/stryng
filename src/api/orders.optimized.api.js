@@ -5,6 +5,9 @@
 
 import { supabase } from '../lib/supabaseClient';
 
+// Global flag to prevent multiple simultaneous order creations
+let isCreatingOrder = false;
+
 /**
  * Generate unique order ID (instant)
  */
@@ -19,6 +22,17 @@ function generateOrderId() {
  * All operations in one database call for maximum speed
  */
 export async function createOrderOptimized(orderData) {
+  // Prevent multiple simultaneous calls
+  if (isCreatingOrder) {
+    console.log('⚠️ Order creation already in progress, please wait...');
+    return {
+      success: false,
+      error: 'Order creation already in progress. Please wait.',
+    };
+  }
+
+  isCreatingOrder = true;
+
   try {
     // 1. Get user (from cache if possible)
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -26,24 +40,29 @@ export async function createOrderOptimized(orderData) {
       throw new Error('Please login to place an order');
     }
 
-    // 2. Generate order ID
-    const orderId = generateOrderId();
-    const now = new Date().toISOString();
-
-    // 3. Check if order already exists (prevent duplicates)
-    const { data: existingOrder } = await supabase
+    // 2. Check for recent duplicate orders (within last 10 seconds)
+    const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+    const { data: recentOrders } = await supabase
       .from('orders')
-      .select('id')
-      .eq('id', orderId)
-      .maybeSingle();
+      .select('id, total, created_at')
+      .eq('user_id', user.id)
+      .eq('total', orderData.total)
+      .gte('created_at', tenSecondsAgo)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (existingOrder) {
-      console.log('⚠️ Order already exists, returning existing order');
+    if (recentOrders && recentOrders.length > 0) {
+      console.log('⚠️ Duplicate order detected (same total within 10s), returning existing order');
       return {
         success: true,
-        data: existingOrder,
+        data: recentOrders[0],
+        isDuplicate: true,
       };
     }
+
+    // 3. Generate order ID
+    const orderId = generateOrderId();
+    const now = new Date().toISOString();
 
     // 4. Prepare all data for single transaction
     const orderRecord = {
@@ -135,6 +154,9 @@ export async function createOrderOptimized(orderData) {
       success: false,
       error: errorMessage,
     };
+  } finally {
+    // Always reset the flag
+    isCreatingOrder = false;
   }
 }
 

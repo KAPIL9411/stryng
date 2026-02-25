@@ -258,7 +258,9 @@ export default function CheckoutOptimized() {
       return;
     }
 
-    if (isCreatingOrder.current || orderId) {
+    // Prevent multiple clicks - check both ref and state
+    if (isCreatingOrder.current || orderId || isProcessing) {
+      console.log('⚠️ Order creation already in progress, ignoring click');
       return;
     }
 
@@ -309,15 +311,17 @@ export default function CheckoutOptimized() {
         setOrderId(result.data.id);
         setCurrentStep(2);
       } else {
+        // Reset on error so user can retry
+        isCreatingOrder.current = false;
         throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error creating order:', error);
-    } finally {
+      // Reset on error
       isCreatingOrder.current = false;
       setIsProcessing(false);
     }
-  }, [selectedAddress, orderId, total, cart]);
+  }, [selectedAddress, orderId, total, cart, isProcessing]);
 
   const handlePaymentConfirmation = useCallback(async () => {
     if (!orderId || isConfirmingPayment.current) {
