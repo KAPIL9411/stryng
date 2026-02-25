@@ -16,7 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "lighthouse": "node scripts/lighthouse-audit.js",
     "lighthouse:verify": "node scripts/verify-lighthouse-results.js",
-    "sync:banners": "node scripts/sync-banners-to-edge.js"
+    "sync:banners": "node scripts/sync-banners-to-edge.js",
+    "sync:pincodes": "node scripts/sync-pincodes-to-edge.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
