@@ -19,6 +19,7 @@ import {
 } from '../../api/pincodes.api';
 
 export default function AdminPincodes() {
+  const { showToast } = useStore();
   const [pincodes, setPincodes] = useState([]);
   const [filteredPincodes, setFilteredPincodes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,7 @@ export default function AdminPincodes() {
             : 'Pincode added successfully',
           'success'
         );
+        
         setIsEditing(false);
         fetchPincodes();
       } else {
@@ -125,6 +127,7 @@ export default function AdminPincodes() {
     const response = await deleteServiceablePincode(id);
     if (response.success) {
       showToast('Pincode deleted successfully', 'success');
+      
       fetchPincodes();
     } else {
       showToast('Failed to delete pincode', 'error');
@@ -172,6 +175,7 @@ export default function AdminPincodes() {
             `Successfully uploaded ${response.count} pincodes`,
             'success'
           );
+          
           fetchPincodes();
         } else {
           showToast('Failed to upload pincodes', 'error');

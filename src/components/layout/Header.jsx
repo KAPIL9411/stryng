@@ -25,7 +25,7 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { getCartCount, wishlist, user, isAdmin } = useStore();
+  const { getCartCount, wishlist, user, isAdmin, authInitialized } = useStore();
   const cartCount = getCartCount();
   const wishlistCount = wishlist.length;
 
@@ -90,7 +90,7 @@ export default function Header() {
             </Link>
 
             {/* Admin Link (only for admins) */}
-            {user && isAdmin() && (
+            {authInitialized && user && isAdmin() && (
               <Link
                 to="/admin"
                 className="header__action-btn"
@@ -103,7 +103,7 @@ export default function Header() {
 
             {/* Account — links to /account if signed in, /login if not */}
             <Link
-              to={user ? '/account' : '/login'}
+              to={authInitialized && user ? '/account' : '/login'}
               className="header__action-btn"
               aria-label="Account"
             >
@@ -173,7 +173,7 @@ export default function Header() {
                 margin: 'var(--space-4) 0',
               }}
             />
-            {user ? (
+            {authInitialized && user ? (
               <>
                 {isAdmin() && (
                   <Link
@@ -191,10 +191,14 @@ export default function Header() {
                   My Addresses
                 </Link>
               </>
-            ) : (
+            ) : authInitialized ? (
               <Link to="/login" className="mobile-menu__link">
                 Sign In
               </Link>
+            ) : (
+              <div className="mobile-menu__link" style={{ opacity: 0.5 }}>
+                Loading...
+              </div>
             )}
             <Link to="/wishlist" className="mobile-menu__link">
               Wishlist

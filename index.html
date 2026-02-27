@@ -34,6 +34,30 @@
 
 <body>
   <div id="root"></div>
+  
+  <!-- Suppress browser extension errors (non-critical) -->
+  <script>
+    // Suppress "Unchecked runtime.lastError" from browser extensions
+    window.addEventListener('error', function(e) {
+      if (e.message && e.message.includes('runtime.lastError')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return true;
+      }
+    });
+    
+    // Suppress unhandled promise rejections from extensions
+    window.addEventListener('unhandledrejection', function(e) {
+      const reason = e.reason?.message || String(e.reason);
+      if (reason.includes('Extension context') || 
+          reason.includes('message port closed') ||
+          reason.includes('runtime.lastError')) {
+        e.preventDefault();
+        return true;
+      }
+    });
+  </script>
+  
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

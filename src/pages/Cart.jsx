@@ -20,16 +20,16 @@ const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
   );
 
   const handleIncrement = useCallback(() => {
-    onUpdateQuantity(item.cartId, 1);
-  }, [item.cartId, onUpdateQuantity]);
+    onUpdateQuantity(item.id, item.selectedSize, item.selectedColor?.name, 1);
+  }, [item.id, item.selectedSize, item.selectedColor?.name, onUpdateQuantity]);
 
   const handleDecrement = useCallback(() => {
-    onUpdateQuantity(item.cartId, -1);
-  }, [item.cartId, onUpdateQuantity]);
+    onUpdateQuantity(item.id, item.selectedSize, item.selectedColor?.name, -1);
+  }, [item.id, item.selectedSize, item.selectedColor?.name, onUpdateQuantity]);
 
   const handleRemove = useCallback(() => {
-    onRemove(item.cartId);
-  }, [item.cartId, onRemove]);
+    onRemove(item.id, item.selectedSize, item.selectedColor?.name);
+  }, [item.id, item.selectedSize, item.selectedColor?.name, onRemove]);
 
   return (
     <div className="cart-item">
@@ -96,7 +96,7 @@ const CartItem = memo(({ item, onUpdateQuantity, onRemove }) => {
 CartItem.displayName = 'CartItem';
 
 export default function Cart() {
-  const { cart, updateQuantity, removeFromCart, couponDiscount } =
+  const { cart, updateCartItemQuantity, removeFromCart, couponDiscount } =
     useStore();
 
   // Memoize expensive calculations
@@ -141,12 +141,23 @@ export default function Cart() {
   );
 
   // Memoize event handlers
-  const handleUpdateQuantity = useCallback((cartId, delta) => {
-    updateQuantity(cartId, delta);
-  }, [updateQuantity]);
+  const handleUpdateQuantity = useCallback((productId, size, colorName, delta) => {
+    const item = cart.find(
+      (item) =>
+        item.id === productId &&
+        item.selectedSize === size &&
+        item.selectedColor?.name === colorName
+    );
+    if (item) {
+      const newQuantity = item.quantity + delta;
+      if (newQuantity > 0) {
+        updateCartItemQuantity(productId, size, colorName, newQuantity);
+      }
+    }
+  }, [cart, updateCartItemQuantity]);
 
-  const handleRemoveFromCart = useCallback((cartId) => {
-    removeFromCart(cartId);
+  const handleRemoveFromCart = useCallback((productId, size, colorName) => {
+    removeFromCart(productId, size, colorName);
   }, [removeFromCart]);
 
   if (cart.length === 0) {
@@ -337,7 +348,7 @@ export default function Cart() {
           <div>
             {cart.map((item) => (
               <CartItem
-                key={item.cartId}
+                key={`${item.id}-${item.selectedSize}-${item.selectedColor?.name}`}
                 item={item}
                 onUpdateQuantity={handleUpdateQuantity}
                 onRemove={handleRemoveFromCart}

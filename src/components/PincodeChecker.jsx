@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Check, X, Loader } from 'lucide-react';
-import { checkPincode } from '../api/pincodes-edge.api';
+import { checkPincode } from '../api/pincodes.api';
 
 export default function PincodeChecker({ onServiceabilityCheck }) {
   const [pincode, setPincode] = useState('');

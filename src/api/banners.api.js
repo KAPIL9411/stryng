@@ -1,131 +1,114 @@
 /**
- * Banners API - Admin Write Operations
- * Public reads  → banners-edge.api.js (cached, fast)
- * Admin writes  → this file (direct Supabase, always invalidates cache)
- * @module api/banners
+ * Banners API - Firebase Firestore
+ * Simple, no caching - always fresh data
  */
 
-import { supabase } from '../lib/supabaseClient';
-import { API_ENDPOINTS } from '../config/constants';
-
-// Re-export all public read functions
-export {
-  fetchBanners,
-  clearBannersCache,
-  preloadBannerImages,
-} from './banners-edge.api';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-const WRITE_TIMEOUT_MS = 15000;
-
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms)
-    ),
-  ]);
-}
-
-async function bustCache() {
-  const { clearBannersCache } = await import('./banners-edge.api');
-  clearBannersCache();
-}
-
-function translateError(err, operation) {
-  const msg = err?.message || '';
-  if (msg.includes('timeout')) {
-    return new Error(`Unable to ${operation} banner — request timed out. Please try again.`);
-  }
-  if (err?.code === '23505') {
-    return new Error('A banner with these details already exists.');
-  }
-  if (msg.includes('JWT') || msg.includes('auth')) {
-    return new Error('Session expired. Please refresh and try again.');
-  }
-  return err;
-}
-
-// ─── Create ───────────────────────────────────────────────────────────────────
+import { serverTimestamp } from 'firebase/firestore';
+import {
+  COLLECTIONS,
+  getDocuments,
+  addDocument,
+  updateDocument,
+  deleteDocument,
+} from '../lib/firestoreHelpers';
 
 /**
- * Create a new banner
- * @param {Object} bannerData
- * @returns {Promise<Object>}
+ * Fetch active banners for homepage
+ */
+export const fetchActiveBanners = async () => {
+  try {
+    console.log('🔄 Fetching active banners from Firebase...');
+    
+    const banners = await getDocuments(COLLECTIONS.BANNERS, {
+      where: [['active', '==', true]],
+      orderBy: [['sort_order', 'asc']],
+    });
+
+    console.log('✅ Fetched active banners:', banners.length);
+    return banners;
+  } catch (error) {
+    console.error('❌ Error fetching active banners:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch all banners (admin only)
+ */
+export const fetchAllBanners = async () => {
+  try {
+    console.log('🔄 Fetching all banners from Firebase...');
+    
+    const banners = await getDocuments(COLLECTIONS.BANNERS, {
+      orderBy: [['sort_order', 'asc']],
+    });
+
+    console.log('✅ Fetched all banners:', banners.length);
+    return banners;
+  } catch (error) {
+    console.error('❌ Error fetching all banners:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create new banner (admin only)
  */
 export const createBanner = async (bannerData) => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.BANNERS).insert([bannerData]).select().single(),
-      WRITE_TIMEOUT_MS,
-      'createBanner'
-    );
+    console.log('🔄 Creating banner...', bannerData);
+    
+    const bannerId = await addDocument(COLLECTIONS.BANNERS, {
+      title: bannerData.title || '',
+      description: bannerData.description || '',
+      image_url: bannerData.image_url,
+      cta_text: bannerData.cta_text || 'Shop Now',
+      cta_link: bannerData.cta_link,
+      sort_order: bannerData.sort_order || 0,
+      active: bannerData.active !== false,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    });
 
-    if (error) throw error;
-    if (!data) throw new Error('No data returned after insert');
-
-    await bustCache();
-    console.log('✅ Banner created:', data.id);
-    return data;
-  } catch (err) {
-    console.error('❌ createBanner:', err.message);
-    throw translateError(err, 'create');
+    console.log('✅ Banner created:', bannerId);
+    return bannerId;
+  } catch (error) {
+    console.error('❌ Error creating banner:', error);
+    throw error;
   }
 };
 
-// ─── Update ───────────────────────────────────────────────────────────────────
-
 /**
- * Update an existing banner
- * @param {string} id
- * @param {Object} bannerData
- * @returns {Promise<Object>}
+ * Update banner (admin only)
  */
-export const updateBanner = async (id, bannerData) => {
-  if (!id) throw new Error('Banner ID is required');
-
+export const updateBanner = async (bannerId, bannerData) => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.BANNERS).update(bannerData).eq('id', id).select().single(),
-      WRITE_TIMEOUT_MS,
-      'updateBanner'
-    );
+    console.log('🔄 Updating banner:', bannerId);
+    
+    await updateDocument(COLLECTIONS.BANNERS, bannerId, {
+      ...bannerData,
+      updated_at: serverTimestamp(),
+    });
 
-    if (error) throw error;
-    if (!data) throw new Error('Banner not found or no rows updated');
-
-    await bustCache();
-    console.log('✅ Banner updated:', id);
-    return data;
-  } catch (err) {
-    console.error('❌ updateBanner:', err.message);
-    throw translateError(err, 'update');
+    console.log('✅ Banner updated:', bannerId);
+  } catch (error) {
+    console.error('❌ Error updating banner:', error);
+    throw error;
   }
 };
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
 /**
- * Delete a banner
- * @param {string} id
- * @returns {Promise<void>}
+ * Delete banner (admin only)
  */
-export const deleteBanner = async (id) => {
-  if (!id) throw new Error('Banner ID is required');
-
+export const deleteBanner = async (bannerId) => {
   try {
-    const { error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.BANNERS).delete().eq('id', id),
-      WRITE_TIMEOUT_MS,
-      'deleteBanner'
-    );
+    console.log('🔄 Deleting banner:', bannerId);
+    
+    await deleteDocument(COLLECTIONS.BANNERS, bannerId);
 
-    if (error) throw error;
-
-    await bustCache();
-    console.log('✅ Banner deleted:', id);
-  } catch (err) {
-    console.error('❌ deleteBanner:', err.message);
-    throw translateError(err, 'delete');
+    console.log('✅ Banner deleted:', bannerId);
+  } catch (error) {
+    console.error('❌ Error deleting banner:', error);
+    throw error;
   }
 };

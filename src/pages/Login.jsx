@@ -17,6 +17,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [infoMessage, setInfoMessage] = useState(location.state?.message || '');
 
   const redirectTo = location.state?.from || '/';
 
@@ -32,12 +33,13 @@ export default function Login() {
 
   useEffect(() => {
     if (authError) clearAuthError();
+    if (infoMessage) setInfoMessage('');
   }, [email, password]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     const result = await login(email, password);
-    if (result.success) {
+    if (result.user) {
       navigate(redirectTo);
     }
   };
@@ -52,6 +54,23 @@ export default function Login() {
       <p className="auth__subtitle">
         Sign in to continue to your account
       </p>
+
+      {infoMessage && (
+        <div className="auth__info" style={{
+          padding: 'var(--space-3)',
+          backgroundColor: '#10B981',
+          color: 'white',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--space-4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+          fontSize: 'var(--text-sm)',
+        }}>
+          <AlertCircle size={18} />
+          <span>{infoMessage}</span>
+        </div>
+      )}
 
       {authError && (
         <div className="auth__error">

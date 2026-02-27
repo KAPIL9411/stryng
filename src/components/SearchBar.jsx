@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Search, X, TrendingUp } from 'lucide-react';
+import { Search, X, TrendingUp, Clock } from 'lucide-react';
 import { getAutocompleteSuggestions, getTrendingSearches } from '../api/products.api';
 import useDebounce from '../hooks/useDebounce';
+
+const RECENT_SEARCHES_KEY = 'stryng_recent_searches';
+const MAX_RECENT_SEARCHES = 5;
 
 export default function SearchBar({ className = '' }) {
   const navigate = useNavigate();
@@ -10,6 +13,7 @@ export default function SearchBar({ className = '' }) {
   const [query, setQuery] = useState(searchParams.get('search') || '');
   const [suggestions, setSuggestions] = useState([]);
   const [trendingSearches, setTrendingSearches] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,6 +22,18 @@ export default function SearchBar({ className = '' }) {
 
   const debouncedQuery = useDebounce(query, 300);
 
+  // Load recent searches from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (stored) {
+      try {
+        setRecentSearches(JSON.parse(stored));
+      } catch (e) {
+        console.error('Error loading recent searches:', e);
+      }
+    }
+  }, []);
+
   // Load trending searches on mount
   useEffect(() => {
     getTrendingSearches(7, 5).then(data => {
@@ -25,9 +41,29 @@ export default function SearchBar({ className = '' }) {
     });
   }, []);
 
+  // Save search to recent searches
+  const saveRecentSearch = (searchTerm) => {
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return;
+
+    const updated = [
+      trimmed,
+      ...recentSearches.filter(s => s.toLowerCase() !== trimmed.toLowerCase())
+    ].slice(0, MAX_RECENT_SEARCHES);
+
+    setRecentSearches(updated);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  };
+
+  // Clear recent searches
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  };
+
   // Fetch autocomplete suggestions
   useEffect(() => {
-    if (debouncedQuery.trim().length >= 2) {
+    if (debouncedQuery.trim().length >= 1) {
       setIsLoading(true);
       console.log('🔍 Fetching autocomplete for:', debouncedQuery);
       
@@ -63,6 +99,7 @@ export default function SearchBar({ className = '' }) {
   const handleSearch = (searchQuery) => {
     const trimmedQuery = searchQuery.trim();
     if (trimmedQuery) {
+      saveRecentSearch(trimmedQuery);
       navigate(`/products?search=${encodeURIComponent(trimmedQuery)}`);
       setShowSuggestions(false);
       inputRef.current?.blur();
@@ -114,6 +151,7 @@ export default function SearchBar({ className = '' }) {
   };
 
   const showTrending = showSuggestions && query.trim().length === 0 && trendingSearches.length > 0;
+  const showRecent = showSuggestions && query.trim().length === 0 && recentSearches.length > 0;
   const showAutocomplete = showSuggestions && suggestions.length > 0;
 
   return (
@@ -147,7 +185,7 @@ export default function SearchBar({ className = '' }) {
       </form>
 
       {/* Autocomplete Suggestions */}
-      {(showAutocomplete || showTrending) && (
+      {(showAutocomplete || showTrending || showRecent) && (
         <div className="search-suggestions" id="search-suggestions" role="listbox">
           {isLoading && (
             <div className="search-suggestions__loading">
@@ -155,8 +193,37 @@ export default function SearchBar({ className = '' }) {
             </div>
           )}
 
+          {/* Recent Searches */}
+          {showRecent && !showAutocomplete && (
+            <>
+              <div className="search-suggestions__header">
+                <Clock size={14} />
+                <span>Recent Searches</span>
+                <button
+                  onClick={clearRecentSearches}
+                  className="search-suggestions__clear"
+                  type="button"
+                >
+                  Clear All
+                </button>
+              </div>
+              {recentSearches.map((term, index) => (
+                <button
+                  key={`recent-${index}`}
+                  className="search-suggestions__item"
+                  onClick={() => handleSuggestionClick(term)}
+                  role="option"
+                  aria-selected={false}
+                >
+                  <Clock size={14} className="search-suggestions__item-icon" />
+                  <span>{term}</span>
+                </button>
+              ))}
+            </>
+          )}
+
           {/* Trending Searches */}
-          {showTrending && (
+          {showTrending && !showAutocomplete && !showRecent && (
             <>
               <div className="search-suggestions__header">
                 <TrendingUp size={14} />
@@ -170,7 +237,7 @@ export default function SearchBar({ className = '' }) {
                   role="option"
                   aria-selected={false}
                 >
-                  <Search size={14} className="search-suggestions__item-icon" />
+                  <TrendingUp size={14} className="search-suggestions__item-icon" />
                   <span>{item.search_term}</span>
                   <span className="search-suggestions__count">
                     {item.search_count} searches
@@ -206,7 +273,7 @@ export default function SearchBar({ className = '' }) {
           )}
 
           {/* No Results */}
-          {showAutocomplete && !isLoading && suggestions.length === 0 && query.trim().length >= 2 && (
+          {showAutocomplete && !isLoading && suggestions.length === 0 && query.trim().length >= 1 && (
             <div className="search-suggestions__empty">
               No suggestions found
             </div>

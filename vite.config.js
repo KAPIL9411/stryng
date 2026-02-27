@@ -48,13 +48,13 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*\/products.*/i,
-            handler: 'StaleWhileRevalidate',
+            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
+            handler: 'NetworkFirst',
             options: {
-              cacheName: 'api-products',
+              cacheName: 'firebase-api',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 5 // 5 minutes
+                maxAgeSeconds: 60 * 2 // 2 minutes
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -109,7 +109,7 @@ export default defineConfig({
           'vendor-query': ['@tanstack/react-query'],
           'vendor-ui': ['lucide-react', 'framer-motion'],
           'vendor-forms': ['react-hook-form'],
-          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           'vendor-state': ['zustand']
         },
         // Add hash to filenames for cache busting

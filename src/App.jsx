@@ -81,38 +81,29 @@ function App() {
     // Initialize performance monitoring
     initPerformanceMonitoring();
 
-    // Prefetch banners immediately for faster home page load
+    // Prefetch banners immediately for instant home page load
     queryClient.prefetchQuery({
       queryKey: ['banners', 'active'],
       queryFn: async () => {
-        const { supabase } = await import('./lib/supabaseClient');
-        const { data } = await supabase
-          .from('banners')
-          .select('*')
-          .eq('active', true)
-          .order('sort_order', { ascending: true });
-        return data || [];
+        const { fetchActiveBanners } = await import('./api/banners.api');
+        const banners = await fetchActiveBanners();
+        return banners || [];
       },
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000, // 30 seconds
     });
 
     // Prefetch user addresses for faster checkout/addresses page load
     const prefetchAddresses = async () => {
-      const { supabase } = await import('./lib/supabaseClient');
-      const { data: { user } } = await supabase.auth.getUser();
+      const { auth } = await import('./lib/firebaseClient');
+      const user = auth.currentUser;
       
       if (user) {
         queryClient.prefetchQuery({
-          queryKey: ['addresses', user.id],
+          queryKey: ['addresses', user.uid],
           queryFn: async () => {
-            const { data } = await supabase
-              .from('customer_addresses')
-              .select('*')
-              .eq('user_id', user.id)
-              .eq('is_active', true)
-              .order('is_default', { ascending: false })
-              .order('created_at', { ascending: false });
-            return data || [];
+            const { getUserAddresses } = await import('./api/addresses.api');
+            const addresses = await getUserAddresses(user.uid);
+            return addresses || [];
           },
           staleTime: 2 * 60 * 1000, // 2 minutes
         });

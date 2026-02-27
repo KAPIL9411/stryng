@@ -24,18 +24,36 @@ import {
   updateOrderStatus,
   verifyPayment,
 } from '../../api/orders.api';
+import { formatPrice, formatDate, formatDateTime } from '../../utils/format';
 import '../../styles/admin-orders.css';
 
-const formatPrice = (price) => `₹${Number(price).toLocaleString('en-IN')}`;
-const formatDate = (date) => new Date(date).toLocaleDateString('en-IN', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
-const formatTime = (date) => new Date(date).toLocaleTimeString('en-IN', {
-  hour: '2-digit',
-  minute: '2-digit',
-});
+const formatTime = (date) => {
+  if (!date) return '';
+  
+  // Handle Firestore Timestamp
+  if (date && typeof date === 'object' && date.toDate) {
+    return date.toDate().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  
+  if (date && typeof date === 'object' && date.seconds) {
+    const d = new Date(date.seconds * 1000);
+    return d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  
+  return d.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
@@ -168,8 +186,11 @@ export default function AdminOrders() {
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
+      order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.shipping_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.address?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.shipping_phone?.includes(searchTerm) ||
       order.address?.phone?.includes(searchTerm);
 
     const matchesDate = () => {
@@ -195,12 +216,13 @@ export default function AdminOrders() {
 
   const exportOrders = () => {
     const csv = [
-      ['Order ID', 'Date', 'Customer', 'Phone', 'Total', 'Payment Method', 'Payment Status', 'Order Status'].join(','),
+      ['Order Number', 'Order ID', 'Date', 'Customer', 'Phone', 'Total', 'Payment Method', 'Payment Status', 'Order Status'].join(','),
       ...filteredOrders.map(order => [
+        order.order_number || 'N/A',
         order.id,
         formatDate(order.created_at),
-        order.address?.full_name || 'N/A',
-        order.address?.phone || 'N/A',
+        order.shipping_name || order.address?.full_name || 'N/A',
+        order.shipping_phone || order.address?.phone || 'N/A',
         order.total,
         order.payment_method,
         order.payment_status,
@@ -365,7 +387,7 @@ export default function AdminOrders() {
                 <tr key={order.id}>
                   <td data-label="Order ID">
                     <div className="order-id">
-                      <span className="id-text">#{order.id.slice(4, 12)}</span>
+                      <span className="id-text">#{order.order_number || order.id.slice(4, 12)}</span>
                     </div>
                   </td>
                   <td data-label="Date & Time">
@@ -377,9 +399,9 @@ export default function AdminOrders() {
                   <td data-label="Customer">
                     <div className="customer-info">
                       <span className="customer-name">
-                        {order.address?.full_name || 'Guest'}
+                        {order.shipping_name || order.address?.full_name || order.address?.name || 'Guest'}
                       </span>
-                      <span className="customer-phone">{order.address?.phone}</span>
+                      <span className="customer-phone">{order.shipping_phone || order.address?.phone}</span>
                     </div>
                   </td>
                   <td data-label="Items">

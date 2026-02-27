@@ -22,6 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.kiro
 
 # Environment variables
 .env
@@ -29,3 +30,21 @@ dist-ssr
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Firebase
+.firebase
+.firebaserc
+
+# Build files
+build/
+.cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/

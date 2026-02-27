@@ -14,202 +14,92 @@ import SEO from '../components/SEO';
 import { useBanners } from '../hooks/useBanners';
 import { useAllProducts } from '../hooks/useProducts';
 import { getStockStatus } from '../lib/inventory';
+import BannerSkeleton from '../components/ui/BannerSkeleton';
+import ProgressiveImage from '../components/ui/ProgressiveImage';
+import { getLQIP } from '../utils/imageOptimization';
 
 /* ---- Hero Carousel (Marquee) - OPTIMIZED ---- */
 const HeroBanner = memo(function HeroBanner() {
   const { data: banners = [], isLoading, error } = useBanners();
-  const activeBanners = useMemo(() => banners.filter((b) => b.active), [banners]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [imagesLoaded, setImagesLoaded] = useState(false);
-  
-  // Touch swipe state
-  const [touchStart, setTouchStart] = useState(0);
-  const [touchEnd, setTouchEnd] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
 
-  // Map dynamic banners to slide structure - memoize to prevent recalculation
-  const formattedSlides = useMemo(() => activeBanners.map((b) => ({
-    id: b.id,
-    image: b.image_url || b.image,
-    link: b.cta_link || b.link,
-    title: b.title,
-  })), [activeBanners]);
+  console.log('🎨 HeroBanner:', { 
+    bannersCount: banners.length, 
+    isLoading, 
+    hasError: !!error 
+  });
 
-  // Duplicate slides to create seamless loop for desktop
-  const marqueeSlides = useMemo(() => [...formattedSlides, ...formattedSlides], [formattedSlides]);
-
-  // Handle window resize with debounce
+  // Handle window resize
   useEffect(() => {
-    let timeoutId;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(window.innerWidth <= 768);
-      }, 150);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timeoutId);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Auto-advance slides on mobile
   useEffect(() => {
-    if (!isMobile || activeBanners.length === 0) return;
-
+    if (!isMobile || banners.length === 0) return;
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
+      setCurrentSlide((prev) => (prev + 1) % banners.length);
     }, 4000);
-
     return () => clearInterval(interval);
-  }, [isMobile, activeBanners.length]);
+  }, [isMobile, banners.length]);
 
-  // Preload first image immediately
-  useEffect(() => {
-    if (formattedSlides.length > 0) {
-      const img = new Image();
-      img.src = formattedSlides[0].image;
-      img.onload = () => setImagesLoaded(true);
-      
-      // Preload second image for smoother experience
-      if (formattedSlides.length > 1) {
-        const img2 = new Image();
-        img2.src = formattedSlides[1].image;
-      }
-    }
-  }, [formattedSlides]);
-
-  // Touch handlers for swipe
-  const handleTouchStart = (e) => {
-    setTouchStart(e.targetTouches[0].clientX);
-    setIsDragging(true);
-  };
-
-  const handleTouchMove = (e) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    
-    const swipeDistance = touchStart - touchEnd;
-    const minSwipeDistance = 50; // Minimum distance for a swipe
-
-    if (Math.abs(swipeDistance) < minSwipeDistance) return;
-
-    if (swipeDistance > 0) {
-      // Swiped left - next slide
-      setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
-    } else {
-      // Swiped right - previous slide
-      setCurrentSlide((prev) => (prev - 1 + activeBanners.length) % activeBanners.length);
-    }
-  };
-
-  // Show minimal skeleton loader during initial load
-  if (isLoading || !imagesLoaded) {
-    return (
-      <section className="hero-marquee" style={{ minHeight: isMobile ? '400px' : '600px', backgroundColor: '#f5f5f5' }}>
-        <div style={{ 
-          width: '100%', 
-          height: '100%', 
-          background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
-          backgroundSize: '200% 100%',
-          animation: 'shimmer 1.5s infinite'
-        }} />
-      </section>
-    );
+  // Show skeleton loader while loading
+  if (isLoading) {
+    return <BannerSkeleton isMobile={isMobile} />;
   }
 
-  // Show error if fetch failed
+  // Show error state
   if (error) {
     console.error('❌ Error loading banners:', error);
     return (
-      <section
-        className="hero-marquee"
-        style={{
-          minHeight: '300px',
-          backgroundColor: 'var(--color-bg-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <section className="hero-marquee" style={{ minHeight: '300px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            Unable to load banners
-          </p>
+          <p style={{ color: '#dc2626', marginBottom: '0.5rem' }}>Failed to load banners</p>
+          <small style={{ color: '#666' }}>{error.message}</small>
         </div>
       </section>
     );
   }
 
-  // After load, hide if no banners
-  if (activeBanners.length === 0) {
-    console.warn('⚠️ No active banners found');
+  // Show empty state
+  if (banners.length === 0) {
+    console.warn('⚠️ No banners found');
     return (
-      <section
-        className="hero-marquee"
-        style={{
-          minHeight: '300px',
-          backgroundColor: 'var(--color-bg-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <section className="hero-marquee" style={{ minHeight: '300px', backgroundColor: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', padding: '2rem' }}>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
-            No banners available
-          </p>
-          <small style={{ color: 'var(--color-text-muted)' }}>
-            Add banners from the admin panel
-          </small>
+          <p style={{ color: '#666' }}>No banners available</p>
+          <small style={{ color: '#999' }}>Add banners from the admin panel</small>
         </div>
       </section>
     );
   }
 
-  // Mobile carousel view
+  // Mobile carousel
   if (isMobile) {
     return (
-      <section 
-        className="hero-carousel-mobile"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div
-          className="hero-carousel-mobile__container"
-          style={{ 
-            transform: `translateX(-${currentSlide * 100}%)`,
-            transition: isDragging ? 'none' : 'transform 0.3s ease-out'
-          }}
-        >
-          {formattedSlides.map((slide, index) => (
-            <div key={slide.id} className="hero-carousel-mobile__slide">
-              <Link to={slide.link} className="hero-carousel-mobile__link">
-                <img
-                  src={slide.image}
-                  alt={slide.title}
+      <section className="hero-carousel-mobile">
+        <div className="hero-carousel-mobile__container" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
+          {banners.map((banner, index) => (
+            <div key={banner.id} className="hero-carousel-mobile__slide">
+              <Link to={banner.cta_link} className="hero-carousel-mobile__link">
+                <ProgressiveImage
+                  src={banner.image_url}
+                  placeholder={getLQIP(banner.image_url)}
+                  alt={banner.title || 'Banner'}
                   className="hero-carousel-mobile__image"
                   loading={index === 0 ? "eager" : "lazy"}
-                  fetchPriority={index === 0 ? "high" : "low"}
-                  decoding="async"
-                  draggable="false"
+                  fetchPriority={index === 0 ? "high" : "auto"}
                 />
               </Link>
             </div>
           ))}
         </div>
-
-        {/* Navigation Dots */}
-        {formattedSlides.length > 1 && (
+        {banners.length > 1 && (
           <div className="hero-carousel-mobile__dots">
-            {formattedSlides.map((_, index) => (
+            {banners.map((_, index) => (
               <button
                 key={index}
                 className={`hero-carousel-mobile__dot ${index === currentSlide ? 'active' : ''}`}
@@ -223,22 +113,23 @@ const HeroBanner = memo(function HeroBanner() {
     );
   }
 
-  // Desktop marquee view
+  // Desktop marquee
+  const doubledBanners = [...banners, ...banners];
   return (
     <section className="hero-marquee">
       <div className="hero-marquee__track">
-        {marqueeSlides.map((slide, index) => (
-          <div key={`${slide.id}-${index}`} className="hero-marquee__item">
-            <Link to={slide.link} className="hero-marquee__link">
-              <img
-                src={slide.image}
-                alt={slide.title}
+        {doubledBanners.map((banner, index) => (
+          <div key={`${banner.id}-${index}`} className="hero-marquee__item">
+            <Link to={banner.cta_link} className="hero-marquee__link">
+              <ProgressiveImage
+                src={banner.image_url}
+                placeholder={getLQIP(banner.image_url)}
+                alt={banner.title || 'Banner'}
                 className="hero-marquee__image"
                 width="600"
                 height="800"
                 loading={index < 2 ? "eager" : "lazy"}
                 fetchPriority={index < 2 ? "high" : "low"}
-                decoding="async"
               />
             </Link>
           </div>

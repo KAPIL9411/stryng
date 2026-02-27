@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Sample Data - Stryng Clothing</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .log-item {
+            margin-bottom: 8px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+        .checklist {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .checklist h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .checklist ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .checklist li {
+            padding: 5px 0;
+            color: #1e3a8a;
+        }
+        .checklist li:before {
+            content: "✓ ";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Add Sample Data</h1>
+        <p class="subtitle">Populate your Firestore database with sample products, banners, and more!</p>
+
+        <div class="checklist">
+            <h3>Before you start:</h3>
+            <ul>
+                <li>Firestore database created</li>
+                <li>Security rules published</li>
+                <li>Authentication enabled</li>
+            </ul>
+        </div>
+
+        <button id="addDataBtn" onclick="addSampleData()">
+            🚀 Add Sample Data
+        </button>
+
+        <button onclick="window.location.href='/'">
+            ← Back to Home
+        </button>
+
+        <div id="log" class="log" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        // Firebase configuration from environment
+        const firebaseConfig = {
+            apiKey: "AIzaSyB1a9P14YPsMfqMJPmj4ULYCc4f1JcPQr0",
+            authDomain: "stryngclothing-efa53.firebaseapp.com",
+            projectId: "stryngclothing-efa53",
+            storageBucket: "stryngclothing-efa53.firebasestorage.app",
+            messagingSenderId: "120769998560",
+            appId: "1:120769998560:web:9e92775bc64eb26931aa85"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            logDiv.style.display = 'block';
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = message;
+            logDiv.appendChild(item);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        window.addSampleData = async function() {
+            const btn = document.getElementById('addDataBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Adding data...';
+            document.getElementById('log').innerHTML = '';
+
+            try {
+                log('🚀 Starting to add sample data...', 'info');
+
+                // Sample Products
+                const products = [
+                    {
+                        name: 'Classic White T-Shirt',
+                        slug: 'classic-white-tshirt',
+                        description: 'Premium 100% cotton t-shirt with a classic fit',
+                        price: 999,
+                        originalPrice: 1499,
+                        discount: 33,
+                        images: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800'],
+                        brand: 'Stryng',
+                        category: 'tshirts',
+                        fabric: '100% Cotton',
+                        colors: [{ name: 'White', hex: '#FFFFFF' }],
+                        sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+                        stock: 50,
+                        lowStockThreshold: 10,
+                        sku: 'TSH-WHT-001',
+                        isNew: true,
+                        isTrending: true,
+                        rating: 4.5,
+                        reviewCount: 120,
+                        createdAt: Timestamp.now(),
+                        updatedAt: Timestamp.now(),
+                    },
+                    {
+                        name: 'Slim Fit Blue Jeans',
+                        slug: 'slim-fit-blue-jeans',
+                        description: 'Comfortable slim fit jeans with stretch fabric',
+                        price: 1999,
+                        originalPrice: 2999,
+                        discount: 33,
+                        images: ['https://images.unsplash.com/photo-1542272604-787c3835535d?w=800'],
+                        brand: 'Stryng',
+                        category: 'jeans',
+                        fabric: '98% Cotton, 2% Elastane',
+                        colors: [{ name: 'Blue', hex: '#4169E1' }],
+                        sizes: ['28', '30', '32', '34', '36'],
+                        stock: 35,
+                        lowStockThreshold: 10,
+                        sku: 'JNS-BLU-001',
+                        isNew: false,
+                        isTrending: true,
+                        rating: 4.7,
+                        reviewCount: 89,
+                        createdAt: Timestamp.now(),
+                        updatedAt: Timestamp.now(),
+                    },
+                    {
+                        name: 'Formal White Shirt',
+                        slug: 'formal-white-shirt',
+                        description: 'Crisp white formal shirt perfect for office',
+                        price: 1499,
+                        originalPrice: 2499,
+                        discount: 40,
+                        images: ['https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800'],
+                        brand: 'Stryng',
+                        category: 'shirts',
+                        fabric: '100% Cotton',
+                        colors: [{ name: 'White', hex: '#FFFFFF' }],
+                        sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+                        stock: 42,
+                        lowStockThreshold: 10,
+                        sku: 'SHT-WHT-001',
+                        isNew: true,
+                        isTrending: false,
+                        rating: 4.6,
+                        reviewCount: 67,
+                        createdAt: Timestamp.now(),
+                        updatedAt: Timestamp.now(),
+                    },
+                ];
+
+                log('📦 Adding products...', 'info');
+                for (const product of products) {
+                    await addDoc(collection(db, 'products'), product);
+                    log(`  ✓ Added: ${product.name}`, 'success');
+                }
+
+                // Sample Banners
+                const banners = [
+                    {
+                        title: 'Summer Sale',
+                        subtitle: 'Up to 50% off on all items',
+                        image_url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200',
+                        mobile_image_url: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800',
+                        cta_text: 'Shop Now',
+                        cta_link: '/products',
+                        active: true,
+                        sort_order: 1,
+                        createdAt: Timestamp.now(),
+                    },
+                    {
+                        title: 'New Arrivals',
+                        subtitle: 'Check out our latest collection',
+                        image_url: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=1200',
+                        mobile_image_url: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=800',
+                        cta_text: 'Explore',
+                        cta_link: '/products',
+                        active: true,
+                        sort_order: 2,
+                        createdAt: Timestamp.now(),
+                    },
+                ];
+
+                log('🎨 Adding banners...', 'info');
+                for (const banner of banners) {
+                    await addDoc(collection(db, 'banners'), banner);
+                    log(`  ✓ Added: ${banner.title}`, 'success');
+                }
+
+                // Sample Pincodes
+                const pincodes = [
+                    { pincode: '400001', city: 'Mumbai', state: 'Maharashtra', deliveryDays: 2, isActive: true },
+                    { pincode: '110001', city: 'New Delhi', state: 'Delhi', deliveryDays: 3, isActive: true },
+                    { pincode: '560001', city: 'Bangalore', state: 'Karnataka', deliveryDays: 3, isActive: true },
+                ];
+
+                log('📍 Adding pincodes...', 'info');
+                for (const pincode of pincodes) {
+                    await addDoc(collection(db, 'pincodes'), pincode);
+                    log(`  ✓ Added: ${pincode.pincode} - ${pincode.city}`, 'success');
+                }
+
+                // Sample Coupon
+                const coupon = {
+                    code: 'WELCOME10',
+                    discountType: 'percentage',
+                    discountValue: 10,
+                    minOrderValue: 999,
+                    maxUses: 100,
+                    usedCount: 0,
+                    maxUsesPerUser: 1,
+                    startDate: Timestamp.now(),
+                    endDate: Timestamp.fromDate(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)),
+                    isActive: true,
+                    createdAt: Timestamp.now(),
+                };
+
+                log('🎟️  Adding coupon...', 'info');
+                await addDoc(collection(db, 'coupons'), coupon);
+                log(`  ✓ Added: ${coupon.code}`, 'success');
+
+                log('', 'info');
+                log('✨ Sample data added successfully!', 'success');
+                log('', 'info');
+                log('📊 Summary:', 'info');
+                log(`  - ${products.length} products`, 'info');
+                log(`  - ${banners.length} banners`, 'info');
+                log(`  - ${pincodes.length} pincodes`, 'info');
+                log(`  - 1 coupon (WELCOME10)`, 'info');
+                log('', 'info');
+                log('🎉 Your app is now ready!', 'success');
+                log('', 'info');
+                log('Next: Go to home page and refresh', 'warning');
+
+                btn.textContent = '✅ Data Added Successfully!';
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+
+            } catch (error) {
+                log('', 'info');
+                log('❌ Error: ' + error.message, 'error');
+                log('', 'info');
+                log('Possible issues:', 'warning');
+                log('  1. Firestore database not created', 'warning');
+                log('  2. Security rules not published', 'warning');
+                log('  3. Collections need to be created first', 'warning');
+                log('', 'info');
+                log('Solution: Follow SETUP_CHECKLIST.md', 'info');
+                
+                btn.disabled = false;
+                btn.textContent = '🔄 Try Again';
+            }
+        };
+    </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { formatPrice } from '../utils/format';
+import { formatDate } from '../utils/format';
 import { getOrderById } from '../api/orders.api';
 import useStore from '../store/useStore';
 
@@ -18,32 +19,52 @@ export default function OrderTracking() {
   const { id } = useParams();
   const location = useLocation();
   const { user } = useStore();
+  
+  // Get order ID from URL params or query string
+  const searchParams = new URLSearchParams(location.search);
+  const orderId = id || searchParams.get('id');
+  
   const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!order);
   const [error, setError] = useState(null);
   const isNewOrder = location.state?.newOrder;
 
+  console.log('📦 OrderTracking - Order ID:', orderId);
+  console.log('📦 OrderTracking - User:', user?.id);
+  console.log('📦 OrderTracking - Location state:', location.state);
+
   useEffect(() => {
-    if (!order && user) {
+    if (!order && user && orderId) {
       const fetchOrder = async () => {
         try {
-          const result = await getOrderById(id);
+          console.log('📦 Fetching order:', orderId);
+          const result = await getOrderById(orderId);
+          console.log('📦 Order result:', result);
 
           if (result.success) {
             setOrder(result.data);
           } else {
+            console.error('📦 Order fetch failed:', result.error);
             setError(result.error || 'Order not found or access denied.');
           }
         } catch (err) {
-          console.error('Unexpected error:', err);
+          console.error('📦 Unexpected error:', err);
           setError('Failed to load order details.');
         } finally {
           setLoading(false);
         }
       };
       fetchOrder();
+    } else if (!user) {
+      console.log('📦 No user logged in');
+      setLoading(false);
+      setError('Please log in to view order details.');
+    } else if (!orderId) {
+      console.log('📦 No order ID provided');
+      setLoading(false);
+      setError('No order ID provided.');
     }
-  }, [id, order, user]);
+  }, [orderId, order, user]);
 
   if (loading) {
     return (
@@ -74,7 +95,7 @@ export default function OrderTracking() {
             marginBottom: 'var(--space-6)',
           }}
         >
-          {error || `We couldn't find the order with ID: ${id}`}
+          {error || `We couldn't find the order with ID: ${orderId}`}
         </p>
         <Link to="/account" className="btn btn--primary">
           Go to Orders
@@ -84,7 +105,7 @@ export default function OrderTracking() {
   }
 
   // WhatsApp Link Generation
-  const waMessage = `Hi, I just placed Order #${order.id}. Here is the payment proof/screenshot.`;
+  const waMessage = `Hi, I just placed Order #${order.order_number || order.id}. Here is the payment proof/screenshot.`;
   const waLink = `https://wa.me/${MERCHANT_PHONE}?text=${encodeURIComponent(waMessage)}`;
 
   return (
@@ -104,7 +125,7 @@ export default function OrderTracking() {
           <span className="breadcrumb__separator">
             <ChevronRight size={14} />
           </span>
-          <span className="breadcrumb__current">Order {order.id}</span>
+          <span className="breadcrumb__current">Order {order.order_number || order.id}</span>
         </div>
 
         {/* Success Banner for New Orders */}
@@ -141,8 +162,8 @@ export default function OrderTracking() {
               Order Placed Successfully!
             </h2>
             <p>
-              Thank you for shopping with us. Your order ID is{' '}
-              <strong>{order.id}</strong>
+              Thank you for shopping with us. Your order number is{' '}
+              <strong>{order.order_number || order.id}</strong>
             </p>
           </div>
         )}
@@ -161,7 +182,7 @@ export default function OrderTracking() {
             marginBottom: 'var(--space-8)',
           }}
         >
-          Order ID: {order.id}
+          Order ID: {order.order_number || order.id}
         </p>
 
         <div className="order-details-grid">
@@ -232,7 +253,7 @@ export default function OrderTracking() {
               ) : (
                 <p>
                   Order Placed on{' '}
-                  {new Date(order.created_at).toLocaleDateString()}
+                  {formatDate(order.created_at)}
                 </p>
               )}
             </div>
@@ -245,17 +266,43 @@ export default function OrderTracking() {
               Items in this Order
             </h3>
             {order.order_items?.map((item, i) => {
-              const product = item.product || {};
+              const imageUrl = item.product_image || item.product?.images?.[0];
               return (
                 <div key={i} className="order-item">
-                  <img
-                    src={product?.images?.[0]}
-                    alt={product?.name}
-                    className="order-item__image"
-                    loading="lazy"
-                  />
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={item.product_name || item.product?.name || 'Product'}
+                      className="order-item__image"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className="order-item__image-placeholder"
+                    style={{ 
+                      display: imageUrl ? 'none' : 'flex',
+                      width: '80px',
+                      height: '100px',
+                      backgroundColor: '#f3f4f6',
+                      borderRadius: 'var(--radius-sm)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#9ca3af',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                      padding: '0.5rem'
+                    }}
+                  >
+                    No Image
+                  </div>
                   <div className="order-item__info">
-                    <h4 className="order-item__name">{product?.name}</h4>
+                    <h4 className="order-item__name">
+                      {item.product_name || item.product?.name || 'Product'}
+                    </h4>
                     <p className="order-item__meta">
                       Size: {item.size} | Color:{' '}
                       {item.color?.name || item.color} | Qty: {item.quantity}
@@ -277,21 +324,21 @@ export default function OrderTracking() {
                 <MapPin size={16} /> Delivery Address
               </h3>
               <p className="info-card__text">
-                {order.address?.name}
+                {order.shipping_name || order.address?.name || order.address?.full_name}
                 <br />
-                {order.address?.address_line1}
+                {order.shipping_address_line1 || order.address?.address_line1}
                 <br />
-                {order.address?.address_line2 && (
+                {(order.shipping_address_line2 || order.address?.address_line2) && (
                   <>
-                    {order.address.address_line2}
+                    {order.shipping_address_line2 || order.address.address_line2}
                     <br />
                   </>
                 )}
-                {order.address?.city}, {order.address?.state} —{' '}
-                {order.address?.pincode}
+                {order.shipping_city || order.address?.city}, {order.shipping_state || order.address?.state} —{' '}
+                {order.shipping_pincode || order.address?.pincode}
               </p>
               <p className="info-card__has-icon">
-                <Phone size={14} /> {order.address?.phone}
+                <Phone size={14} /> {order.shipping_phone || order.address?.phone}
               </p>
             </div>
 

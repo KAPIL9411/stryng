@@ -25,29 +25,57 @@ import {
   updateOrderStatus,
   verifyPayment,
 } from '../../api/orders.api';
+import { formatPrice as utilFormatPrice, formatDate as utilFormatDate, formatDateTime } from '../../utils/format';
 import '../../styles/admin-order-details.css';
 
-const formatPrice = (price) => `₹${Number(price || 0).toLocaleString('en-IN')}`;
+const formatPrice = (price) => utilFormatPrice(price || 0);
+
 const formatDate = (date) => {
   try {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    return utilFormatDate(date);
   } catch {
     return 'N/A';
   }
 };
+
 const formatTime = (date) => {
   try {
-    return new Date(date).toLocaleTimeString('en-IN', {
+    if (!date) return 'N/A';
+    
+    // Handle Firestore Timestamp
+    if (date && typeof date === 'object' && date.toDate) {
+      return date.toDate().toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+    
+    if (date && typeof date === 'object' && date.seconds) {
+      const d = new Date(date.seconds * 1000);
+      return d.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+    
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    return d.toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
     });
   } catch {
     return 'N/A';
   }
+};
+
+// Format status strings (convert snake_case to Title Case)
+const formatStatus = (status) => {
+  if (!status) return 'N/A';
+  return status
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 };
 
 export default function AdminOrderDetails() {
@@ -178,7 +206,20 @@ export default function AdminOrderDetails() {
 
   const subtotal = (order.total || 0) / 1.18;
   const tax = (order.total || 0) - subtotal;
-  const orderAddress = order.address || {};
+  
+  // Build address object from shipping fields
+  const orderAddress = {
+    full_name: order.shipping_name || order.address?.full_name || order.address?.name,
+    name: order.shipping_name || order.address?.name,
+    phone: order.shipping_phone || order.address?.phone,
+    address_line1: order.shipping_address_line1 || order.address?.address_line1,
+    address_line2: order.shipping_address_line2 || order.address?.address_line2,
+    city: order.shipping_city || order.address?.city,
+    state: order.shipping_state || order.address?.state,
+    pincode: order.shipping_pincode || order.address?.pincode,
+    landmark: order.shipping_landmark || order.address?.landmark,
+  };
+  
   const orderTimeline = order.timeline || [];
 
   return (
@@ -210,7 +251,7 @@ export default function AdminOrderDetails() {
       <div className="order-info-card">
         <div className="order-info-header">
           <div>
-            <h1>Order #{(order.id || '').slice(4, 12) || order.id || 'N/A'}</h1>
+            <h1>Order #{order.order_number || order.id || 'N/A'}</h1>
             <div className="order-meta">
               <span className="meta-item">
                 <Calendar size={16} />
@@ -221,34 +262,54 @@ export default function AdminOrderDetails() {
           <div className="order-badges">
             <span className={`status-badge ${getStatusClass(order.status)}`}>
               {getStatusIcon(order.status)}
-              {order.status}
+              {formatStatus(order.status)}
             </span>
             <span
               className={`payment-badge ${
                 order.payment_status === 'paid'
                   ? 'payment-paid'
-                  : order.payment_status === 'awaiting_verification'
+                  : order.payment_status === 'verification_pending'
                     ? 'payment-awaiting'
                     : 'payment-pending'
               }`}
             >
-              {order.payment_status === 'awaiting_verification'
-                ? 'Awaiting Verification'
-                : order.payment_status}
+              {formatStatus(order.payment_status)}
             </span>
           </div>
         </div>
 
         {/* Quick Actions */}
-        {order.payment_status === 'awaiting_verification' && (
+        {order.payment_status === 'verification_pending' && (
           <div className="quick-actions-alert">
             <AlertCircle size={20} />
             <div className="alert-content">
               <strong>Payment Verification Required</strong>
               <p>
-                Customer has marked payment as completed. Please verify the payment
-                before proceeding.
+                Customer has submitted payment details. Please verify the payment
+                before confirming the order.
               </p>
+              {order.upi_transaction_id && (
+                <div className="payment-details-box">
+                  <strong>UPI Transaction ID:</strong>
+                  <code className="transaction-id-display">{order.upi_transaction_id}</code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(order.upi_transaction_id)}
+                    className="btn-copy-small"
+                    title="Copy Transaction ID"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
+              <div className="verification-instructions">
+                <p><strong>Verification Steps:</strong></p>
+                <ol>
+                  <li>Check your UPI app/bank account for incoming payment</li>
+                  <li>Verify amount: <strong>{formatPrice(order.total)}</strong></li>
+                  <li>Match transaction ID if provided</li>
+                  <li>Confirm payment received before approving</li>
+                </ol>
+              </div>
             </div>
             <div className="alert-actions">
               <button
@@ -302,14 +363,30 @@ export default function AdminOrderDetails() {
             </div>
             <div className="items-list">
               {order.order_items?.map((item, i) => {
+                // Get product data - check multiple possible locations
                 const product = item.products || item.product || {};
-                const productImage = product.images?.[0] || '/placeholder.png';
-                const productName = product.name || 'Unknown Product';
+                
+                // Get image - check multiple possible locations
+                const productImage = 
+                  item.product_image || // Direct field from order_items
+                  product.images?.[0] || // From nested product object
+                  item.images?.[0] || // From item itself
+                  '/placeholder.png';
+                
+                // Get product name
+                const productName = 
+                  item.product_name || // Direct field from order_items
+                  product.name || // From nested product object
+                  item.name || // From item itself
+                  'Unknown Product';
+                
                 const itemSize = item.size || 'N/A';
+                
                 // Handle color - it might be an object {hex, name} or a string
                 const itemColor = typeof item.color === 'object' && item.color !== null
                   ? item.color.name || item.color.hex || 'N/A'
                   : item.color || 'N/A';
+                  
                 const itemQuantity = item.quantity || 1;
                 const itemPrice = item.price || 0;
                 
@@ -445,7 +522,7 @@ export default function AdminOrderDetails() {
               <div className="payment-info-item">
                 <div className="info-label">Payment Method</div>
                 <div className="info-value payment-method-badge">
-                  {order.payment_method === 'upi' ? 'UPI / QR Code' : 'Cash on Delivery'}
+                  {order.payment_method === 'upi' ? 'UPI / QR Code' : order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method?.toUpperCase() || 'N/A'}
                 </div>
               </div>
               <div className="payment-info-item">
@@ -454,36 +531,62 @@ export default function AdminOrderDetails() {
                   className={`info-value ${
                     order.payment_status === 'paid'
                       ? 'text-success'
-                      : order.payment_status === 'awaiting_verification'
+                      : order.payment_status === 'verification_pending'
                         ? 'text-warning'
                         : 'text-pending'
                   }`}
                 >
-                  {order.payment_status === 'awaiting_verification'
-                    ? 'Awaiting Verification'
-                    : order.payment_status}
+                  {formatStatus(order.payment_status)}
                 </div>
               </div>
-              {order.transaction_id && (
+              {order.upi_transaction_id && (
                 <div className="payment-info-item full-width">
-                  <div className="info-label">Transaction ID</div>
-                  <div className="info-value transaction-id">{order.transaction_id}</div>
+                  <div className="info-label">UPI Transaction ID</div>
+                  <div className="info-value transaction-id-box">
+                    <code>{order.upi_transaction_id}</code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(order.upi_transaction_id);
+                        alert('Transaction ID copied to clipboard!');
+                      }}
+                      className="btn-copy-inline"
+                      title="Copy to clipboard"
+                    >
+                      Copy
+                    </button>
+                  </div>
                 </div>
               )}
               <div className="payment-info-item full-width">
-                <div className="info-label">Amount</div>
+                <div className="info-label">Amount to Verify</div>
                 <div className="info-value amount-value">{formatPrice(order.total)}</div>
               </div>
+              {order.payment_verified_at && (
+                <div className="payment-info-item full-width">
+                  <div className="info-label">Verified At</div>
+                  <div className="info-value">
+                    {formatDate(order.payment_verified_at)} at {formatTime(order.payment_verified_at)}
+                  </div>
+                </div>
+              )}
             </div>
 
             {order.payment_method === 'upi' &&
-              order.payment_status === 'awaiting_verification' && (
+              order.payment_status === 'verification_pending' && (
                 <div className="payment-note">
                   <AlertCircle size={16} />
-                  <p>
-                    Verify payment receipt in your bank account before approving. Amount:{' '}
-                    <strong>{formatPrice(order.total)}</strong>
-                  </p>
+                  <div>
+                    <p><strong>Verification Checklist:</strong></p>
+                    <ul className="verification-checklist">
+                      <li>✓ Check UPI app for incoming payment</li>
+                      <li>✓ Verify amount matches: <strong>{formatPrice(order.total)}</strong></li>
+                      <li>✓ Confirm transaction ID (if provided)</li>
+                      <li>✓ Ensure payment is not pending/failed</li>
+                    </ul>
+                    <p className="warning-text">
+                      ⚠️ Only approve after confirming payment in your bank account
+                    </p>
+                  </div>
                 </div>
               )}
           </div>

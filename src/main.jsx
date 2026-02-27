@@ -26,44 +26,8 @@ try {
   console.warn('⚠️ Auth error handler initialization failed:', error);
 }
 
-try {
-  // Initialize cache manager for admin console
-  await import('./utils/cacheManager.js');
-} catch (error) {
-  console.warn('⚠️ Cache manager initialization failed:', error);
-}
-
-try {
-  // Preload banners immediately for instant home page loading
-  const { initBannerPreload } = await import('./lib/preloadBanners.js');
-  initBannerPreload();
-} catch (error) {
-  console.warn('⚠️ Banner preload initialization failed:', error);
-}
-
-try {
-  // Preload products for instant product listing
-  const { initProductPreload } = await import('./lib/preloadProducts.js');
-  initProductPreload();
-} catch (error) {
-  console.warn('⚠️ Product preload initialization failed:', error);
-}
-
-try {
-  // Preload pincodes for instant pincode checking
-  const { preloadPincodes } = await import('./api/pincodes-edge.api.js');
-  preloadPincodes();
-} catch (error) {
-  console.warn('⚠️ Pincode preload initialization failed:', error);
-}
-
-try {
-  // Setup address preloading on user login
-  const { setupAddressPreload } = await import('./lib/preloadAddresses.js');
-  setupAddressPreload();
-} catch (error) {
-  console.warn('⚠️ Address preload setup failed:', error);
-}
+// Address preloading is now handled by the store's initializeAuth
+// No need for separate preload setup
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

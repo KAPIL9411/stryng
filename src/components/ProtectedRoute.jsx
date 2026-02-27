@@ -6,11 +6,11 @@ import useStore from '../store/useStore';
  * Redirects to login and stores intended destination
  */
 export default function ProtectedRoute({ children }) {
-  const { user, isLoadingAuth } = useStore();
+  const { user, isAuthLoading, authInitialized } = useStore();
   const location = useLocation();
 
   // Still checking auth state
-  if (isLoadingAuth) {
+  if (isAuthLoading || !authInitialized) {
     return (
       <div
         className="page"

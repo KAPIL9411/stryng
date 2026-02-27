@@ -5,15 +5,13 @@
 
 import { QueryClient } from '@tanstack/react-query';
 
-// Create a client with optimized defaults
+// Create a client with NO CACHING - always fetch fresh data
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Cache data for 10 minutes (increased for admin panel)
-      staleTime: 10 * 60 * 1000,
-
-      // Keep unused data in cache for 30 minutes
-      cacheTime: 30 * 60 * 1000,
+      // NO CACHING - always fetch fresh data
+      staleTime: 0,
+      cacheTime: 0,
 
       // Retry failed requests 2 times
       retry: 2,
@@ -21,17 +19,13 @@ export const queryClient = new QueryClient({
       // Retry delay increases exponentially
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
-      // Don't refetch on window focus for admin panel (reduces unnecessary requests)
-      refetchOnWindowFocus: false,
-
-      // Refetch on reconnect (internet comes back)
+      // Always refetch
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
+      refetchOnMount: true,
 
-      // Don't refetch on mount if data is fresh
-      refetchOnMount: false,
-
-      // Keep previous data while fetching new data (prevents loading flicker)
-      keepPreviousData: true,
+      // Don't keep previous data
+      keepPreviousData: false,
 
       // Suspense mode disabled by default
       suspense: false,

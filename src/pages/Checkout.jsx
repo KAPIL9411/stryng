@@ -4,7 +4,7 @@
  * Optimized for conversion and user experience
  */
 
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   MapPin,
@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import useStore from '../store/useStore';
 import { formatPrice } from '../utils/format';
-import { getCachedAddresses } from '../lib/preloadAddresses';
 import { getUserAddresses } from '../api/addresses.api';
 import { createOrder, markPaymentAsPaid } from '../api/orders.api';
 import SEO from '../components/SEO';
@@ -137,6 +136,10 @@ export default function Checkout() {
   const [transactionId, setTransactionId] = useState('');
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
+  // Ref to prevent duplicate order creation
+  const orderCreationInProgress = useRef(false);
+  const createdOrderId = useRef(null);
+
   // Calculations
   const subtotal = useMemo(() => getCartTotal(), [getCartTotal]);
   const shipping = 0; // Free shipping
@@ -155,6 +158,15 @@ export default function Checkout() {
     }
   }, [user, cart, navigate, currentStep]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Reset refs when component unmounts
+      orderCreationInProgress.current = false;
+      createdOrderId.current = null;
+    };
+  }, []);
+
   // Load addresses on mount
   useEffect(() => {
     if (user && currentStep === 1) {
@@ -167,38 +179,58 @@ export default function Checkout() {
     console.log('🔍 Checkout State:', { currentStep, orderId, isPlacingOrder, cartLength: cart.length });
   }, [currentStep, orderId, isPlacingOrder, cart.length]);
 
-  // Load addresses (instant from cache)
+  // Load addresses
   const loadAddresses = useCallback(async () => {
-    const cached = getCachedAddresses();
-    if (cached && cached.length > 0) {
-      setAddresses(cached);
-      const defaultAddr = cached.find(a => a.is_default) || cached[0];
-      setSelectedAddress(defaultAddr);
-      return;
-    }
-
+    console.log('📍 Loading addresses for user:', user?.id);
+    
     const response = await getUserAddresses();
+    console.log('📍 Addresses response:', response);
+    
     if (response.success) {
       setAddresses(response.data);
       const defaultAddr = response.data.find(a => a.is_default) || response.data[0];
       setSelectedAddress(defaultAddr);
+      console.log('📍 Loaded addresses:', response.data.length, 'Default:', defaultAddr?.id);
+    } else {
+      console.error('❌ Failed to load addresses:', response.error);
+      setAddresses([]);
     }
-  }, []);
+  }, [user]);
 
   // Place order (optimized - instant feedback)
   const handlePlaceOrder = useCallback(async () => {
-    if (!selectedAddress || isPlacingOrder) {
-      console.log('⚠️ Cannot place order:', { selectedAddress, isPlacingOrder });
+    // Prevent duplicate orders - multiple checks
+    if (!selectedAddress) {
+      console.log('⚠️ No address selected');
+      return;
+    }
+
+    if (isPlacingOrder) {
+      console.log('⚠️ Order already being placed (state check)');
+      return;
+    }
+
+    if (orderCreationInProgress.current) {
+      console.log('⚠️ Order already being placed (ref check)');
+      return;
+    }
+
+    if (createdOrderId.current) {
+      console.log('⚠️ Order already created:', createdOrderId.current);
       return;
     }
 
     console.log('🚀 Starting order creation...');
+    
+    // Set all locks
     setIsPlacingOrder(true);
+    orderCreationInProgress.current = true;
 
     // Set a timeout to prevent infinite loading (30 seconds)
     const timeoutId = setTimeout(() => {
       console.error('⏰ Order creation timeout after 30 seconds');
       setIsPlacingOrder(false);
+      orderCreationInProgress.current = false;
       alert('Order creation is taking too long. Please check your internet connection and try again.');
     }, 30000);
 
@@ -206,33 +238,41 @@ export default function Checkout() {
       const { appliedCoupon } = useStore.getState();
 
       const orderData = {
-        total,
+        user_id: user.id,
         items: cart.map(item => ({
-          id: item.id,
+          product_id: item.id,
+          name: item.name,
+          slug: item.slug,
+          images: item.images,
+          sku: item.sku || '',
           quantity: item.quantity,
-          selectedSize: item.selectedSize,
-          selectedColor: item.selectedColor,
+          size: item.selectedSize,
+          color: item.selectedColor?.name || '',
           price: item.price,
         })),
-        address: {
-          full_name: selectedAddress.full_name,
+        shipping_address: {
+          name: selectedAddress.full_name,
           phone: selectedAddress.phone,
           address_line1: selectedAddress.address_line1,
-          address_line2: selectedAddress.address_line2,
-          landmark: selectedAddress.landmark,
+          address_line2: selectedAddress.address_line2 || '',
+          landmark: selectedAddress.landmark || '',
           city: selectedAddress.city,
           state: selectedAddress.state,
           pincode: selectedAddress.pincode,
         },
-        paymentMethod: 'upi',
+        payment_method: 'upi',
         coupon: appliedCoupon ? {
           id: appliedCoupon.id,
           code: appliedCoupon.code,
-          discount: couponDiscount,
         } : null,
+        subtotal: subtotal,
+        shipping_cost: shipping,
+        tax: tax,
+        coupon_discount: couponDiscount,
+        total: total,
       };
 
-      console.log('📦 Order data prepared:', { total, itemCount: cart.length });
+      console.log('📦 Order data prepared:', orderData);
       
       const startTime = Date.now();
       const result = await createOrder(orderData);
@@ -243,24 +283,33 @@ export default function Checkout() {
       
       console.log(`⏱️ Order creation took ${endTime - startTime}ms`);
 
-      if (result.success) {
-        console.log('✅ Order created successfully:', result.data.id);
-        setOrderId(result.data.id);
+      if (result && result.id) {
+        console.log('✅ Order created successfully:', result.id);
+        
+        // Store order ID in ref to prevent duplicates
+        createdOrderId.current = result.id;
+        
+        setOrderId(result.id);
         setCurrentStep(3); // Move to payment verification
-        setIsPlacingOrder(false); // Reset immediately
-      } else {
-        console.error('❌ Order creation failed:', result.error);
         setIsPlacingOrder(false);
-        alert(result.error || 'Failed to place order. Please try again.');
+        
+        // Keep orderCreationInProgress locked to prevent re-creation
+        // It will be reset when user leaves the page
+      } else {
+        console.error('❌ Order creation failed');
+        setIsPlacingOrder(false);
+        orderCreationInProgress.current = false;
+        alert('Failed to place order. Please try again.');
       }
     } catch (error) {
       // Clear timeout on error
       clearTimeout(timeoutId);
       console.error('💥 Order placement error:', error);
       setIsPlacingOrder(false);
+      orderCreationInProgress.current = false;
       alert('Failed to place order. Please try again.');
     }
-  }, [selectedAddress, total, cart, couponDiscount, isPlacingOrder]);
+  }, [selectedAddress, total, cart, couponDiscount, isPlacingOrder, user, subtotal, shipping, tax]);
 
   // Confirm payment
   const handlePaymentConfirmation = useCallback(async () => {
@@ -476,7 +525,7 @@ export default function Checkout() {
                   <div className="section-content">
                     <div className="order-items-list">
                       {cart.map((item) => (
-                        <OrderItem key={item.cartId} item={item} />
+                        <OrderItem key={`${item.id}-${item.selectedSize}-${item.selectedColor?.name}`} item={item} />
                       ))}
                     </div>
                   </div>
@@ -667,7 +716,7 @@ export default function Checkout() {
 
               <div className="order-summary-items">
                 {cart.slice(0, 3).map((item) => (
-                  <div key={item.cartId} className="summary-item">
+                  <div key={`${item.id}-${item.selectedSize}-${item.selectedColor?.name}`} className="summary-item">
                     <img src={item.images[0]} alt={item.name} />
                     <div className="summary-item-info">
                       <p className="summary-item-name">{item.name}</p>

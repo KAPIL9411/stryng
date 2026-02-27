@@ -16,11 +16,12 @@ import { validateLength, validatePasswordMatch } from '../utils/validation';
 export default function Register() {
   const {
     user,
-    register,
+    signup,
     loginWithGoogle,
     isAuthLoading,
     authError,
     clearAuthError,
+    showToast,
   } = useStore();
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -66,9 +67,18 @@ export default function Register() {
       return;
     }
 
-    const result = await register(email, password, name.trim());
-    if (result.success) {
-      navigate('/');
+    const result = await signup(email, password, name.trim());
+    if (result.user) {
+      // Show success message
+      showToast(
+        'Account created successfully! You can now use your account.',
+        'success'
+      );
+      
+      // Redirect to home page
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
     }
   };
 

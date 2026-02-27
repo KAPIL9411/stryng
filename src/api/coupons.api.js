@@ -1,165 +1,331 @@
 /**
- * Customer Coupon API
- * Handles coupon validation and application for customers
+ * Coupons API - Firebase Firestore
+ * Handles coupon validation and usage tracking
  * @module api/coupons
  */
 
-import { supabase } from '../lib/supabaseClient';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
+import {
+  COLLECTIONS,
+  getDocument,
+  getDocuments,
+  addDocument,
+  updateDocument,
+  deleteDocument,
+  incrementField,
+} from '../lib/firestoreHelpers';
 
 /**
- * Validate and get discount for a coupon
+ * Validate a coupon code
  * @param {string} code - Coupon code
  * @param {string} userId - User ID
  * @param {number} orderTotal - Order total amount
- * @returns {Promise<Object>} Validation result with discount details
+ * @returns {Promise<Object>} Validation result
  */
-export async function validateCoupon(code, userId, orderTotal) {
+export const validateCoupon = async (code, userId, orderTotal) => {
   try {
-    if (!code || !userId || orderTotal === undefined) {
+    console.log('🎫 Validating coupon:', { code, userId, orderTotal });
+    
+    // Find coupon by code (case-insensitive)
+    const coupons = await getDocuments(COLLECTIONS.COUPONS, {
+      where: [['code', '==', code.toUpperCase()]],
+      limit: 1,
+    });
+
+    console.log('🎫 Found coupons:', coupons);
+
+    if (coupons.length === 0) {
       return {
-        success: false,
-        data: { valid: false, error: 'Code, userId, and orderTotal are required' }
+        success: true,
+        data: {
+          valid: false,
+          error: 'Invalid coupon code',
+        },
       };
     }
 
-    if (orderTotal < 0) {
+    const coupon = coupons[0];
+    console.log('🎫 Coupon data:', coupon);
+
+    // Check if coupon is active - check multiple possible field names
+    const isActive = coupon.is_active ?? coupon.isActive ?? coupon.active ?? true;
+    console.log('🎫 Is active check:', { is_active: coupon.is_active, isActive: coupon.isActive, active: coupon.active, result: isActive });
+    
+    if (!isActive) {
       return {
-        success: false,
-        data: { valid: false, error: 'Order total must be non-negative' }
+        success: true,
+        data: {
+          valid: false,
+          error: 'This coupon is no longer active',
+        },
       };
     }
 
-    // Call the database function for validation
-    const { data, error } = await supabase
-      .rpc('validate_coupon', {
-        p_code: code.toUpperCase(),
-        p_user_id: userId,
-        p_order_total: orderTotal
-      });
+    // Check validity period
+    const now = new Date();
+    const startDate = coupon.start_date?.toDate?.() || new Date(coupon.start_date);
+    const endDate = coupon.end_date?.toDate?.() || new Date(coupon.end_date);
 
-    if (error) {
-      console.error('Database error validating coupon:', error);
+    console.log('🎫 Date check:', { now, startDate, endDate });
+
+    if (now < startDate) {
       return {
-        success: false,
-        data: { valid: false, error: error.message || 'Failed to validate coupon' }
+        success: true,
+        data: {
+          valid: false,
+          error: 'This coupon is not yet valid',
+        },
       };
     }
 
-    // The database function returns a JSON object
-    // Supabase RPC returns it directly in the data field
+    if (now > endDate) {
+      return {
+        success: true,
+        data: {
+          valid: false,
+          error: 'This coupon has expired',
+        },
+      };
+    }
+
+    // Check minimum order value
+    const minOrderValue = coupon.min_order_value || coupon.minOrderValue || 0;
+    console.log('🎫 Min order check:', { orderTotal, minOrderValue });
+    
+    if (orderTotal < minOrderValue) {
+      return {
+        success: true,
+        data: {
+          valid: false,
+          error: `Minimum order value of ₹${minOrderValue} required`,
+        },
+      };
+    }
+
+    // Check max uses
+    const maxUses = coupon.max_uses || coupon.maxUses;
+    const usedCount = coupon.used_count || coupon.usedCount || 0;
+    console.log('🎫 Usage check:', { maxUses, usedCount });
+    
+    if (maxUses && usedCount >= maxUses) {
+      return {
+        success: true,
+        data: {
+          valid: false,
+          error: 'Coupon usage limit reached',
+        },
+      };
+    }
+
+    // Check per-user usage
+    const userUsage = await getDocuments(COLLECTIONS.COUPON_USAGE, {
+      where: [
+        ['coupon_id', '==', coupon.id],
+        ['user_id', '==', userId],
+      ],
+    });
+
+    const maxUsesPerUser = coupon.max_uses_per_user || coupon.maxUsesPerUser || 1;
+    console.log('🎫 Per-user usage check:', { userUsageCount: userUsage.length, maxUsesPerUser });
+    
+    if (userUsage.length >= maxUsesPerUser) {
+      return {
+        success: true,
+        data: {
+          valid: false,
+          error: 'You have already used this coupon',
+        },
+      };
+    }
+
+    // Calculate discount
+    const discountType = coupon.discount_type || coupon.discountType || 'percentage';
+    const discountValue = parseFloat(coupon.discount_value || coupon.discountValue || 0);
+    const maxDiscount = parseFloat(coupon.max_discount || coupon.maxDiscount || 0);
+    
+    console.log('🎫 Discount calculation:', { discountType, discountValue, maxDiscount, orderTotal });
+    
+    let discountAmount = 0;
+    
+    if (discountType === 'percentage') {
+      discountAmount = (orderTotal * discountValue) / 100;
+      console.log('🎫 Percentage discount calculated:', discountAmount);
+      
+      if (maxDiscount && discountAmount > maxDiscount) {
+        console.log('🎫 Capping discount at max:', maxDiscount);
+        discountAmount = maxDiscount;
+      }
+    } else if (discountType === 'fixed' || discountType === 'flat') {
+      discountAmount = discountValue;
+      console.log('🎫 Fixed discount:', discountAmount);
+    } else {
+      console.warn('🎫 Unknown discount type:', discountType);
+      discountAmount = discountValue;
+    }
+
+    // Ensure discount doesn't exceed order total
+    if (discountAmount > orderTotal) {
+      console.log('🎫 Discount exceeds order total, capping at:', orderTotal);
+      discountAmount = orderTotal;
+    }
+    
+    // Ensure discount is a valid number
+    if (isNaN(discountAmount) || discountAmount < 0) {
+      console.error('🎫 Invalid discount amount:', discountAmount);
+      return {
+        success: true,
+        data: {
+          valid: false,
+          error: 'Invalid coupon configuration. Please contact support.',
+        },
+      };
+    }
+
+    const finalDiscount = Math.round(discountAmount * 100) / 100;
+    console.log('🎫 Final discount amount:', finalDiscount);
+
     return {
       success: true,
-      data: data // This is the JSON object from the database function
+      data: {
+        valid: true,
+        coupon_id: coupon.id,
+        code: coupon.code,
+        description: coupon.description || '',
+        discount_type: discountType,
+        discount_value: discountValue,
+        discount_amount: finalDiscount,
+      },
     };
   } catch (error) {
     console.error('Error validating coupon:', error);
     return {
       success: false,
-      data: { valid: false, error: error.message || 'Failed to validate coupon' }
+      error: 'Unable to validate coupon. Please try again.',
     };
   }
-}
+};
 
 /**
- * Get available coupons for current cart
- * @param {number} orderTotal - Current cart total
- * @returns {Promise<Array>} List of applicable coupons
+ * Get all active coupons
+ * @returns {Promise<Array>} Active coupons
  */
-export async function getAvailableCoupons(orderTotal) {
+export const getActiveCoupons = async () => {
   try {
-    if (orderTotal === undefined || orderTotal < 0) {
-      throw new Error('Valid order total is required');
-    }
-
-    const now = new Date().toISOString();
-
-    // Get active coupons that meet minimum order value
-    const { data, error } = await supabase
-      .from('coupons')
-      .select('id, code, description, discount_type, discount_value, max_discount, min_order_value, max_uses, used_count')
-      .eq('is_active', true)
-      .lte('start_date', now)
-      .gte('end_date', now)
-      .lte('min_order_value', orderTotal)
-      .order('discount_value', { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    // Filter out coupons that have reached max uses
-    const availableCoupons = (data || []).filter(coupon => {
-      if (coupon.max_uses === null) return true;
-      return coupon.used_count < coupon.max_uses;
+    const now = Timestamp.now();
+    
+    const coupons = await getDocuments(COLLECTIONS.COUPONS, {
+      where: [['is_active', '==', true]],
+      orderBy: [['created_at', 'desc']],
     });
 
-    return availableCoupons;
+    // Filter by date range (client-side since Firestore doesn't support complex queries)
+    return coupons.filter((coupon) => {
+      const startDate = coupon.start_date?.toDate?.() || new Date(coupon.start_date);
+      const endDate = coupon.end_date?.toDate?.() || new Date(coupon.end_date);
+      const nowDate = now.toDate();
+      return nowDate >= startDate && nowDate <= endDate;
+    });
   } catch (error) {
-    console.error('Error fetching available coupons:', error);
-    throw error;
+    console.error('Error fetching active coupons:', error);
+    return [];
   }
-}
+};
 
 /**
- * Record coupon usage after successful order
- * @param {string} couponId - Coupon ID
- * @param {string} userId - User ID
- * @param {string} orderId - Order ID
- * @param {number} discountAmount - Discount amount applied
- * @returns {Promise<Object>} Usage record
+ * Get all coupons (Admin only)
+ * @returns {Promise<Array>} All coupons
  */
-export async function recordCouponUsage(couponId, userId, orderId, discountAmount) {
+export const getAllCoupons = async () => {
   try {
-    if (!couponId || !userId || !orderId || discountAmount === undefined) {
-      throw new Error('All parameters are required: couponId, userId, orderId, discountAmount');
-    }
-
-    if (discountAmount < 0) {
-      throw new Error('Discount amount must be non-negative');
-    }
-
-    // Insert usage record
-    const { data: usageData, error: usageError } = await supabase
-      .from('coupon_usage')
-      .insert([{
-        coupon_id: couponId,
-        user_id: userId,
-        order_id: orderId,
-        discount_amount: discountAmount
-      }])
-      .select()
-      .single();
-
-    if (usageError) {
-      throw usageError;
-    }
-
-    // Increment used_count in coupons table
-    const { error: updateError } = await supabase
-      .rpc('increment', { 
-        row_id: couponId, 
-        x: 1 
-      });
-
-    // If increment function doesn't exist, use manual update
-    if (updateError) {
-      const { data: coupon } = await supabase
-        .from('coupons')
-        .select('used_count')
-        .eq('id', couponId)
-        .single();
-
-      if (coupon) {
-        await supabase
-          .from('coupons')
-          .update({ used_count: coupon.used_count + 1 })
-          .eq('id', couponId);
-      }
-    }
-
-    return usageData;
+    return await getDocuments(COLLECTIONS.COUPONS, {
+      orderBy: [['created_at', 'desc']],
+    });
   } catch (error) {
-    console.error('Error recording coupon usage:', error);
+    console.error('Error fetching all coupons:', error);
+    return [];
+  }
+};
+
+/**
+ * Create a new coupon (Admin only)
+ * @param {Object} couponData - Coupon data
+ * @returns {Promise<string>} New coupon ID
+ */
+export const createCoupon = async (couponData) => {
+  try {
+    const couponId = await addDocument(COLLECTIONS.COUPONS, {
+      ...couponData,
+      code: couponData.code.toUpperCase(),
+      used_count: 0,
+      is_active: couponData.is_active !== false,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    });
+
+    return couponId;
+  } catch (error) {
+    console.error('Error creating coupon:', error);
     throw error;
   }
-}
+};
+
+/**
+ * Update a coupon (Admin only)
+ * @param {string} couponId - Coupon ID
+ * @param {Object} couponData - Updated coupon data
+ * @returns {Promise<void>}
+ */
+export const updateCoupon = async (couponId, couponData) => {
+  try {
+    const updates = { ...couponData };
+    if (updates.code) {
+      updates.code = updates.code.toUpperCase();
+    }
+
+    await updateDocument(COLLECTIONS.COUPONS, couponId, {
+      ...updates,
+      updated_at: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating coupon:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a coupon (Admin only)
+ * @param {string} couponId - Coupon ID
+ * @returns {Promise<void>}
+ */
+export const deleteCoupon = async (couponId) => {
+  try {
+    await deleteDocument(COLLECTIONS.COUPONS, couponId);
+  } catch (error) {
+    console.error('Error deleting coupon:', error);
+    throw error;
+  }
+};
+
+/**
+ * Increment coupon usage count
+ * @param {string} couponId - Coupon ID
+ * @returns {Promise<void>}
+ */
+export const incrementCouponUsage = async (couponId) => {
+  try {
+    await incrementField(COLLECTIONS.COUPONS, couponId, 'used_count', 1);
+  } catch (error) {
+    console.error('Error incrementing coupon usage:', error);
+    throw error;
+  }
+};
+
+export default {
+  validateCoupon,
+  getActiveCoupons,
+  getAllCoupons,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  incrementCouponUsage,
+};

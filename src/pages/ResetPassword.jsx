@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import useStore from '../store/useStore';
-import { supabase } from '../lib/supabaseClient';
+import { auth } from '../lib/firebaseClient';
+import { onAuthStateChanged } from 'firebase/auth';
 import PasswordStrength from '../components/auth/PasswordStrength';
 
 export default function ResetPassword() {
@@ -26,17 +27,15 @@ export default function ResetPassword() {
   useEffect(() => {
     clearAuthError();
 
-    // Listen for the RECOVERY event from Supabase (user clicked the reset link in email)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    // Listen for auth state changes from Firebase
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
         setIsReady(true);
       }
     });
 
     // Also check if there's a hash fragment (for direct URL access)
-    if (window.location.hash.includes('type=recovery')) {
+    if (window.location.hash.includes('type=recovery') || window.location.search.includes('mode=resetPassword')) {
       setIsReady(true);
     }
 
@@ -44,10 +43,10 @@ export default function ResetPassword() {
     const timer = setTimeout(() => setIsReady(true), 2000);
 
     return () => {
-      subscription?.unsubscribe();
+      unsubscribe();
       clearTimeout(timer);
     };
-  }, []);
+  }, [clearAuthError]);
 
   useEffect(() => {
     if (authError) clearAuthError();

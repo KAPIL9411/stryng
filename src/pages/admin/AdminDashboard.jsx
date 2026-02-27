@@ -19,12 +19,34 @@ import {
 import { useEffect, useState } from 'react';
 import { getDashboardStats, getRecentOrders } from '../../api/orders.api';
 import { useAllProducts } from '../../hooks/useProducts';
+import { formatPrice as utilFormatPrice, formatDate as utilFormatDate } from '../../utils/format';
 import '../../styles/admin-dashboard.css';
 
-const formatPrice = (price) => `₹${Number(price || 0).toLocaleString('en-IN')}`;
+const formatPrice = (price) => utilFormatPrice(price || 0);
 const formatDate = (date) => {
   try {
-    return new Date(date).toLocaleDateString('en-IN', {
+    if (!date) return 'N/A';
+    
+    // Handle Firestore Timestamp
+    if (date && typeof date === 'object' && date.toDate) {
+      return date.toDate().toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+      });
+    }
+    
+    if (date && typeof date === 'object' && date.seconds) {
+      const d = new Date(date.seconds * 1000);
+      return d.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+      });
+    }
+    
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'N/A';
+    
+    return d.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
     });
@@ -277,11 +299,11 @@ export default function AdminDashboard() {
                 >
                   <div className="order-item-left">
                     <div className="order-id-badge">
-                      #{order.id.slice(4, 12)}
+                      #{order.order_number || order.id.slice(4, 12)}
                     </div>
                     <div className="order-customer">
                       <span className="customer-name">
-                        {order.address?.full_name || 'Guest'}
+                        {order.shipping_name || order.address?.full_name || order.address?.name || 'Guest'}
                       </span>
                       <span className="order-date">
                         {formatDate(order.created_at)}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, ChevronRight, Calendar, Loader } from 'lucide-react';
 import { getUserOrders } from '../api/orders.api';
-import { formatPrice } from '../utils/format';
+import { formatPrice, formatDate } from '../utils/format';
 import SEO from '../components/SEO';
 
 const getStatusBadge = (status) => {
@@ -197,7 +197,7 @@ export default function OrderHistory() {
                         }}
                       >
                         <h3 style={{ margin: 0, fontSize: '1.125rem' }}>
-                          Order #{order.id.slice(0, 8)}
+                          Order #{order.order_number || order.id.slice(0, 8)}
                         </h3>
                         {getStatusBadge(order.status)}
                         {getPaymentStatusBadge(order.payment_status)}
@@ -213,14 +213,7 @@ export default function OrderHistory() {
                       >
                         <Calendar size={14} />
                         <span>
-                          {new Date(order.created_at).toLocaleDateString(
-                            'en-IN',
-                            {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                            }
-                          )}
+                          {formatDate(order.created_at)}
                         </span>
                       </div>
                     </div>
@@ -259,12 +252,12 @@ export default function OrderHistory() {
                     {order.order_items?.slice(0, 3).map((item, idx) => (
                       <div key={idx} className="order-item-preview">
                         <img
-                          src={item.product?.images?.[0]}
-                          alt={item.product?.name}
+                          src={item.product_image || item.product?.images?.[0] || '/placeholder.jpg'}
+                          alt={item.product_name || item.product?.name || 'Product'}
                           className="order-item-preview__image"
                         />
                         <div className="order-item-preview__details">
-                          <h4>{item.product?.name}</h4>
+                          <h4>{item.product_name || item.product?.name || 'Product'}</h4>
                           <p>
                             Size: {item.size} | Color:{' '}
                             {item.color?.name || item.color}
@@ -292,8 +285,8 @@ export default function OrderHistory() {
                     <div className="order-card__address">
                       <strong>Delivery Address:</strong>
                       <span>
-                        {order.address?.name}, {order.address?.city},{' '}
-                        {order.address?.state} - {order.address?.pincode}
+                        {order.shipping_name || order.address?.name || order.address?.full_name}, {order.shipping_city || order.address?.city},{' '}
+                        {order.shipping_state || order.address?.state} - {order.shipping_pincode || order.address?.pincode}
                       </span>
                     </div>
                     <Link

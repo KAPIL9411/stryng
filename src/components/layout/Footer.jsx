@@ -105,7 +105,7 @@ export default function Footer() {
                 <Link to="/account" className="footer-link">
                   My Account
                 </Link>
-                <Link to="/order-tracking" className="footer-link">
+                <Link to="/account" className="footer-link">
                   Track Order
                 </Link>
                 <Link to="/wishlist" className="footer-link">

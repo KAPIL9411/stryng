@@ -1,625 +1,710 @@
 /**
- * Orders API - Clean, reliable, industry-standard
- * Single source of truth for all order operations
+ * Orders API - Firebase Firestore
+ * Handles order creation, retrieval, and management
  * @module api/orders
  */
 
-import { supabase } from '../lib/supabaseClient';
+import { serverTimestamp } from 'firebase/firestore';
+import {
+  COLLECTIONS,
+  getDocument,
+  getDocuments,
+  addDocument,
+  updateDocument,
+  batchWrite,
+  generateId,
+} from '../lib/firestoreHelpers';
+import { updateProductStock } from './products.api';
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-const TIMEOUT_MS = {
-  READ: 8000,
-  WRITE: 20000,
-  PARALLEL: 15000,
+/**
+ * Get next order number using Firestore counter
+ * @returns {Promise<string>} Sequential order number (e.g., ORD-2024-00001)
+ */
+const getNextOrderNumber = async () => {
+  const { db } = await import('../lib/firebaseClient');
+  const { doc, getDoc, setDoc, updateDoc, runTransaction } = await import('firebase/firestore');
+  
+  try {
+    // Use transaction to ensure atomicity
+    const counterRef = doc(db, 'counters', 'orders');
+    
+    const orderNumber = await runTransaction(db, async (transaction) => {
+      const counterDoc = await transaction.get(counterRef);
+      
+      let nextNumber = 1;
+      
+      if (counterDoc.exists()) {
+        nextNumber = (counterDoc.data().current || 0) + 1;
+      }
+      
+      // Update counter
+      if (counterDoc.exists()) {
+        transaction.update(counterRef, { 
+          current: nextNumber,
+          updated_at: new Date().toISOString()
+        });
+      } else {
+        transaction.set(counterRef, { 
+          current: nextNumber,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+      
+      // Format: ORD-2024-00001
+      const year = new Date().getFullYear();
+      const paddedNumber = String(nextNumber).padStart(5, '0');
+      return `ORD-${year}-${paddedNumber}`;
+    });
+    
+    console.log('✅ Generated order number:', orderNumber);
+    return orderNumber;
+    
+  } catch (error) {
+    console.error('❌ Error generating order number:', error);
+    // Fallback to timestamp-based if transaction fails
+    const timestamp = Date.now();
+    const fallbackNumber = `ORD-${new Date().getFullYear()}-${timestamp}`;
+    console.log('⚠️ Using fallback order number:', fallbackNumber);
+    return fallbackNumber;
+  }
 };
-
-const CANCELLABLE_STATUSES = new Set(['pending', 'confirmed', 'processing']);
-
-// ─── Per-user order creation locks (NOT a global flag) ───────────────────────
-// Global flag was broken: user A's order would block user B in the same session
-// (e.g. admin panel + customer in same tab, or React StrictMode double-invoke)
-const _creationLocks = new Set();
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms)
-    ),
-  ]);
-}
-
-function generateOrderId() {
-  const ts = Date.now();
-  const rand = Math.random().toString(36).substring(2, 9).toUpperCase();
-  return `ORD-${ts}-${rand}`;
-}
-
-function timelineEntry(status, message) {
-  return { status, timestamp: new Date().toISOString(), message };
-}
-
-const STATUS_MESSAGES = {
-  pending: 'Order placed successfully',
-  confirmed: 'Order confirmed',
-  processing: 'Order is being processed',
-  shipped: 'Order has been shipped',
-  delivered: 'Order delivered successfully',
-  cancelled: 'Order cancelled',
-  awaiting_verification: 'Payment awaiting admin verification',
-};
-
-function translateError(err) {
-  const msg = err?.message || '';
-  const code = err?.code || '';
-  if (code === '23505') return 'This order already exists. Please check your order history.';
-  if (code === '23503') return 'Invalid product or address. Please try again.';
-  if (msg.includes('timeout')) return 'Request timed out. Please check your connection and try again.';
-  if (msg.includes('JWT') || msg.includes('auth')) return 'Session expired. Please refresh and try again.';
-  return msg || 'Something went wrong. Please try again.';
-}
-
-async function getAuthUser() {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) throw new Error('Please login to continue');
-  return user;
-}
-
-async function getOrderTimeline(orderId) {
-  const { data } = await supabase
-    .from('orders')
-    .select('timeline')
-    .eq('id', orderId)
-    .single();
-  return data?.timeline || [];
-}
-
-// ─── Order Creation ───────────────────────────────────────────────────────────
 
 /**
  * Create a new order
- * - Per-user lock (not global) prevents double-submit
- * - Order insert first, then items + payment in parallel
- * - Coupon usage is fire-and-forget (non-critical path)
- * - Manual rollback on partial failure (Supabase JS v2 has no client transactions)
+ * @param {Object} orderData - Order data
+ * @returns {Promise<Object>} Created order
  */
-export async function createOrder(orderData) {
-  let user;
+export const createOrder = async (orderData) => {
   try {
-    user = await getAuthUser();
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+    const {
+      user_id,
+      items,
+      shipping_address,
+      payment_method,
+      coupon = null,
+      subtotal,
+      shipping_cost = 0,
+      tax = 0,
+      coupon_discount = 0,
+      total,
+    } = orderData;
 
-  // Per-user double-submit guard
-  if (_creationLocks.has(user.id)) {
-    return { success: false, error: 'Order already in progress. Please wait.' };
-  }
-  _creationLocks.add(user.id);
-
-  const orderId = generateOrderId();
-  let orderCreated = false;
-
-  try {
-    const now = new Date().toISOString();
-
-    // ── Step 1: Insert order record ──────────────────────────────────────────
-    const { data: order, error: orderError } = await withTimeout(
-      supabase
-        .from('orders')
-        .insert({
-          id: orderId,
-          user_id: user.id,
-          total: orderData.total,
-          status: 'pending',
-          payment_status: 'pending',
-          payment_method: orderData.paymentMethod || 'upi',
-          address: orderData.address,
-          coupon_id: orderData.coupon?.id || null,
-          coupon_code: orderData.coupon?.code || null,
-          coupon_discount: orderData.coupon?.discount || 0,
-          timeline: [timelineEntry('pending', STATUS_MESSAGES.pending)],
-        })
-        .select()
-        .single(),
-      TIMEOUT_MS.WRITE,
-      'order insert'
-    );
-
-    if (orderError) throw orderError;
-    orderCreated = true;
-
-    // ── Step 2: Insert items + payment in parallel ───────────────────────────
-    const orderItems = orderData.items.map((item) => ({
-      order_id: orderId,
-      product_id: item.id,
-      quantity: item.quantity,
-      price: item.price,
-      size: item.selectedSize || null,
-      color: item.selectedColor || null,
-    }));
-
-    const [itemsResult, paymentResult] = await withTimeout(
-      Promise.all([
-        supabase.from('order_items').insert(orderItems),
-        supabase.from('payments').insert({
-          order_id: orderId,
-          amount: orderData.total,
-          payment_method: orderData.paymentMethod || 'upi',
-          payment_status: 'pending',
-        }),
-      ]),
-      TIMEOUT_MS.PARALLEL,
-      'items + payment insert'
-    );
-
-    if (itemsResult.error || paymentResult.error) {
-      throw itemsResult.error || paymentResult.error;
+    // Validate required fields
+    if (!user_id || !items || items.length === 0) {
+      throw new Error('Invalid order data');
     }
 
-    // ── Step 3: Coupon usage (background, non-blocking) ──────────────────────
-    if (orderData.coupon?.id) {
-      _handleCouponUsage(orderData.coupon.id, user.id, orderId, orderData.coupon.discount);
-    }
+    // Generate sequential order number
+    const order_number = await getNextOrderNumber();
 
-    return { success: true, data: order };
+    // Create order document
+    const order = {
+      user_id,
+      order_number,
+      status: 'pending',
+      
+      // Pricing
+      subtotal,
+      shipping_cost,
+      tax,
+      coupon_discount,
+      total,
+      
+      // Coupon
+      coupon_id: coupon?.id || null,
+      coupon_code: coupon?.code || null,
+      
+      // Payment
+      payment_method,
+      payment_status: payment_method === 'cod' ? 'pending' : 'verification_pending',
+      payment_id: null,
+      upi_transaction_id: null,
+      
+      // Shipping
+      shipping_name: shipping_address.name,
+      shipping_phone: shipping_address.phone,
+      shipping_address_line1: shipping_address.address_line1,
+      shipping_address_line2: shipping_address.address_line2 || '',
+      shipping_city: shipping_address.city,
+      shipping_state: shipping_address.state,
+      shipping_pincode: shipping_address.pincode,
+      shipping_landmark: shipping_address.landmark || '',
+      
+      // Tracking
+      tracking_number: null,
+      estimated_delivery_date: null,
+      delivered_at: null,
+      
+      // Notes
+      customer_notes: orderData.customer_notes || '',
+      admin_notes: '',
+      
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    };
 
-  } catch (err) {
-    console.error('❌ createOrder failed:', err);
+    // Create order
+    const orderId = await addDocument(COLLECTIONS.ORDERS, order);
 
-    // Rollback: clean up orphaned order if items/payment failed
-    if (orderCreated) {
-      supabase.from('orders').delete().eq('id', orderId).then(() => {
-        console.warn(`⚠️ Rolled back order ${orderId}`);
+    // Create order items
+    const orderItemsPromises = items.map(async (item) => {
+      return addDocument(COLLECTIONS.ORDER_ITEMS, {
+        order_id: orderId,
+        product_id: item.product_id,
+        product_name: item.name,
+        product_slug: item.slug,
+        product_image: item.images?.[0] || '',
+        product_sku: item.sku || '',
+        quantity: item.quantity,
+        size: item.size || '',
+        color: item.color || '',
+        price: item.price,
+        subtotal: item.price * item.quantity,
+        created_at: serverTimestamp(),
+      });
+    });
+
+    await Promise.all(orderItemsPromises);
+
+    // Update product stock
+    const stockUpdates = items.map((item) =>
+      updateProductStock(item.product_id, -item.quantity)
+    );
+    await Promise.all(stockUpdates);
+
+    // Record coupon usage if applicable
+    if (coupon) {
+      await addDocument(COLLECTIONS.COUPON_USAGE, {
+        coupon_id: coupon.id,
+        user_id,
+        order_id: orderId,
+        discount_amount: coupon_discount,
+        created_at: serverTimestamp(),
       });
     }
 
-    return { success: false, error: translateError(err) };
-  } finally {
-    _creationLocks.delete(user.id);
+    return {
+      id: orderId,
+      ...order,
+      order_number,
+    };
+  } catch (error) {
+    console.error('Error creating order:', error);
+    throw error;
   }
-}
+};
 
 /**
- * Record coupon usage — fire and forget, never blocks order creation
+ * Get order by ID
+ * @param {string} orderId - Order ID
+ * @returns {Promise<Object>} Response with order data and items
  */
-async function _handleCouponUsage(couponId, userId, orderId, discountAmount) {
+export const getOrderById = async (orderId) => {
   try {
-    await supabase.from('coupon_usage').insert({
-      coupon_id: couponId,
-      user_id: userId,
-      order_id: orderId,
-      discount_amount: discountAmount,
+    console.log('📦 Fetching order:', orderId);
+    const order = await getDocument(COLLECTIONS.ORDERS, orderId);
+    
+    if (!order) {
+      console.log('❌ Order not found:', orderId);
+      return { success: false, error: 'Order not found', data: null };
+    }
+
+    // Get order items
+    const items = await getDocuments(COLLECTIONS.ORDER_ITEMS, {
+      where: [['order_id', '==', orderId]],
     });
 
-    const { error } = await supabase.rpc('increment_coupon_usage', {
-      p_coupon_id: couponId,
-    });
-
-    // RPC fallback: manual increment if stored procedure missing
-    if (error) {
-      const { data: coupon } = await supabase
-        .from('coupons')
-        .select('used_count')
-        .eq('id', couponId)
-        .single();
-      if (coupon) {
-        await supabase
-          .from('coupons')
-          .update({ used_count: (coupon.used_count || 0) + 1 })
-          .eq('id', couponId);
-      }
-    }
-  } catch (err) {
-    console.error('Coupon usage error (non-critical):', err.message);
-  }
-}
-
-// ─── Payment ──────────────────────────────────────────────────────────────────
-
-/**
- * Customer marks their payment as sent
- */
-export async function markPaymentAsPaid(orderId, transactionId = '') {
-  try {
-    const now = new Date().toISOString();
-    const timeline = await getOrderTimeline(orderId);
-    const message = transactionId
-      ? `Payment submitted — Transaction ID: ${transactionId}`
-      : 'Payment submitted — awaiting admin verification';
-
-    const [paymentResult, orderResult] = await withTimeout(
-      Promise.all([
-        supabase
-          .from('payments')
-          .update({
-            payment_status: 'awaiting_verification',
-            transaction_id: transactionId || null,
-            gateway_response: { marked_paid_at: now, transaction_id: transactionId },
-          })
-          .eq('order_id', orderId),
-        supabase
-          .from('orders')
-          .update({
-            payment_status: 'awaiting_verification',
-            transaction_id: transactionId || null,
-            timeline: [...timeline, timelineEntry('awaiting_verification', message)],
-          })
-          .eq('id', orderId)
-          .select()
-          .single(),
-      ]),
-      TIMEOUT_MS.PARALLEL,
-      'markPaymentAsPaid'
-    );
-
-    if (paymentResult.error) throw paymentResult.error;
-    if (orderResult.error) throw orderResult.error;
-
-    return { success: true, data: orderResult.data };
-  } catch (err) {
-    console.error('❌ markPaymentAsPaid:', err.message);
-    return { success: false, error: translateError(err) };
-  }
-}
-
-// ─── Order Reads ──────────────────────────────────────────────────────────────
-
-const ORDER_FULL_SELECT = `
-  *,
-  order_items (
-    *,
-    products ( id, name, slug, images, brand )
-  ),
-  payments (*)
-`;
-
-const ORDER_LIST_SELECT = `
-  *,
-  order_items (
-    *,
-    products ( id, name, slug, images, brand )
-  )
-`;
-
-/**
- * Get a single order by ID
- * Short-lived in-memory cache (60s) to avoid re-fetching on re-render
- */
-const _orderCache = new Map();
-const ORDER_CACHE_TTL = 60 * 1000;
-
-export async function getOrderById(orderId) {
-  const cached = _orderCache.get(orderId);
-  if (cached && Date.now() - cached.ts < ORDER_CACHE_TTL) {
-    return { success: true, data: cached.data };
-  }
-
-  try {
-    const { data, error } = await withTimeout(
-      supabase.from('orders').select(ORDER_FULL_SELECT).eq('id', orderId).single(),
-      TIMEOUT_MS.READ,
-      'getOrderById'
-    );
-    if (error) throw error;
-
-    _orderCache.set(orderId, { data, ts: Date.now() });
-    return { success: true, data };
-  } catch (err) {
-    console.error('❌ getOrderById:', err.message);
-    return { success: false, error: translateError(err) };
-  }
-}
-
-/**
- * Get the authenticated user's orders (paginated)
- */
-export async function getUserOrders(page = 1, pageSize = 10) {
-  try {
-    const user = await getAuthUser();
-    const start = (page - 1) * pageSize;
-
-    const { data, error, count } = await withTimeout(
-      supabase
-        .from('orders')
-        .select(ORDER_LIST_SELECT, { count: 'exact' })
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(start, start + pageSize - 1),
-      TIMEOUT_MS.READ,
-      'getUserOrders'
-    );
-
-    if (error) throw error;
-
-    return {
-      success: true,
-      data: data || [],
-      pagination: {
-        currentPage: page,
-        pageSize,
-        totalItems: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize),
-      },
-    };
-  } catch (err) {
-    console.error('❌ getUserOrders:', err.message);
-    return { success: false, error: translateError(err), data: [] };
-  }
-}
-
-// ─── Customer Actions ─────────────────────────────────────────────────────────
-
-/**
- * Cancel order (customer) — only allowed before shipping
- */
-export async function cancelOrder(orderId, reason = '') {
-  try {
-    const user = await getAuthUser();
-
-    const { data: order, error: fetchErr } = await supabase
-      .from('orders')
-      .select('status, user_id')
-      .eq('id', orderId)
-      .single();
-
-    if (fetchErr) throw new Error('Order not found');
-    if (order.user_id !== user.id) throw new Error('Unauthorized');
-    if (!CANCELLABLE_STATUSES.has(order.status)) {
-      throw new Error('This order can no longer be cancelled');
-    }
-
-    const timeline = await getOrderTimeline(orderId);
-    const message = reason ? `Cancelled by customer: ${reason}` : 'Cancelled by customer';
-
-    const { data, error } = await withTimeout(
-      supabase
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          timeline: [...timeline, timelineEntry('cancelled', message)],
-        })
-        .eq('id', orderId)
-        .select()
-        .single(),
-      TIMEOUT_MS.WRITE,
-      'cancelOrder'
-    );
-
-    if (error) throw error;
-    _orderCache.delete(orderId);
-    return { success: true, data };
-  } catch (err) {
-    console.error('❌ cancelOrder:', err.message);
-    return { success: false, error: translateError(err) };
-  }
-}
-
-// ─── Admin Actions ────────────────────────────────────────────────────────────
-
-/**
- * ADMIN: Get all orders with filters + pagination
- */
-export async function getAllOrders(filters = {}, page = 1, pageSize = 20) {
-  try {
-    const start = (page - 1) * pageSize;
-
-    let query = supabase
-      .from('orders')
-      .select(
-        `*, order_items (*, products (id, name, slug, images)), payments (*)`,
-        { count: 'exact' }
-      )
-      .order('created_at', { ascending: false })
-      .range(start, start + pageSize - 1);
-
-    if (filters.status) query = query.eq('status', filters.status);
-    if (filters.payment_status) query = query.eq('payment_status', filters.payment_status);
-    if (filters.user_id) query = query.eq('user_id', filters.user_id);
-
-    const { data, error, count } = await withTimeout(query, TIMEOUT_MS.READ, 'getAllOrders');
-    if (error) throw error;
-
-    return {
-      success: true,
-      data: data || [],
-      pagination: {
-        currentPage: page,
-        pageSize,
-        totalItems: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize),
-      },
-    };
-  } catch (err) {
-    console.error('❌ getAllOrders:', err.message);
-    return { success: false, error: translateError(err), data: [] };
-  }
-}
-
-/**
- * ADMIN: Verify or reject a payment
- */
-export async function verifyPayment(orderId, isVerified, notes = '') {
-  try {
-    const timeline = await getOrderTimeline(orderId);
-    const now = new Date().toISOString();
-
-    if (isVerified) {
-      // Update payment + order in parallel
-      const [paymentResult, orderResult] = await withTimeout(
-        Promise.all([
-          supabase
-            .from('payments')
-            .update({ payment_status: 'paid', payment_date: now })
-            .eq('order_id', orderId),
-          supabase
-            .from('orders')
-            .update({
-              status: 'confirmed',
-              payment_status: 'paid',
-              timeline: [
-                ...timeline,
-                timelineEntry('confirmed', 'Payment verified — order confirmed'),
-              ],
-            })
-            .eq('id', orderId)
-            .select()
-            .single(),
-        ]),
-        TIMEOUT_MS.PARALLEL,
-        'verifyPayment:confirm'
-      );
-
-      if (paymentResult.error) throw paymentResult.error;
-      if (orderResult.error) throw orderResult.error;
-
-      // Deduct stock for each item (sequential — RPC calls can't easily be batched)
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('product_id, quantity')
-        .eq('order_id', orderId);
-
-      await Promise.allSettled(
-        (items || []).map((item) =>
-          supabase.rpc('decrement_stock', {
-            p_product_id: item.product_id,
-            p_quantity: item.quantity,
-          })
-        )
-      );
-
-      _orderCache.delete(orderId);
-      return { success: true, data: orderResult.data };
-
-    } else {
-      // Payment rejected
-      const [paymentResult, orderResult] = await withTimeout(
-        Promise.all([
-          supabase
-            .from('payments')
-            .update({
-              payment_status: 'failed',
-              gateway_response: { admin_notes: notes },
-            })
-            .eq('order_id', orderId),
-          supabase
-            .from('orders')
-            .update({
-              status: 'cancelled',
-              payment_status: 'failed',
-              timeline: [
-                ...timeline,
-                timelineEntry('cancelled', 'Payment rejected — order cancelled'),
-              ],
-            })
-            .eq('id', orderId)
-            .select()
-            .single(),
-        ]),
-        TIMEOUT_MS.PARALLEL,
-        'verifyPayment:reject'
-      );
-
-      if (paymentResult.error) throw paymentResult.error;
-      if (orderResult.error) throw orderResult.error;
-
-      _orderCache.delete(orderId);
-      return { success: true, data: orderResult.data };
-    }
-  } catch (err) {
-    console.error('❌ verifyPayment:', err.message);
-    return { success: false, error: translateError(err) };
-  }
-}
-
-/**
- * ADMIN: Update order status
- */
-export async function updateOrderStatus(orderId, status) {
-  try {
-    const timeline = await getOrderTimeline(orderId);
-    const message = STATUS_MESSAGES[status] || `Status updated to ${status}`;
-
-    const { data, error } = await withTimeout(
-      supabase
-        .from('orders')
-        .update({
-          status,
-          timeline: [...timeline, timelineEntry(status, message)],
-        })
-        .eq('id', orderId)
-        .select()
-        .single(),
-      TIMEOUT_MS.WRITE,
-      'updateOrderStatus'
-    );
-
-    if (error) throw error;
-    _orderCache.delete(orderId);
-    return { success: true, data };
-  } catch (err) {
-    console.error('❌ updateOrderStatus:', err.message);
-    return { success: false, error: translateError(err) };
-  }
-}
-
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-
-/**
- * ADMIN: Dashboard stats — runs all 3 queries in parallel
- */
-export async function getDashboardStats() {
-  try {
-    const [ordersResult, revenueResult, pendingResult] = await withTimeout(
-      Promise.all([
-        supabase.from('orders').select('*', { count: 'exact', head: true }),
-        supabase.from('orders').select('total').eq('payment_status', 'paid'),
-        supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending'),
-      ]),
-      TIMEOUT_MS.READ,
-      'getDashboardStats'
-    );
-
-    const totalRevenue =
-      revenueResult.data?.reduce((sum, o) => sum + (o.total || 0), 0) || 0;
+    console.log('✅ Order found with', items.length, 'items');
 
     return {
       success: true,
       data: {
-        totalOrders: ordersResult.count || 0,
-        totalRevenue,
-        pendingOrders: pendingResult.count || 0,
+        ...order,
+        order_items: items,
+        items, // Keep both for compatibility
       },
     };
-  } catch (err) {
-    console.error('❌ getDashboardStats:', err.message);
-    return { success: false, error: translateError(err) };
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    return { success: false, error: error.message, data: null };
   }
-}
+};
 
 /**
- * ADMIN: Recent orders feed
+ * Get orders by user ID
+ * @param {string} userId - User ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} User orders
  */
-export async function getRecentOrders(limit = 10) {
+export const getOrdersByUserId = async (userId, options = {}) => {
   try {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('orders')
-        .select('id, total, status, payment_status, created_at, address')
-        .order('created_at', { ascending: false })
-        .limit(limit),
-      TIMEOUT_MS.READ,
-      'getRecentOrders'
+    const { limit: limitResults = 50, status = null } = options;
+
+    const whereClause = [['user_id', '==', userId]];
+    if (status) {
+      whereClause.push(['status', '==', status]);
+    }
+
+    const orders = await getDocuments(COLLECTIONS.ORDERS, {
+      where: whereClause,
+      orderBy: [['created_at', 'desc']],
+      limit: limitResults,
+    });
+
+    // Get items for each order
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const items = await getDocuments(COLLECTIONS.ORDER_ITEMS, {
+          where: [['order_id', '==', order.id]],
+        });
+        return { ...order, items };
+      })
     );
 
-    if (error) throw error;
-    return { success: true, data: data || [] };
-  } catch (err) {
-    console.error('❌ getRecentOrders:', err.message);
-    return { success: false, error: translateError(err), data: [] };
+    return ordersWithItems;
+  } catch (error) {
+    console.error('Error fetching user orders:', error);
+    return [];
   }
-}
+};
+
+/**
+ * Get user orders with pagination (for OrderHistory page)
+ * @param {number} page - Page number
+ * @param {number} pageSize - Items per page
+ * @returns {Promise<Object>} Orders with pagination
+ */
+export const getUserOrders = async (page = 1, pageSize = 10) => {
+  try {
+    const { auth } = await import('../lib/firebaseClient');
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      return {
+        success: false,
+        error: 'User not authenticated',
+        data: [],
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalItems: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
+
+    const userId = currentUser.uid;
+
+    // Get all orders for this user to calculate total
+    const allOrders = await getDocuments(COLLECTIONS.ORDERS, {
+      where: [['user_id', '==', userId]],
+      orderBy: [['created_at', 'desc']],
+    });
+
+    const totalItems = allOrders.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedOrders = allOrders.slice(startIndex, endIndex);
+
+    // Get items for each order
+    const ordersWithItems = await Promise.all(
+      paginatedOrders.map(async (order) => {
+        const items = await getDocuments(COLLECTIONS.ORDER_ITEMS, {
+          where: [['order_id', '==', order.id]],
+        });
+        return { ...order, items, order_items: items };
+      })
+    );
+
+    return {
+      success: true,
+      data: ordersWithItems,
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalItems,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching user orders:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalItems: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false,
+      },
+    };
+  }
+};
+
+/**
+ * Get all orders (Admin only)
+ * @param {Object} filters - Filter options
+ * @param {number} page - Page number
+ * @param {number} pageSize - Items per page
+ * @returns {Promise<Object>} All orders with pagination
+ */
+export const getAllOrders = async (filters = {}, page = 1, pageSize = 20) => {
+  try {
+    const whereClause = [];
+    
+    if (filters.status) {
+      whereClause.push(['status', '==', filters.status]);
+    }
+    if (filters.payment_status) {
+      whereClause.push(['payment_status', '==', filters.payment_status]);
+    }
+
+    // Get all orders for stats
+    const allOrders = await getDocuments(COLLECTIONS.ORDERS, {
+      where: whereClause,
+      orderBy: [['created_at', 'desc']],
+    });
+
+    // Calculate pagination
+    const totalItems = allOrders.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedOrders = allOrders.slice(startIndex, endIndex);
+
+    // Get order items for each order
+    const ordersWithItems = await Promise.all(
+      paginatedOrders.map(async (order) => {
+        const items = await getDocuments(COLLECTIONS.ORDER_ITEMS, {
+          where: [['order_id', '==', order.id]],
+        });
+        
+        // Get address from order fields
+        const address = {
+          full_name: order.shipping_name,
+          phone: order.shipping_phone,
+          address_line1: order.shipping_address_line1,
+          address_line2: order.shipping_address_line2,
+          city: order.shipping_city,
+          state: order.shipping_state,
+          pincode: order.shipping_pincode,
+          landmark: order.shipping_landmark,
+        };
+        
+        return { ...order, order_items: items, address };
+      })
+    );
+
+    return {
+      success: true,
+      data: ordersWithItems,
+      pagination: {
+        currentPage: page,
+        pageSize,
+        totalItems,
+        totalPages,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching all orders:', error);
+    return {
+      success: false,
+      data: [],
+      pagination: {
+        currentPage: 1,
+        pageSize,
+        totalItems: 0,
+        totalPages: 0,
+      },
+    };
+  }
+};
+
+/**
+ * Update order status (Admin only)
+ * @param {string} orderId - Order ID
+ * @param {string} status - New status
+ * @param {Object} additionalData - Additional data to update
+ * @returns {Promise<Object>} Result
+ */
+export const updateOrderStatus = async (orderId, status, additionalData = {}) => {
+  try {
+    const updateData = {
+      status,
+      updated_at: serverTimestamp(),
+      ...additionalData,
+    };
+
+    // If status is delivered, set delivered_at
+    if (status === 'delivered') {
+      updateData.delivered_at = serverTimestamp();
+    }
+
+    await updateDocument(COLLECTIONS.ORDERS, orderId, updateData);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update payment status
+ * @param {string} orderId - Order ID
+ * @param {string} paymentStatus - New payment status
+ * @param {Object} paymentData - Payment data (payment_id, upi_transaction_id)
+ * @returns {Promise<void>}
+ */
+export const updatePaymentStatus = async (orderId, paymentStatus, paymentData = {}) => {
+  try {
+    await updateDocument(COLLECTIONS.ORDERS, orderId, {
+      payment_status: paymentStatus,
+      ...paymentData,
+      updated_at: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating payment status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Mark payment as paid (for customer payment confirmation)
+ * @param {string} orderId - Order ID
+ * @param {string} transactionId - UPI transaction ID
+ * @returns {Promise<Object>} Result
+ */
+export const markPaymentAsPaid = async (orderId, transactionId) => {
+  try {
+    await updateDocument(COLLECTIONS.ORDERS, orderId, {
+      payment_status: 'verification_pending',
+      upi_transaction_id: transactionId,
+      status: 'pending',
+      updated_at: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error marking payment as paid:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Add tracking information
+ * @param {string} orderId - Order ID
+ * @param {string} trackingNumber - Tracking number
+ * @param {Date} estimatedDelivery - Estimated delivery date
+ * @returns {Promise<void>}
+ */
+export const addTrackingInfo = async (orderId, trackingNumber, estimatedDelivery = null) => {
+  try {
+    await updateDocument(COLLECTIONS.ORDERS, orderId, {
+      tracking_number: trackingNumber,
+      estimated_delivery_date: estimatedDelivery,
+      updated_at: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error adding tracking info:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cancel order
+ * @param {string} orderId - Order ID
+ * @param {string} reason - Cancellation reason
+ * @returns {Promise<Object>} Result
+ */
+export const cancelOrder = async (orderId, reason = '') => {
+  try {
+    // Get order to restore stock
+    const result = await getOrderById(orderId);
+    if (!result.success || !result.data) {
+      throw new Error('Order not found');
+    }
+
+    const order = result.data;
+
+    // Restore product stock
+    const stockRestores = (order.items || order.order_items || []).map((item) =>
+      updateProductStock(item.product_id, item.quantity)
+    );
+    await Promise.all(stockRestores);
+
+    // Update order status
+    await updateDocument(COLLECTIONS.ORDERS, orderId, {
+      status: 'cancelled',
+      admin_notes: reason,
+      updated_at: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get order statistics (Admin only)
+ * @returns {Promise<Object>} Order statistics
+ */
+export const getOrderStatistics = async () => {
+  try {
+    const allOrders = await getDocuments(COLLECTIONS.ORDERS);
+
+    const stats = {
+      total: allOrders.length,
+      pending: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0,
+      totalRevenue: 0,
+    };
+
+    allOrders.forEach((order) => {
+      stats[order.status] = (stats[order.status] || 0) + 1;
+      if (order.status !== 'cancelled') {
+        stats.totalRevenue += order.total || 0;
+      }
+    });
+
+    return stats;
+  } catch (error) {
+    console.error('Error fetching order statistics:', error);
+    return {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0,
+      totalRevenue: 0,
+    };
+  }
+};
+
+/**
+ * Get dashboard statistics (Admin only)
+ * @returns {Promise<Object>} Dashboard stats
+ */
+export const getDashboardStats = async () => {
+  try {
+    const allOrders = await getDocuments(COLLECTIONS.ORDERS);
+
+    console.log('📊 Dashboard Stats - Total orders in DB:', allOrders.length);
+    console.log('📊 Order IDs:', allOrders.map(o => ({ id: o.id, order_number: o.order_number, created_at: o.created_at })));
+
+    let totalRevenue = 0;
+    let pendingOrders = 0;
+
+    allOrders.forEach((order) => {
+      if (order.status !== 'cancelled') {
+        totalRevenue += order.total || 0;
+      }
+      if (order.status === 'pending' || order.status === 'confirmed') {
+        pendingOrders++;
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        totalOrders: allOrders.length,
+        totalRevenue,
+        pendingOrders,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return {
+      success: false,
+      data: {
+        totalOrders: 0,
+        totalRevenue: 0,
+        pendingOrders: 0,
+      },
+    };
+  }
+};
+
+/**
+ * Get recent orders (Admin only)
+ * @param {number} limit - Number of orders to fetch
+ * @returns {Promise<Object>} Recent orders
+ */
+export const getRecentOrders = async (limit = 5) => {
+  try {
+    const orders = await getDocuments(COLLECTIONS.ORDERS, {
+      orderBy: [['created_at', 'desc']],
+      limit,
+    });
+
+    return {
+      success: true,
+      data: orders,
+    };
+  } catch (error) {
+    console.error('Error fetching recent orders:', error);
+    return {
+      success: false,
+      data: [],
+    };
+  }
+};
+
+/**
+ * Verify payment (Admin only)
+ * @param {string} orderId - Order ID
+ * @param {boolean} isVerified - Whether payment is verified
+ * @returns {Promise<Object>} Result
+ */
+export const verifyPayment = async (orderId, isVerified) => {
+  try {
+    if (isVerified) {
+      // Mark payment as paid and confirm order
+      await updateDocument(COLLECTIONS.ORDERS, orderId, {
+        payment_status: 'paid',
+        status: 'confirmed',
+        updated_at: serverTimestamp(),
+      });
+    } else {
+      // Reject payment and cancel order
+      await cancelOrder(orderId, 'Payment verification failed');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error verifying payment:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export default {
+  createOrder,
+  getOrderById,
+  getOrdersByUserId,
+  getUserOrders,
+  getAllOrders,
+  updateOrderStatus,
+  updatePaymentStatus,
+  markPaymentAsPaid,
+  addTrackingInfo,
+  cancelOrder,
+  getOrderStatistics,
+  getDashboardStats,
+  getRecentOrders,
+  verifyPayment,
+};

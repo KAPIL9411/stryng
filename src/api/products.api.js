@@ -1,283 +1,479 @@
 /**
- * Products API - Admin Write Operations + Non-Edge Reads
- * Read operations (public) → products-edge.api.js (cached, fast)
- * Write operations (admin) → this file (direct Supabase, cache-busting)
+ * Products API - Firebase Firestore
+ * Optimized for performance with caching and batch operations
  * @module api/products
  */
 
-import { supabase } from '../lib/supabaseClient';
-import { API_ENDPOINTS } from '../config/constants';
-import { inMemoryCache } from '../services/InMemoryCacheService';
-
-// Re-export all public read functions from the optimized edge module
-export {
-  fetchProducts,
-  fetchProductBySlug,
-  fetchProductsByIds,
-  clearProductsCache,
-} from './products-edge.api';
-
-// ─── Write operation timeouts ─────────────────────────────────────────────────
-const WRITE_TIMEOUT_MS = 20000;
-const DELETE_TIMEOUT_MS = 15000;
-
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms)
-    ),
-  ]);
-}
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query as firestoreQuery,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '../lib/firebaseClient';
+import {
+  COLLECTIONS,
+  getDocument,
+  getDocuments,
+  addDocument,
+  updateDocument,
+  deleteDocument,
+  getPaginatedDocuments,
+} from '../lib/firestoreHelpers';
 
 /**
- * Invalidate all product-related caches (memory + edge)
+ * Fetch all products with filters and pagination
+ * @param {Object} options - Query options
+ * @returns {Promise<Object>} { products, pagination }
  */
-async function invalidateAllCaches() {
-  // Legacy InMemoryCache (if still in use elsewhere)
-  inMemoryCache?.invalidatePattern?.('products:*');
-  inMemoryCache?.invalidatePattern?.('product:*');
+export const fetchProducts = async (options = {}) => {
+  try {
+    const {
+      page = 1,
+      pageSize = 24,
+      category = null,
+      search = null,
+      sort = 'newest',
+      minPrice = null,
+      maxPrice = null,
+      isNew = null,
+      isTrending = null,
+    } = options;
 
-  // Edge module cache
-  const { clearProductsCache } = await import('./products-edge.api');
-  clearProductsCache();
-}
+    const whereClause = [];
+    
+    // Apply filters
+    if (category) {
+      whereClause.push(['category', '==', category]);
+    }
+    if (isNew !== null) {
+      whereClause.push(['is_new', '==', isNew]);
+    }
+    if (isTrending !== null) {
+      whereClause.push(['is_trending', '==', isTrending]);
+    }
+    if (minPrice !== null) {
+      whereClause.push(['price', '>=', minPrice]);
+    }
+    if (maxPrice !== null) {
+      whereClause.push(['price', '<=', maxPrice]);
+    }
 
-// ─── Admin Read (bypasses cache - always fresh) ───────────────────────────────
+    // Apply sorting
+    const orderByClause = [];
+    switch (sort) {
+      case 'price-low':
+        orderByClause.push(['price', 'asc']);
+        break;
+      case 'price-high':
+        orderByClause.push(['price', 'desc']);
+        break;
+      case 'newest':
+        orderByClause.push(['created_at', 'desc']);
+        break;
+      case 'popularity':
+        orderByClause.push(['reviews_count', 'desc']);
+        break;
+      default:
+        orderByClause.push(['created_at', 'desc']);
+    }
+
+    // Get paginated results
+    const { documents: products, hasMore } = await getPaginatedDocuments(
+      COLLECTIONS.PRODUCTS,
+      {
+        pageSize,
+        where: whereClause,
+        orderBy: orderByClause,
+      }
+    );
+
+    // Client-side search filter (Firestore doesn't support full-text search)
+    let filteredProducts = products;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredProducts = products.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(searchLower) ||
+          p.description?.toLowerCase().includes(searchLower) ||
+          p.brand?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return {
+      products: filteredProducts,
+      pagination: {
+        currentPage: page,
+        totalItems: filteredProducts.length,
+        hasNext: hasMore,
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    return { products: [], pagination: { currentPage: 1, totalItems: 0, hasNext: false } };
+  }
+};
 
 /**
- * Fetch ALL products for admin panel (no pagination, no cache)
- * @returns {Promise<Array>}
+ * Fetch single product by ID
+ * @param {string} productId - Product ID
+ * @returns {Promise<Object>} Product data
+ */
+export const fetchProductById = async (productId) => {
+  try {
+    return await getDocument(COLLECTIONS.PRODUCTS, productId);
+  } catch (error) {
+    console.error('Error fetching product:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch single product by slug
+ * @param {string} slug - Product slug
+ * @returns {Promise<Object>} Product data
+ */
+export const fetchProductBySlug = async (slug) => {
+  try {
+    const products = await getDocuments(COLLECTIONS.PRODUCTS, {
+      where: [['slug', '==', slug]],
+      limit: 1,
+    });
+    return products[0] || null;
+  } catch (error) {
+    console.error('Error fetching product by slug:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetch multiple products by IDs (for cart/wishlist)
+ * @param {Array<string>} productIds - Array of product IDs
+ * @returns {Promise<Array>} Array of products
+ */
+export const fetchProductsByIds = async (productIds) => {
+  try {
+    if (!productIds || productIds.length === 0) return [];
+    
+    // Firestore 'in' query supports max 10 items, so batch if needed
+    const batches = [];
+    for (let i = 0; i < productIds.length; i += 10) {
+      const batch = productIds.slice(i, i + 10);
+      batches.push(
+        getDocuments(COLLECTIONS.PRODUCTS, {
+          where: [['__name__', 'in', batch]],
+        })
+      );
+    }
+    
+    const results = await Promise.all(batches);
+    return results.flat();
+  } catch (error) {
+    console.error('Error fetching products by IDs:', error);
+    return [];
+  }
+};
+
+/**
+ * Create a new product (Admin only)
+ * @param {Object} productData - Product data
+ * @returns {Promise<string>} New product ID
+ */
+export const createProduct = async (productData) => {
+  try {
+    const productId = await addDocument(COLLECTIONS.PRODUCTS, {
+      ...productData,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+    });
+    
+    console.log('✅ Product created:', productId);
+    return productId;
+  } catch (error) {
+    console.error('Error creating product:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update a product (Admin only)
+ * @param {string} productId - Product ID
+ * @param {Object} productData - Updated product data
+ * @returns {Promise<void>}
+ */
+export const updateProduct = async (productId, productData) => {
+  try {
+    await updateDocument(COLLECTIONS.PRODUCTS, productId, {
+      ...productData,
+      updated_at: serverTimestamp(),
+    });
+    
+    console.log('✅ Product updated:', productId);
+  } catch (error) {
+    console.error('Error updating product:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a product (Admin only)
+ * @param {string} productId - Product ID
+ * @returns {Promise<void>}
+ */
+export const deleteProduct = async (productId) => {
+  try {
+    await deleteDocument(COLLECTIONS.PRODUCTS, productId);
+    console.log('✅ Product deleted:', productId);
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch all products (Admin only - no pagination)
+ * @returns {Promise<Array>} All products
  */
 export const fetchAllProducts = async () => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.PRODUCTS).select('*').order('id').limit(2000),
-      WRITE_TIMEOUT_MS,
-      'fetchAllProducts'
-    );
-
-    if (error) throw new Error(error.message);
-    return (data || []).map(normalizeAdminProduct);
-  } catch (err) {
-    console.error('❌ fetchAllProducts:', err.message);
-    throw err;
+    return await getDocuments(COLLECTIONS.PRODUCTS, {
+      orderBy: [['created_at', 'desc']],
+    });
+  } catch (error) {
+    console.error('Error fetching all products:', error);
+    return [];
   }
 };
 
-function normalizeAdminProduct(p) {
-  return {
-    id: p.id,
-    name: p.name || 'Untitled Product',
-    slug: p.slug || '',
-    description: p.description || '',
-    price: p.price || 0,
-    originalPrice: p.original_price || p.price || 0,
-    original_price: p.original_price || p.price || 0,
-    discount: p.discount || 0,
-    images: Array.isArray(p.images) ? p.images : p.images ? [p.images] : [],
-    brand: p.brand || '',
-    category: p.category || '',
-    colors: Array.isArray(p.colors) ? p.colors : [],
-    sizes: Array.isArray(p.sizes) ? p.sizes : [],
-    isNew: p.is_new || false,
-    isTrending: p.is_trending || false,
-    is_new: p.is_new || false,
-    is_trending: p.is_trending || false,
-    rating: p.rating || 0,
-    reviewCount: p.reviews_count || 0,
-    reviews_count: p.reviews_count || 0,
-    stock: p.stock ?? 0,
-    lowStockThreshold: p.low_stock_threshold ?? 5,
-    low_stock_threshold: p.low_stock_threshold ?? 5,
-    sku: p.sku || '',
-    track_inventory: p.track_inventory !== false,
-  };
-}
-
-// ─── Create ───────────────────────────────────────────────────────────────────
-
 /**
- * Create a new product
- * @param {Object} productData
- * @returns {Promise<Object>}
+ * Search products by name/description
+ * @param {string} searchTerm - Search term
+ * @param {number} limitResults - Max results
+ * @returns {Promise<Array>} Matching products
  */
-export const createProduct = async (productData) => {
-  if (!productData?.name?.trim()) throw new Error('Product name is required');
-  if (!productData?.slug?.trim()) throw new Error('Product slug is required');
-
+export const searchProducts = async (searchTerm, limitResults = 20) => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.PRODUCTS).insert([productData]).select().single(),
-      WRITE_TIMEOUT_MS,
-      'createProduct'
-    );
-
-    if (error) throw error;
-    if (!data) throw new Error('No data returned after insert');
-
-    await invalidateAllCaches();
-    console.log('✅ Product created:', data.id);
-    return data;
-  } catch (err) {
-    throw translateWriteError(err, 'create');
+    if (!searchTerm || searchTerm.length < 2) return [];
+    
+    // Get all products and filter client-side
+    // (Firestore doesn't support full-text search natively)
+    const allProducts = await getDocuments(COLLECTIONS.PRODUCTS, {
+      limit: 100, // Limit initial fetch
+    });
+    
+    const searchLower = searchTerm.toLowerCase();
+    return allProducts
+      .filter(
+        (p) =>
+          p.name?.toLowerCase().includes(searchLower) ||
+          p.description?.toLowerCase().includes(searchLower) ||
+          p.brand?.toLowerCase().includes(searchLower) ||
+          p.category?.toLowerCase().includes(searchLower)
+      )
+      .slice(0, limitResults);
+  } catch (error) {
+    console.error('Error searching products:', error);
+    return [];
   }
 };
 
-// ─── Update ───────────────────────────────────────────────────────────────────
-
 /**
- * Update an existing product
- * @param {string} id
- * @param {Object} productData
- * @returns {Promise<Object>}
+ * Get trending products
+ * @param {number} limitResults - Max results
+ * @returns {Promise<Array>} Trending products
  */
-export const updateProduct = async (id, productData) => {
-  if (!id) throw new Error('Product ID is required');
-
+export const fetchTrendingProducts = async (limitResults = 12) => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.PRODUCTS).update(productData).eq('id', id).select().single(),
-      WRITE_TIMEOUT_MS,
-      'updateProduct'
-    );
-
-    if (error) throw error;
-    if (!data) throw new Error('Product not found or no rows updated');
-
-    await invalidateAllCaches();
-    console.log('✅ Product updated:', id);
-    return data;
-  } catch (err) {
-    throw translateWriteError(err, 'update');
+    return await getDocuments(COLLECTIONS.PRODUCTS, {
+      where: [['is_trending', '==', true]],
+      orderBy: [['reviews_count', 'desc']],
+      limit: limitResults,
+    });
+  } catch (error) {
+    console.error('Error fetching trending products:', error);
+    return [];
   }
 };
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
+/**
+ * Get new arrivals
+ * @param {number} limitResults - Max results
+ * @returns {Promise<Array>} New products
+ */
+export const fetchNewArrivals = async (limitResults = 12) => {
+  try {
+    return await getDocuments(COLLECTIONS.PRODUCTS, {
+      where: [['is_new', '==', true]],
+      orderBy: [['created_at', 'desc']],
+      limit: limitResults,
+    });
+  } catch (error) {
+    console.error('Error fetching new arrivals:', error);
+    return [];
+  }
+};
 
 /**
- * Delete a product
- * @param {string} id
+ * Update product stock
+ * @param {string} productId - Product ID
+ * @param {number} quantity - Quantity to add/subtract
  * @returns {Promise<void>}
  */
-export const deleteProduct = async (id) => {
-  if (!id) throw new Error('Product ID is required');
-
+export const updateProductStock = async (productId, quantity) => {
   try {
-    const { error } = await withTimeout(
-      supabase.from(API_ENDPOINTS.PRODUCTS).delete().eq('id', id),
-      DELETE_TIMEOUT_MS,
-      'deleteProduct'
-    );
-
-    if (error) throw error;
-
-    await invalidateAllCaches();
-    console.log('✅ Product deleted:', id);
-  } catch (err) {
-    throw translateWriteError(err, 'delete');
+    const product = await getDocument(COLLECTIONS.PRODUCTS, productId);
+    if (!product) throw new Error('Product not found');
+    
+    const newStock = (product.stock || 0) + quantity;
+    await updateDocument(COLLECTIONS.PRODUCTS, productId, {
+      stock: Math.max(0, newStock),
+      updated_at: serverTimestamp(),
+    });
+    
+    console.log('✅ Product stock updated:', productId);
+  } catch (error) {
+    console.error('Error updating product stock:', error);
+    throw error;
   }
 };
 
-// ─── Search & Suggestions ─────────────────────────────────────────────────────
-
-/**
- * Search products - delegates to fetchProducts with search filter
- */
-export const searchProducts = async (page = 1, limit = 24, filters = {}) => {
-  const { fetchProducts } = await import('./products-edge.api');
-  return fetchProducts(page, limit, filters);
+export default {
+  fetchProducts,
+  fetchProductById,
+  fetchProductBySlug,
+  fetchProductsByIds,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  fetchAllProducts,
+  searchProducts,
+  fetchTrendingProducts,
+  fetchNewArrivals,
+  updateProductStock,
 };
 
+
 /**
- * Autocomplete suggestions (debounce on the caller side)
- * @param {string} query
- * @param {number} limit
- * @returns {Promise<Array>}
+ * Get autocomplete suggestions for search
+ * @param {string} searchQuery - Search query
+ * @param {number} limit - Maximum number of suggestions
+ * @returns {Promise<Array>} Autocomplete suggestions
  */
-export const getAutocompleteSuggestions = async (query, limit = 10) => {
-  const trimmed = query?.trim();
-  if (!trimmed || trimmed.length < 2) return [];
-
+export async function getAutocompleteSuggestions(searchQuery, limit = 8) {
+  if (!searchQuery || searchQuery.length < 1) return [];
+  
   try {
-    const { data, error } = await withTimeout(
-      supabase.rpc('autocomplete_products', {
-        search_prefix: trimmed,
-        suggestion_limit: limit,
-      }),
-      5000,
-      'autocomplete'
-    );
-
-    if (error) { console.error('Autocomplete error:', error.message); return []; }
-    return data || [];
-  } catch {
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Get all products (with caching this should be fast)
+    const productsRef = collection(db, 'products');
+    const snapshot = await getDocs(productsRef);
+    
+    const suggestions = [];
+    const seen = new Set();
+    
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const name = data.name || '';
+      const brand = data.brand || '';
+      const category = data.category || '';
+      const nameLower = name.toLowerCase();
+      const brandLower = brand.toLowerCase();
+      
+      // Check if product name starts with query
+      if (nameLower.startsWith(query)) {
+        const key = `product:${name}`;
+        if (!seen.has(key)) {
+          suggestions.push({
+            suggestion: name,
+            match_type: 'product',
+            category: category,
+            priority: 1,
+          });
+          seen.add(key);
+        }
+      }
+      // Check if product name contains query (lower priority)
+      else if (nameLower.includes(query)) {
+        const key = `product:${name}`;
+        if (!seen.has(key)) {
+          suggestions.push({
+            suggestion: name,
+            match_type: 'product',
+            category: category,
+            priority: 2,
+          });
+          seen.add(key);
+        }
+      }
+      
+      // Check if brand matches
+      if (brandLower.startsWith(query)) {
+        const key = `brand:${brand}`;
+        if (!seen.has(key)) {
+          suggestions.push({
+            suggestion: brand,
+            match_type: 'brand',
+            category: 'Brand',
+            priority: 1,
+          });
+          seen.add(key);
+        }
+      }
+      
+      // Check if category matches
+      if (category.toLowerCase().startsWith(query)) {
+        const key = `category:${category}`;
+        if (!seen.has(key)) {
+          suggestions.push({
+            suggestion: category,
+            match_type: 'category',
+            category: 'Category',
+            priority: 1,
+          });
+          seen.add(key);
+        }
+      }
+    });
+    
+    // Sort by priority (starts with > contains) and then alphabetically
+    suggestions.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return a.suggestion.localeCompare(b.suggestion);
+    });
+    
+    return suggestions.slice(0, limit);
+  } catch (error) {
+    console.error('Error getting autocomplete suggestions:', error);
     return [];
   }
-};
+}
 
 /**
- * Trending searches (cached, refreshed every 30 min)
+ * Get trending searches
+ * @param {number} days - Number of days to look back
+ * @param {number} limit - Maximum number of results
+ * @returns {Promise<Array>} Trending search terms
  */
-const _trendingCache = { data: null, ts: 0 };
-const TRENDING_CACHE_TTL = 30 * 60 * 1000;
-
-export const getTrendingSearches = async (daysBack = 7, limit = 10) => {
-  if (_trendingCache.data && Date.now() - _trendingCache.ts < TRENDING_CACHE_TTL) {
-    return _trendingCache.data;
-  }
-
-  try {
-    const { data, error } = await withTimeout(
-      supabase.rpc('get_trending_searches', { days_back: daysBack, result_limit: limit }),
-      8000,
-      'trending searches'
-    );
-
-    if (error) { console.error('Trending searches error:', error.message); return []; }
-    const result = data || [];
-    _trendingCache.data = result;
-    _trendingCache.ts = Date.now();
-    return result;
-  } catch {
-    return _trendingCache.data || [];
-  }
-};
-
-/**
- * Trending products (cached via SWR in edge module)
- */
-export const fetchTrendingProducts = async (limit = 12) => {
-  const { fetchProducts } = await import('./products-edge.api');
-  try {
-    // Use standard fetchProducts with isTrending filter
-    // (edge function handles this path)
-    const res = await fetchProducts(1, limit, { sort: 'popularity', isTrending: true });
-    return res.products || [];
-  } catch {
-    return [];
-  }
-};
-
-// ─── Error Translation ────────────────────────────────────────────────────────
-function translateWriteError(err, operation) {
-  const msg = err?.message || '';
-  const code = err?.code || '';
-
-  if (code === '23505') {
-    if (msg.includes('slug')) return new Error('A product with this name already exists.');
-    if (msg.includes('sku')) return new Error('A product with this SKU already exists.');
-    return new Error('This product already exists in the database.');
-  }
-  if (msg.includes('timeout')) {
-    return new Error(`Unable to ${operation} product — request timed out. Please try again.`);
-  }
-  if (msg.includes('not found') || msg.includes('no rows')) {
-    return new Error('Product not found. It may have been deleted.');
-  }
-  if (msg.includes('JWT') || msg.includes('auth')) {
-    return new Error('Session expired. Please refresh the page and try again.');
-  }
-  // Return original error for unexpected cases (don't swallow stack traces in dev)
-  return err;
+export async function getTrendingSearches(days = 7, limit = 5) {
+  // Return static trending searches for now
+  // In production, this would come from analytics
+  return [
+    { search_term: 'T-Shirts', search_count: 245 },
+    { search_term: 'Jeans', search_count: 189 },
+    { search_term: 'Shirts', search_count: 156 },
+    { search_term: 'Trousers', search_count: 134 },
+    { search_term: 'Jackets', search_count: 98 },
+  ].slice(0, limit);
 }

@@ -1,9 +1,10 @@
 /**
- * Auth Error Handler
+ * Auth Error Handler - Firebase Version
  * Handles authentication errors gracefully
  */
 
-import { supabase } from '../lib/supabaseClient';
+import { auth } from '../lib/firebaseClient';
+import { signOut } from 'firebase/auth';
 
 // Track if we're already handling an error to prevent loops
 let isHandling = false;
@@ -28,9 +29,9 @@ export const handleInvalidRefreshToken = async () => {
   try {
     console.warn('⚠️ Handling invalid refresh token...');
     
-    // Sign out from Supabase (with error handling)
+    // Sign out from Firebase (with error handling)
     try {
-      await supabase.auth.signOut();
+      await signOut(auth);
     } catch (e) {
       console.warn('Sign out error (non-critical):', e);
     }
@@ -94,13 +95,18 @@ export const isAuthError = (error) => {
   if (!error) return false;
   
   const authErrorMessages = [
-    'Invalid Refresh Token',
-    'Refresh Token Not Found',
-    'JWT expired',
-    'invalid claim',
+    'auth/invalid-credential',
+    'auth/user-not-found',
+    'auth/wrong-password',
+    'auth/too-many-requests',
+    'auth/user-disabled',
+    'auth/expired-action-code',
+    'auth/invalid-action-code',
+    'auth/user-token-expired',
+    'auth/network-request-failed',
   ];
   
-  const errorMessage = error.message || error.error || String(error);
+  const errorMessage = error.message || error.code || String(error);
   
   return authErrorMessages.some(msg => 
     errorMessage.toLowerCase().includes(msg.toLowerCase())

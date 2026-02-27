@@ -16,12 +16,35 @@ export const formatPrice = (price) => {
 
 /**
  * Format date to readable string
- * @param {string|Date} date - Date to format
+ * @param {string|Date|Object} date - Date to format (can be Firestore Timestamp)
  * @returns {string} Formatted date
  */
 export const formatDate = (date) => {
   if (!date) return '';
+  
+  // Handle Firestore Timestamp object
+  if (date && typeof date === 'object' && date.toDate) {
+    return date.toDate().toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+  
+  // Handle Firestore Timestamp with seconds
+  if (date && typeof date === 'object' && date.seconds) {
+    const d = new Date(date.seconds * 1000);
+    return d.toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+  
+  // Handle regular date string or Date object
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  
   return d.toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'long',
@@ -31,12 +54,39 @@ export const formatDate = (date) => {
 
 /**
  * Format date with time
- * @param {string|Date} date - Date to format
+ * @param {string|Date|Object} date - Date to format (can be Firestore Timestamp)
  * @returns {string} Formatted date with time
  */
 export const formatDateTime = (date) => {
   if (!date) return '';
+  
+  // Handle Firestore Timestamp object
+  if (date && typeof date === 'object' && date.toDate) {
+    return date.toDate().toLocaleString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  
+  // Handle Firestore Timestamp with seconds
+  if (date && typeof date === 'object' && date.seconds) {
+    const d = new Date(date.seconds * 1000);
+    return d.toLocaleString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  
+  // Handle regular date string or Date object
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  
   return d.toLocaleString('en-IN', {
     year: 'numeric',
     month: 'short',
@@ -133,14 +183,30 @@ export const formatOrderId = (orderId) => {
 
 /**
  * Format relative time (e.g., "2 hours ago")
- * @param {string|Date} date - Date to format
+ * @param {string|Date|Object} date - Date to format (can be Firestore Timestamp)
  * @returns {string} Relative time string
  */
 export const formatRelativeTime = (date) => {
   if (!date) return '';
 
+  let past;
+  
+  // Handle Firestore Timestamp object
+  if (date && typeof date === 'object' && date.toDate) {
+    past = date.toDate();
+  }
+  // Handle Firestore Timestamp with seconds
+  else if (date && typeof date === 'object' && date.seconds) {
+    past = new Date(date.seconds * 1000);
+  }
+  // Handle regular date string or Date object
+  else {
+    past = new Date(date);
+  }
+  
+  if (isNaN(past.getTime())) return '';
+
   const now = new Date();
-  const past = new Date(date);
   const diffMs = now - past;
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);

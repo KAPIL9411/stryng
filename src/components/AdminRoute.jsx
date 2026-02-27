@@ -6,10 +6,10 @@ import useStore from '../store/useStore';
  * Redirects non-admin users to home page
  */
 export default function AdminRoute({ children }) {
-  const { user, isAdmin, isLoadingAuth } = useStore();
+  const { user, isAdmin, isAuthLoading, authInitialized } = useStore();
 
   // Still checking auth state
-  if (isLoadingAuth) {
+  if (isAuthLoading || !authInitialized) {
     return (
       <div
         className="page"

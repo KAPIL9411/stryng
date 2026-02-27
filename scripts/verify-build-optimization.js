@@ -26,7 +26,6 @@ const expectedChunks = [
   'vendor-query',
   'vendor-ui',
   'vendor-forms',
-  'vendor-supabase',
   'vendor-state'
 ];
 

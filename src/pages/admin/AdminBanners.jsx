@@ -1,19 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Save, X, ArrowUp, ArrowDown } from 'lucide-react';
 import useStore from '../../store/useStore';
 import ImageUpload from '../../components/admin/ImageUpload';
-import { useBanners } from '../../hooks/useBanners';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../../lib/queryClient';
-import { supabase } from '../../lib/supabaseClient';
+import * as bannersAPI from '../../api/banners.api';
 
 export default function AdminBanners() {
   const { showToast } = useStore();
-  const { data: banners = [], isLoading, error, refetch } = useBanners();
-  const queryClient = useQueryClient();
+  const [banners, setBanners] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [images, setImages] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -23,13 +21,23 @@ export default function AdminBanners() {
     sort_order: 0,
     active: true,
   });
-  const [images, setImages] = useState([]);
 
-  const handleEdit = (banner) => {
-    setFormData(banner);
-    setImages([banner.image_url]);
-    setEditingId(banner.id);
-    setIsEditing(true);
+  // Fetch banners on mount
+  useEffect(() => {
+    fetchBanners();
+  }, []);
+
+  const fetchBanners = async () => {
+    try {
+      setLoading(true);
+      const data = await bannersAPI.fetchAllBanners();
+      setBanners(data);
+    } catch (error) {
+      console.error('Error fetching banners:', error);
+      showToast('Failed to load banners', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddNew = () => {
@@ -44,6 +52,21 @@ export default function AdminBanners() {
     });
     setImages([]);
     setEditingId(null);
+    setIsEditing(true);
+  };
+
+  const handleEdit = (banner) => {
+    setFormData({
+      title: banner.title || '',
+      description: banner.description || '',
+      image_url: banner.image_url,
+      cta_text: banner.cta_text || 'Shop Now',
+      cta_link: banner.cta_link,
+      sort_order: banner.sort_order,
+      active: banner.active !== false,
+    });
+    setImages([banner.image_url]);
+    setEditingId(banner.id);
     setIsEditing(true);
   };
 
@@ -64,31 +87,38 @@ export default function AdminBanners() {
 
     try {
       const payload = {
-        ...formData,
-        image_url: images[0],
-        title: formData.title || 'Banner',
+        title: formData.title || '',
         description: formData.description || '',
+        image_url: images[0],
+        cta_text: formData.cta_text || 'Shop Now',
+        cta_link: formData.cta_link,
+        sort_order: formData.sort_order || 0,
+        active: formData.active !== false,
       };
 
       if (editingId) {
-        const { error } = await supabase
-          .from('banners')
-          .update(payload)
-          .eq('id', editingId);
-
-        if (error) throw error;
+        await bannersAPI.updateBanner(editingId, payload);
         showToast('Banner updated successfully', 'success');
       } else {
-        const { error } = await supabase.from('banners').insert([payload]);
-
-        if (error) throw error;
+        await bannersAPI.createBanner(payload);
         showToast('Banner created successfully', 'success');
       }
 
-      // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
-      await refetch();
+      // Refetch banners
+      await fetchBanners();
+      
+      // Reset form
       setIsEditing(false);
+      setImages([]);
+      setFormData({
+        title: '',
+        description: '',
+        image_url: '',
+        cta_text: 'Shop Now',
+        cta_link: '/products',
+        sort_order: 0,
+        active: true,
+      });
     } catch (error) {
       console.error('Error saving banner:', error);
       showToast(`Failed to save banner: ${error.message}`, 'error');
@@ -101,13 +131,9 @@ export default function AdminBanners() {
     if (!confirm('Are you sure you want to delete this banner?')) return;
 
     try {
-      const { error } = await supabase.from('banners').delete().eq('id', id);
-
-      if (error) throw error;
-
+      await bannersAPI.deleteBanner(id);
       showToast('Banner deleted successfully', 'success');
-      queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
-      await refetch();
+      await fetchBanners();
     } catch (error) {
       console.error('Error deleting banner:', error);
       showToast(`Failed to delete banner: ${error.message}`, 'error');
@@ -123,46 +149,25 @@ export default function AdminBanners() {
       // Update all sort orders
       for (let i = 0; i < newBanners.length; i++) {
         if (newBanners[i].sort_order !== i + 1) {
-          await supabase
-            .from('banners')
-            .update({ sort_order: i + 1 })
-            .eq('id', newBanners[i].id);
+          await bannersAPI.updateBanner(newBanners[i].id, { sort_order: i + 1 });
         }
       }
 
       showToast('Banner order updated', 'success');
-      queryClient.invalidateQueries({ queryKey: queryKeys.banners.all });
-      await refetch();
+      await fetchBanners();
     } catch (error) {
       console.error('Error reordering banners:', error);
       showToast('Failed to reorder banners', 'error');
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="admin-page">
         <div className="admin-container">
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="spinner" style={{ margin: '0 auto 20px' }}></div>
             <p style={{ color: '#666' }}>Loading banners...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="admin-page">
-        <div className="admin-container">
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <p style={{ color: '#dc2626', marginBottom: '20px' }}>
-              Error loading banners: {error.message}
-            </p>
-            <button onClick={() => refetch()} className="btn btn--primary">
-              Retry
-            </button>
           </div>
         </div>
       </div>
@@ -201,14 +206,7 @@ export default function AdminBanners() {
                   onChange={setImages}
                   maxImages={1}
                 />
-                <small
-                  style={{
-                    color: '#666',
-                    fontSize: '0.8125rem',
-                    display: 'block',
-                    marginTop: '0.5rem',
-                  }}
-                >
+                <small style={{ color: '#666', fontSize: '0.8125rem', display: 'block', marginTop: '0.5rem' }}>
                   Recommended size: 600x800px
                 </small>
               </div>
@@ -331,16 +329,16 @@ export default function AdminBanners() {
         )}
       </div>
       <style>{`
-                .banner-item:last-child { border-bottom: none; }
-                .w-16 { width: 4rem; }
-                .h-10 { height: 2.5rem; }
-                .object-cover { object-fit: cover; }
-                .rounded { border-radius: 0.25rem; }
-                .p-4 { padding: 1rem; }
-                .border-b { border-bottom: 1px solid var(--color-border); }
-                .text-center { text-align: center; }
-                .p-8 { padding: 2rem; }
-            `}</style>
+        .banner-item:last-child { border-bottom: none; }
+        .w-16 { width: 4rem; }
+        .h-10 { height: 2.5rem; }
+        .object-cover { object-fit: cover; }
+        .rounded { border-radius: 0.25rem; }
+        .p-4 { padding: 1rem; }
+        .border-b { border-bottom: 1px solid var(--color-border); }
+        .text-center { text-align: center; }
+        .p-8 { padding: 2rem; }
+      `}</style>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 import useStore from '../store/useStore';
 import SEO from '../components/SEO';
 import { getUserAddresses } from '../api/addresses.api';
+import { formatDate } from '../utils/format';
 
 const formatPrice = (price) => `₹${Number(price).toLocaleString('en-IN')}`;
 
@@ -49,6 +50,12 @@ export default function Account() {
   const [addresses, setAddresses] = useState([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false); // Track if data is already loaded
+  
+  // Profile form state
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileError, setProfileError] = useState(null);
 
   const displayName =
     user?.full_name ||
@@ -68,39 +75,45 @@ export default function Account() {
   useEffect(() => {
     if (!user) {
       navigate('/login');
-    } else if (!dataLoaded) {
-      // Load both orders and addresses immediately on page load
-      const loadData = async () => {
-        setIsLoading(true);
-        setLoadingAddresses(true);
-        
-        // Fetch orders and addresses in parallel for faster loading
-        const [orders, addressesResponse] = await Promise.all([
-          fetchUserOrders(),
-          getUserAddresses()
-        ]);
-        
-        setUserOrders(orders || []);
-        
-        if (addressesResponse.success) {
-          setAddresses(addressesResponse.data);
-        }
-        
-        setIsLoading(false);
-        setLoadingAddresses(false);
-        setDataLoaded(true); // Mark data as loaded
-      };
+    } else {
+      // Initialize form with user data
+      setFullName(user?.full_name || displayName);
+      setPhone(user?.phone || '');
       
-      loadData();
+      if (!dataLoaded) {
+        // Load both orders and addresses immediately on page load
+        const loadData = async () => {
+          setIsLoading(true);
+          setLoadingAddresses(true);
+          
+          // Fetch orders and addresses in parallel for faster loading
+          const [orders, addressesResponse] = await Promise.all([
+            fetchUserOrders(),
+            getUserAddresses()
+          ]);
+          
+          setUserOrders(orders || []);
+          
+          if (addressesResponse.success) {
+            setAddresses(addressesResponse.data);
+          }
+          
+          setIsLoading(false);
+          setLoadingAddresses(false);
+          setDataLoaded(true); // Mark data as loaded
+        };
+        
+        loadData();
+      }
     }
-  }, [user, navigate, fetchUserOrders, dataLoaded]);
+  }, [user, navigate, fetchUserOrders, dataLoaded, displayName]);
 
   const handleLogout = async () => {
     try {
       // Clear local storage first for immediate UI update
       localStorage.removeItem('stryng-storage');
       
-      // Sign out from Supabase
+      // Sign out from Firebase
       await logout();
       
       // Navigate to login page
@@ -110,6 +123,49 @@ export default function Account() {
       // Even if logout fails, clear local data and redirect
       localStorage.clear();
       navigate('/login', { replace: true });
+    }
+  };
+
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    setProfileError(null);
+
+    try {
+      // Import the updateUserProfile function
+      const { updateUserProfile } = await import('../api/auth.api');
+      
+      const profileData = {
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+      };
+
+      const { error } = await updateUserProfile(profileData);
+
+      if (error) {
+        setProfileError(error);
+        return;
+      }
+
+      // Update local user state
+      const updatedUser = {
+        ...user,
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+        displayName: fullName.trim(),
+      };
+
+      // Update store
+      useStore.setState({ user: updatedUser });
+
+      // Show success message
+      const { showToast } = useStore.getState();
+      showToast('Profile updated successfully', 'success');
+    } catch (error) {
+      console.error('Profile update error:', error);
+      setProfileError(error.message || 'Failed to update profile');
+    } finally {
+      setIsUpdatingProfile(false);
     }
   };
 
@@ -186,8 +242,23 @@ export default function Account() {
                 <div className="account-section">
                   <h2 className="account-section__title">Personal Information</h2>
 
+                  {profileError && (
+                    <div
+                      style={{
+                        backgroundColor: '#fee',
+                        border: '1px solid #fcc',
+                        color: '#c33',
+                        padding: '1rem',
+                        borderRadius: '8px',
+                        marginBottom: '1.5rem',
+                      }}
+                    >
+                      {profileError}
+                    </div>
+                  )}
+
                   <form
-                    onSubmit={(e) => e.preventDefault()}
+                    onSubmit={handleProfileUpdate}
                     className="account-form"
                   >
                     <div className="form-group">
@@ -195,8 +266,10 @@ export default function Account() {
                       <input
                         type="text"
                         className="form-input"
-                        defaultValue={displayName}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
                         placeholder="Enter your full name"
+                        required
                       />
                     </div>
 
@@ -205,7 +278,7 @@ export default function Account() {
                       <input
                         type="email"
                         className="form-input"
-                        defaultValue={userEmail}
+                        value={userEmail}
                         disabled
                         style={{
                           backgroundColor: 'var(--color-bg-secondary)',
@@ -222,13 +295,19 @@ export default function Account() {
                       <input
                         type="tel"
                         className="form-input"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         placeholder="+91 98765 43210"
                       />
                     </div>
 
                     <div className="form-actions">
-                      <button type="submit" className="btn btn--primary">
-                        Save Changes
+                      <button 
+                        type="submit" 
+                        className="btn btn--primary"
+                        disabled={isUpdatingProfile}
+                      >
+                        {isUpdatingProfile ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   </form>
@@ -267,17 +346,10 @@ export default function Account() {
                           <div className="order-card__header">
                             <div>
                               <p className="order-card__id">
-                                #{order.id?.slice(0, 12)}
+                                #{order.order_number || order.id?.slice(0, 12)}
                               </p>
                               <p className="order-card__date">
-                                {new Date(order.created_at).toLocaleDateString(
-                                  'en-IN',
-                                  {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  }
-                                )}
+                                {formatDate(order.created_at)}
                               </p>
                             </div>
                             <div className="order-card__status">
@@ -301,10 +373,11 @@ export default function Account() {
                                     <div key={i} className="order-item-preview">
                                       <img
                                         src={
+                                          item.product_image ||
                                           item.product?.images?.[0] ||
                                           '/placeholder.jpg'
                                         }
-                                        alt={item.product?.name || 'Product'}
+                                        alt={item.product_name || item.product?.name || 'Product'}
                                       />
                                     </div>
                                   ))}
@@ -317,7 +390,7 @@ export default function Account() {
                             )}
 
                           <Link
-                            to={`/order-tracking?id=${order.id}`}
+                            to={`/order/${order.id}`}
                             className="order-card__action"
                           >
                             Track Order <ChevronRight size={16} />

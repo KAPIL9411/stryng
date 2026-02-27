@@ -2,16 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react';
 import { getCoupons, deleteCoupon, toggleCouponStatus } from '../../api/admin/coupons.admin.api';
+import { formatPrice as utilFormatPrice, formatDate as utilFormatDate } from '../../utils/format';
 import '../../styles/admin-coupons.css';
 
-const formatPrice = (price) => `₹${Number(price || 0).toLocaleString('en-IN')}`;
+const formatPrice = (price) => utilFormatPrice(price || 0);
 const formatDate = (date) => {
   try {
-    return new Date(date).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    return utilFormatDate(date);
   } catch {
     return 'N/A';
   }
@@ -75,9 +72,9 @@ export default function AdminCoupons() {
 
   const getStatusBadge = (coupon) => {
     const now = new Date();
-    const endDate = new Date(coupon.end_date);
+    const endDate = new Date(coupon.endDate);
     
-    if (!coupon.is_active) {
+    if (!coupon.isActive) {
       return <span className="status-badge status-inactive">Inactive</span>;
     }
     if (now > endDate) {
@@ -235,36 +232,36 @@ export default function AdminCoupons() {
                   </td>
                   <td>
                     <span className="type-badge">
-                      {coupon.discount_type === 'percentage' ? 'Percentage' : 'Fixed'}
+                      {coupon.discountType === 'percentage' ? 'Percentage' : 'Fixed'}
                     </span>
                   </td>
                   <td>
                     <div className="discount-cell">
                       <span className="discount-value">
-                        {coupon.discount_type === 'percentage'
-                          ? `${coupon.discount_value}%`
-                          : formatPrice(coupon.discount_value)}
+                        {coupon.discountType === 'percentage'
+                          ? `${coupon.discountValue}%`
+                          : formatPrice(coupon.discountValue)}
                       </span>
-                      {coupon.discount_type === 'percentage' && coupon.max_discount && (
-                        <span className="max-discount">Max: {formatPrice(coupon.max_discount)}</span>
+                      {coupon.discountType === 'percentage' && coupon.maxDiscount && (
+                        <span className="max-discount">Max: {formatPrice(coupon.maxDiscount)}</span>
                       )}
                     </div>
                   </td>
-                  <td>{formatPrice(coupon.min_order_value)}</td>
+                  <td>{formatPrice(coupon.minOrderValue)}</td>
                   <td>
                     <div className="validity-cell">
-                      <span>{formatDate(coupon.start_date)}</span>
+                      <span>{formatDate(coupon.startDate)}</span>
                       <span className="date-separator">to</span>
-                      <span>{formatDate(coupon.end_date)}</span>
+                      <span>{formatDate(coupon.endDate)}</span>
                     </div>
                   </td>
                   <td>
                     <div className="usage-cell">
                       <span className="usage-count">
-                        {coupon.used_count} / {coupon.max_uses || '∞'}
+                        {coupon.usedCount} / {coupon.maxUses || '∞'}
                       </span>
                       <span className="usage-per-user">
-                        Max {coupon.max_uses_per_user} per user
+                        Max {coupon.maxUsesPerUser} per user
                       </span>
                     </div>
                   </td>
@@ -279,21 +276,21 @@ export default function AdminCoupons() {
                         <Edit2 size={16} />
                       </Link>
                       <button
-                        onClick={() => handleToggleStatus(coupon.id, coupon.is_active)}
+                        onClick={() => handleToggleStatus(coupon.id, coupon.isActive)}
                         className="btn-icon"
-                        title={coupon.is_active ? 'Deactivate' : 'Activate'}
+                        title={coupon.isActive ? 'Deactivate' : 'Activate'}
                       >
-                        {coupon.is_active ? (
+                        {coupon.isActive ? (
                           <ToggleRight size={16} />
                         ) : (
                           <ToggleLeft size={16} />
                         )}
                       </button>
                       <button
-                        onClick={() => handleDelete(coupon.id, coupon.used_count)}
+                        onClick={() => handleDelete(coupon.id, coupon.usedCount)}
                         className="btn-icon btn-danger"
                         title="Delete"
-                        disabled={coupon.used_count > 0}
+                        disabled={coupon.usedCount > 0}
                       >
                         <Trash2 size={16} />
                       </button>

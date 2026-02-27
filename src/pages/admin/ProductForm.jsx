@@ -5,8 +5,6 @@ import { ArrowLeft, Save } from 'lucide-react';
 import useStore from '../../store/useStore';
 import ImageUpload from '../../components/admin/ImageUpload';
 import { useAllProducts } from '../../hooks/useProducts';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../../lib/queryClient';
 
 // Common color names to hex mapping
 const COLOR_MAP = {
@@ -87,7 +85,6 @@ export default function ProductForm() {
   const { createProduct, updateProduct } = useStore();
   const { data: products = [], isLoading: isLoadingProducts } =
     useAllProducts();
-  const queryClient = useQueryClient();
   const [images, setImages] = useState([]);
   const [colors, setColors] = useState([{ name: '', hex: '#000000' }]);
   const [sizes, setSizes] = useState([]);
@@ -303,11 +300,6 @@ export default function ProductForm() {
       if (result.error) {
         throw result.error;
       }
-
-      // Invalidate React Query cache
-      queryClient.invalidateQueries({ queryKey: queryKeys.products.all });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['products-all'] });
 
       // Navigate back to products list
       setTimeout(() => {

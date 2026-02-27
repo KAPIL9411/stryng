@@ -44,15 +44,15 @@ export default function CouponForm() {
       setFormData({
         code: coupon.code,
         description: coupon.description || '',
-        discount_type: coupon.discount_type,
-        discount_value: coupon.discount_value.toString(),
-        max_discount: coupon.max_discount?.toString() || '',
-        min_order_value: coupon.min_order_value.toString(),
-        max_uses: coupon.max_uses?.toString() || '',
-        max_uses_per_user: coupon.max_uses_per_user.toString(),
-        start_date: coupon.start_date.slice(0, 16),
-        end_date: coupon.end_date.slice(0, 16),
-        is_active: coupon.is_active,
+        discount_type: coupon.discountType,
+        discount_value: coupon.discountValue.toString(),
+        max_discount: coupon.maxDiscount?.toString() || '',
+        min_order_value: coupon.minOrderValue.toString(),
+        max_uses: coupon.maxUses?.toString() || '',
+        max_uses_per_user: coupon.maxUsesPerUser.toString(),
+        start_date: coupon.startDate.slice(0, 16),
+        end_date: coupon.endDate.slice(0, 16),
+        is_active: coupon.isActive,
       });
     } catch (error) {
       console.error('Error fetching coupon:', error);
@@ -149,18 +149,18 @@ export default function CouponForm() {
       const couponData = {
         code: formData.code.toUpperCase(),
         description: formData.description,
-        discount_type: formData.discount_type,
-        discount_value: parseFloat(formData.discount_value),
-        max_discount:
+        discountType: formData.discount_type,
+        discountValue: parseFloat(formData.discount_value),
+        maxDiscount:
           formData.discount_type === 'percentage' && formData.max_discount
             ? parseFloat(formData.max_discount)
             : null,
-        min_order_value: parseFloat(formData.min_order_value),
-        max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
-        max_uses_per_user: parseInt(formData.max_uses_per_user),
-        start_date: new Date(formData.start_date).toISOString(),
-        end_date: new Date(formData.end_date).toISOString(),
-        is_active: formData.is_active,
+        minOrderValue: parseFloat(formData.min_order_value),
+        maxUses: formData.max_uses ? parseInt(formData.max_uses) : null,
+        maxUsesPerUser: parseInt(formData.max_uses_per_user),
+        startDate: new Date(formData.start_date).toISOString(),
+        endDate: new Date(formData.end_date).toISOString(),
+        isActive: formData.is_active,
       };
 
       const result = isEdit

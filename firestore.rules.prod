@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Profiles collection (user data)
+    match /profiles/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Products collection
+    match /products/{productId} {
+      allow read: if true; // Public read
+      allow write: if isAdmin();
+    }
+    
+    // Orders collection
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Banners collection
+    match /banners/{bannerId} {
+      allow read: if true; // Public read
+      allow write: if isAdmin();
+    }
+    
+    // Coupons collection
+    match /coupons/{couponId} {
+      allow read: if true; // Public read for validation
+      allow write: if isAdmin();
+    }
+    
+    // Coupon usage collection
+    match /coupon_usage/{usageId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Addresses collection
+    match /addresses/{addressId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // Pincodes collection
+    match /pincodes/{pincodeId} {
+      allow read: if true; // Public read
+      allow write: if isAdmin();
+    }
+  }
+}

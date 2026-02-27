@@ -1,0 +1,259 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    // Check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Check if user is admin (by email)
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.email in [
+               'kurmikapil154@gmail.com',
+               'admin@stryng.com'
+             ];
+    }
+    
+    // Validate email format
+    function isValidEmail(email) {
+      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+    
+    // Validate phone number (Indian format)
+    function isValidPhone(phone) {
+      return phone.matches('^[6-9][0-9]{9}$') || 
+             phone.matches('^\\+91[6-9][0-9]{9}$');
+    }
+    
+    // Check if data has required fields
+    function hasRequiredFields(data, fields) {
+      return fields.toSet().difference(data.keys().toSet()).size() == 0;
+    }
+    
+    // ============================================================================
+    // PROFILES COLLECTION
+    // ============================================================================
+    match /profiles/{userId} {
+      // Anyone authenticated can read profiles
+      allow read: if isSignedIn();
+      
+      // Users can create their own profile
+      allow create: if isSignedIn() && 
+                      request.auth.uid == userId &&
+                      hasRequiredFields(request.resource.data, ['email']) &&
+                      isValidEmail(request.resource.data.email);
+      
+      // Users can update their own profile, admins can update any
+      allow update: if (isOwner(userId) || isAdmin()) &&
+                      (!('email' in request.resource.data) || 
+                       isValidEmail(request.resource.data.email)) &&
+                      (!('phone' in request.resource.data) || 
+                       request.resource.data.phone == '' ||
+                       isValidPhone(request.resource.data.phone));
+      
+      // Only admins can delete profiles
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // PRODUCTS COLLECTION
+    // ============================================================================
+    match /products/{productId} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can create/update/delete products
+      allow create: if isAdmin() &&
+                      hasRequiredFields(request.resource.data, [
+                        'name', 'slug', 'price', 'category', 'stock'
+                      ]) &&
+                      request.resource.data.price >= 0 &&
+                      request.resource.data.stock >= 0;
+      
+      allow update: if isAdmin() &&
+                      (!('price' in request.resource.data) || 
+                       request.resource.data.price >= 0) &&
+                      (!('stock' in request.resource.data) || 
+                       request.resource.data.stock >= 0);
+      
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // ORDERS COLLECTION
+    // ============================================================================
+    match /orders/{orderId} {
+      // Users can read their own orders, admins can read all
+      allow read: if isSignedIn() && 
+                    (resource.data.user_id == request.auth.uid || isAdmin());
+      
+      // Users can create orders for themselves
+      allow create: if isSignedIn() &&
+                      request.resource.data.user_id == request.auth.uid &&
+                      hasRequiredFields(request.resource.data, [
+                        'user_id', 'order_number', 'status', 'total',
+                        'payment_method', 'payment_status',
+                        'shipping_name', 'shipping_phone', 'shipping_address_line1',
+                        'shipping_city', 'shipping_state', 'shipping_pincode'
+                      ]) &&
+                      request.resource.data.total > 0 &&
+                      request.resource.data.status == 'pending' &&
+                      request.resource.data.payment_method in ['upi', 'cod'];
+      
+      // Only admins can update orders
+      allow update: if isAdmin();
+      
+      // Only admins can delete orders
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // ORDER ITEMS COLLECTION
+    // ============================================================================
+    match /order_items/{itemId} {
+      // Users can read items from their orders, admins can read all
+      allow read: if isSignedIn();
+      
+      // Only system can create order items (during order creation)
+      allow create: if isSignedIn() &&
+                      hasRequiredFields(request.resource.data, [
+                        'order_id', 'product_id', 'product_name', 
+                        'quantity', 'price'
+                      ]) &&
+                      request.resource.data.quantity > 0 &&
+                      request.resource.data.price >= 0;
+      
+      // Only admins can update/delete order items
+      allow update, delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // BANNERS COLLECTION
+    // ============================================================================
+    match /banners/{bannerId} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can manage banners
+      allow create: if isAdmin() &&
+                      hasRequiredFields(request.resource.data, [
+                        'title', 'image_url', 'active', 'sort_order'
+                      ]);
+      
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // COUPONS COLLECTION
+    // ============================================================================
+    match /coupons/{couponId} {
+      // Public read for validation (users need to check if coupon is valid)
+      allow read: if true;
+      
+      // Only admins can manage coupons
+      allow create: if isAdmin() &&
+                      hasRequiredFields(request.resource.data, [
+                        'code', 'discount_type', 'discount_value', 
+                        'is_active', 'valid_from', 'valid_until'
+                      ]) &&
+                      request.resource.data.discount_type in ['percentage', 'fixed', 'flat'] &&
+                      request.resource.data.discount_value > 0;
+      
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // COUPON USAGE COLLECTION
+    // ============================================================================
+    match /coupon_usage/{usageId} {
+      // Users can read their own usage, admins can read all
+      allow read: if isSignedIn() && 
+                    (resource.data.user_id == request.auth.uid || isAdmin());
+      
+      // System creates usage records during order creation
+      allow create: if isSignedIn() &&
+                      request.resource.data.user_id == request.auth.uid &&
+                      hasRequiredFields(request.resource.data, [
+                        'coupon_id', 'user_id', 'order_id', 'discount_amount'
+                      ]);
+      
+      // Only admins can update/delete usage records
+      allow update, delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // ADDRESSES COLLECTION
+    // ============================================================================
+    match /addresses/{addressId} {
+      // Users can read their own addresses, admins can read all
+      allow read: if isSignedIn() && 
+                    (resource.data.user_id == request.auth.uid || isAdmin());
+      
+      // Users can create their own addresses
+      allow create: if isSignedIn() &&
+                      request.resource.data.user_id == request.auth.uid &&
+                      hasRequiredFields(request.resource.data, [
+                        'user_id', 'full_name', 'phone', 'address_line1',
+                        'city', 'state', 'pincode'
+                      ]) &&
+                      isValidPhone(request.resource.data.phone) &&
+                      request.resource.data.pincode.matches('^[1-9][0-9]{5}$');
+      
+      // Users can update/delete their own addresses, admins can do all
+      allow update, delete: if isSignedIn() && 
+                              (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+    
+    // ============================================================================
+    // PINCODES COLLECTION
+    // ============================================================================
+    match /pincodes/{pincodeId} {
+      // Public read for delivery availability check
+      allow read: if true;
+      
+      // Only admins can manage pincodes
+      allow create: if isAdmin() &&
+                      hasRequiredFields(request.resource.data, [
+                        'pincode', 'serviceable'
+                      ]) &&
+                      request.resource.data.pincode.matches('^[1-9][0-9]{5}$');
+      
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // COUNTERS COLLECTION (for order numbers)
+    // ============================================================================
+    match /counters/{counterId} {
+      // Only system can read counters
+      allow read: if isSignedIn();
+      
+      // Only system can create/update counters (during order creation)
+      allow create, update: if isSignedIn();
+      
+      // Only admins can delete counters
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================================================
+    // DENY ALL OTHER COLLECTIONS
+    // ============================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
