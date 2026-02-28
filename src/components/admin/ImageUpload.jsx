@@ -159,6 +159,9 @@ export default function ImageUpload({ images = [], onChange, maxImages = 5 }) {
               <strong>Click to upload</strong> or drag and drop
             </p>
             <p className="image-upload__hint">PNG, JPG, WebP up to 10MB</p>
+            <p className="image-upload__hint" style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+              Images will be automatically converted to WebP format
+            </p>
           </div>
         )}
       </div>

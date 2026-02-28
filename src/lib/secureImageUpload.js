@@ -63,9 +63,9 @@ const generateUploadParams = () => {
 };
 
 /**
- * Compress image before upload
+ * Compress image and convert to WebP format before upload
  */
-export const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
+export const compressImage = (file, maxWidth = 1200, quality = 0.85) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -89,12 +89,17 @@ export const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
+        // Convert to WebP format for better compression and loading
         canvas.toBlob(
           (blob) => {
             if (blob) {
+              // Change file extension to .webp
+              const originalName = file.name.replace(/\.[^/.]+$/, '');
+              const webpFileName = `${originalName}.webp`;
+              
               resolve(
-                new File([blob], file.name, {
-                  type: file.type,
+                new File([blob], webpFileName, {
+                  type: 'image/webp',
                   lastModified: Date.now(),
                 })
               );
@@ -102,7 +107,7 @@ export const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
               reject(new Error('Image compression failed'));
             }
           },
-          file.type,
+          'image/webp', // Always convert to WebP
           quality
         );
       };
@@ -133,8 +138,12 @@ export const secureUploadImage = async (file, onProgress) => {
   }
 
   try {
-    // Compress image before upload
+    console.log(`🖼️ Converting ${file.name} to WebP format...`);
+    
+    // Compress image and convert to WebP before upload
     const compressedFile = await compressImage(file);
+    
+    console.log(`✅ Converted to ${compressedFile.name} (${(compressedFile.size / 1024).toFixed(2)} KB)`);
 
     // Generate upload parameters
     const params = generateUploadParams(compressedFile);
@@ -160,6 +169,7 @@ export const secureUploadImage = async (file, onProgress) => {
       xhr.addEventListener('load', () => {
         if (xhr.status === 200) {
           const response = JSON.parse(xhr.responseText);
+          console.log(`📤 Uploaded ${compressedFile.name} successfully`);
           resolve({
             url: response.secure_url,
             publicId: response.public_id,
