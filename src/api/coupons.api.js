@@ -211,22 +211,60 @@ export const validateCoupon = async (code, userId, orderTotal) => {
  */
 export const getActiveCoupons = async () => {
   try {
+    console.log('🎫 API: Fetching active coupons...');
     const now = Timestamp.now();
     
+    // Get all coupons - use camelCase field names to match admin API
     const coupons = await getDocuments(COLLECTIONS.COUPONS, {
-      where: [['is_active', '==', true]],
-      orderBy: [['created_at', 'desc']],
+      orderBy: [['createdAt', 'desc']],
     });
+    
+    console.log('🎫 API: Total coupons in database:', coupons.length);
+    console.log('🎫 API: All coupons:', coupons);
 
-    // Filter by date range (client-side since Firestore doesn't support complex queries)
-    return coupons.filter((coupon) => {
-      const startDate = coupon.start_date?.toDate?.() || new Date(coupon.start_date);
-      const endDate = coupon.end_date?.toDate?.() || new Date(coupon.end_date);
+    // Filter by active status and date range - use camelCase field names
+    const activeCoupons = coupons.filter((coupon) => {
+      // Check if coupon is active (default to true if not specified)
+      const isActive = coupon.isActive !== false;
+      
+      if (!isActive) {
+        console.log('🎫 API: Coupon inactive:', coupon.code);
+        return false;
+      }
+
+      // Check date validity
+      const startDate = coupon.startDate?.toDate?.() || new Date(coupon.startDate);
+      const endDate = coupon.endDate?.toDate?.() || new Date(coupon.endDate);
       const nowDate = now.toDate();
-      return nowDate >= startDate && nowDate <= endDate;
+      
+      // Set to start/end of day for more lenient comparison
+      const startOfToday = new Date(nowDate);
+      startOfToday.setHours(0, 0, 0, 0);
+      
+      const endOfEndDate = new Date(endDate);
+      endOfEndDate.setHours(23, 59, 59, 999);
+      
+      const startOfStartDate = new Date(startDate);
+      startOfStartDate.setHours(0, 0, 0, 0);
+      
+      const isValid = startOfToday >= startOfStartDate && startOfToday <= endOfEndDate;
+      
+      if (!isValid) {
+        console.log('🎫 API: Coupon date invalid:', coupon.code, {
+          now: nowDate.toISOString(),
+          start: startDate.toISOString(),
+          end: endDate.toISOString()
+        });
+      }
+      
+      return isValid;
     });
+    
+    console.log('🎫 API: Active coupons after filtering:', activeCoupons.length);
+    console.log('🎫 API: Active coupons:', activeCoupons);
+    return activeCoupons;
   } catch (error) {
-    console.error('Error fetching active coupons:', error);
+    console.error('🎫 API: Error fetching active coupons:', error);
     return [];
   }
 };

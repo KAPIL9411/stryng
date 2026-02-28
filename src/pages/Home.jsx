@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '../utils/format';
 import SEO from '../components/SEO';
+import CouponCarousel from '../components/CouponCarousel';
 import { useBanners } from '../hooks/useBanners';
 import { useAllProducts } from '../hooks/useProducts';
 import { getStockStatus } from '../lib/inventory';
@@ -667,7 +668,10 @@ export default function Home() {
         description="Shop premium quality streetwear, t-shirts, shirts, and trousers. Direct-to-consumer pricing with luxury quality. Free shipping on orders above ₹999."
         keywords="streetwear, fashion, clothing, t-shirts, shirts, trousers, premium clothing, online shopping, India"
       />
-      <HeroBanner />
+      <div style={{ position: 'relative' }}>
+        <CouponCarousel />
+        <HeroBanner />
+      </div>
       <Features />
       <CategorySection />
       <TrendingProducts />
