@@ -286,9 +286,9 @@
 }
 
 .coupon-sticker__dot.active {
-  background: #2E7D32;
   width: 18px;
   border-radius: 3px;
+  transition: all 0.3s ease, background 0.5s ease;
 }
 
 /* Responsive Design */

@@ -97,15 +97,19 @@ const CouponCarousel = memo(function CouponCarousel() {
 
   // Color schemes for different coupons
   const colorSchemes = [
-    { name: 'green', gradient: 'linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%)' },
-    { name: 'blue', gradient: 'linear-gradient(135deg, #1976D2 0%, #0D47A1 100%)' },
-    { name: 'purple', gradient: 'linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%)' },
-    { name: 'orange', gradient: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)' },
-    { name: 'red', gradient: 'linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%)' },
+    { name: 'green', gradient: 'linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%)', solid: '#2E7D32' },
+    { name: 'blue', gradient: 'linear-gradient(135deg, #1976D2 0%, #0D47A1 100%)', solid: '#1976D2' },
+    { name: 'purple', gradient: 'linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%)', solid: '#7B1FA2' },
+    { name: 'orange', gradient: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)', solid: '#F57C00' },
+    { name: 'red', gradient: 'linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%)', solid: '#D32F2F' },
   ];
 
   const getCurrentColor = () => {
     return colorSchemes[currentSlide % colorSchemes.length];
+  };
+
+  const getColorForIndex = (index) => {
+    return colorSchemes[index % colorSchemes.length];
   };
 
   if (isLoading || coupons.length === 0) {
@@ -180,6 +184,7 @@ const CouponCarousel = memo(function CouponCarousel() {
               className={`coupon-sticker__dot ${index === currentSlide ? 'active' : ''}`}
               onClick={() => setCurrentSlide(index)}
               aria-label={`Go to coupon ${index + 1}`}
+              style={index === currentSlide ? { background: getColorForIndex(index).solid } : {}}
             />
           ))}
         </div>
