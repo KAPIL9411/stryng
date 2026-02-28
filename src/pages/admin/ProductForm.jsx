@@ -297,9 +297,12 @@ export default function ProductForm() {
         result = await createProduct(productData);
       }
 
-      if (result.error) {
-        throw result.error;
+      if (!result.success || result.error) {
+        throw new Error(result.error || 'Failed to save product');
       }
+
+      // Show success message
+      alert(isEditing ? 'Product updated successfully!' : 'Product created successfully!');
 
       // Navigate back to products list
       setTimeout(() => {

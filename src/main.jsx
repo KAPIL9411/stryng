@@ -15,6 +15,7 @@ import './styles/utilities.css';
 import './styles/checkout-coupon.css';
 import './styles/addresses.css';
 import './styles/search.css';
+import './styles/myntra-theme.css';
 import './styles/empty-states.css';
 
 // Initialize features with error handling

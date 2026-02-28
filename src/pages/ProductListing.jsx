@@ -35,7 +35,7 @@ const colorOptions = [
 ];
 
 function ProductCard({ product, priority = false }) {
-  const { isInWishlist } = useStore();
+  const { isInWishlist, toggleWishlist } = useStore();
   const isWishlisted = isInWishlist(product.id);
 
   // Safety check for images
@@ -49,40 +49,40 @@ function ProductCard({ product, priority = false }) {
   const stockStatus = getStockStatus(product.stock, product.lowStockThreshold);
   const isOutOfStock = product.stock !== undefined && product.stock === 0;
 
+  // Handle both snake_case and camelCase field names
+  const originalPrice = product.originalPrice || product.original_price || 0;
+  const currentPrice = product.price || 0;
+  const discount = product.discount || product.discount_percentage || 0;
+
+  const handleWishlistClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWishlist(product);
+  };
+
   return (
     <Link
       to={`/products/${product.slug}`}
-      className="product-card"
+      className="myntra-product-card"
       style={{ opacity: isOutOfStock ? 0.7 : 1 }}
     >
-      <div className="product-card__image-wrapper">
+      <div className="myntra-product-card__image-wrapper">
         {hasImages && imageProps ? (
           <>
             <img
               {...imageProps}
               alt={product.name}
-              className="product-card__image"
+              className="myntra-product-card__image"
               loading={priority ? 'eager' : imageProps.loading}
               fetchPriority={priority ? 'high' : 'auto'}
               width="400"
               height="500"
               style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
             />
-            {images[1] && (
-              <img
-                src={images[1]}
-                alt={`${product.name} alternate view`}
-                className="product-card__hover-image"
-                loading="lazy"
-                width="400"
-                height="500"
-                style={{ filter: isOutOfStock ? 'grayscale(50%)' : 'none' }}
-              />
-            )}
           </>
         ) : (
           <div 
-            className="product-card__image" 
+            className="myntra-product-card__image" 
             style={{ 
               backgroundColor: '#f3f4f6', 
               display: 'flex', 
@@ -94,11 +94,21 @@ function ProductCard({ product, priority = false }) {
             <span style={{ color: '#9ca3af' }}>No Image</span>
           </div>
         )}
-        <div className="product-card__badges">
+        
+        <button
+          className={`myntra-product-card__wishlist ${isWishlisted ? 'active' : ''}`}
+          aria-label={
+            isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'
+          }
+          onClick={handleWishlistClick}
+        >
+          <Heart size={18} fill={isWishlisted ? 'currentColor' : 'none'} />
+        </button>
+        
+        <div className="myntra-product-card__badges">
           {isOutOfStock && (
             <span
-              className="badge"
-              style={{ backgroundColor: '#dc2626', color: 'white' }}
+              className="myntra-badge myntra-badge--out-of-stock"
               role="status"
               aria-label="Out of stock"
             >
@@ -107,8 +117,7 @@ function ProductCard({ product, priority = false }) {
           )}
           {!isOutOfStock && stockStatus.status === 'critical_low' && (
             <span
-              className="badge"
-              style={{ backgroundColor: '#ea580c', color: 'white' }}
+              className="myntra-badge myntra-badge--discount"
               role="status"
               aria-label={stockStatus.label}
             >
@@ -117,7 +126,7 @@ function ProductCard({ product, priority = false }) {
           )}
           {!isOutOfStock && product.isNew && (
             <span
-              className="badge badge--new"
+              className="myntra-badge myntra-badge--new"
               role="status"
               aria-label="New arrival"
             >
@@ -126,96 +135,53 @@ function ProductCard({ product, priority = false }) {
           )}
           {!isOutOfStock && product.isTrending && (
             <span
-              className="badge badge--trending"
+              className="myntra-badge myntra-badge--trending"
               role="status"
               aria-label="Trending product"
             >
               Trending
             </span>
           )}
-          {!isOutOfStock && product.discount > 0 && (
+          {!isOutOfStock && discount > 0 && (
             <span
-              className="badge badge--sale"
+              className="myntra-badge myntra-badge--discount"
               role="status"
-              aria-label={`${product.discount}% discount`}
+              aria-label={`${discount}% discount`}
             >
-              -{product.discount}%
+              {discount}% OFF
             </span>
           )}
         </div>
-        <div className="product-card__actions">
-          <button
-            className="product-card__action-btn"
-            aria-label={
-              isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'
-            }
-            onClick={(e) => {
-              e.preventDefault();
-            }}
-          >
-            <Heart size={16} fill={isWishlisted ? 'currentColor' : 'none'} />
-          </button>
-          <button
-            className="product-card__action-btn"
-            aria-label={`Quick view ${product.name}`}
-            onClick={(e) => e.preventDefault()}
-          >
-            <Eye size={16} />
-          </button>
-        </div>
-        {!isOutOfStock && (
-          <div
-            className="product-card__quick-add"
-            onClick={(e) => e.preventDefault()}
-            role="button"
-            tabIndex={0}
-          >
-            <ShoppingBag
-              size={14}
-              style={{
-                display: 'inline',
-                marginRight: '6px',
-                verticalAlign: 'middle',
-              }}
-            />
-            Quick Add
-          </div>
-        )}
       </div>
-      <div className="product-card__info">
-        <p className="product-card__brand">{product.brand}</p>
-        <h3 className="product-card__name">{product.name}</h3>
-        <div className="product-card__price">
-          <span className="product-card__price--current">
-            {formatPrice(product.price)}
+      
+      <div className="myntra-product-card__info">
+        <p className="myntra-product-card__brand">{product.brand}</p>
+        <h3 className="myntra-product-card__name">{product.name}</h3>
+        <div className="myntra-product-card__price">
+          <span className="myntra-product-card__price-current">
+            {formatPrice(currentPrice)}
           </span>
-          {product.originalPrice > product.price && (
+          {originalPrice && originalPrice > currentPrice && (
             <>
-              <span className="product-card__price--original">
-                {formatPrice(product.originalPrice)}
+              <span className="myntra-product-card__price-original">
+                {formatPrice(originalPrice)}
               </span>
-              <span className="product-card__price--discount">
-                ({product.discount}% off)
+              <span className="myntra-product-card__price-discount">
+                {discount}% OFF
               </span>
             </>
           )}
         </div>
-        {product.colors && product.colors.length > 0 && (
-          <div
-            className="product-card__colors"
-            role="list"
-            aria-label="Available colors"
-          >
-            {product.colors.map((c) => (
-              <span
-                key={c.name}
-                className="product-card__color-dot"
-                style={{ backgroundColor: c.hex }}
-                title={c.name}
-                role="listitem"
-                aria-label={c.name}
-              />
-            ))}
+        {product.rating && product.rating > 0 && (
+          <div className="myntra-product-card__rating">
+            <span className="myntra-product-card__rating-value">
+              {product.rating} ★
+            </span>
+            {product.reviewCount && product.reviewCount > 0 && (
+              <span className="myntra-product-card__rating-count">
+                ({product.reviewCount})
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -223,89 +189,27 @@ function ProductCard({ product, priority = false }) {
   );
 }
 
-const FilterSidebar = memo(function FilterSidebar({ onFilterChange }) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [openSections, setOpenSections] = useState({
-    category: true,
-    price: true,
-    size: true,
-    color: true,
-  });
-
-  // Get current filters
-  const currentCategories = searchParams.getAll('category');
-  const currentSizes = searchParams.getAll('size');
-  const currentColors = searchParams.getAll('color');
-  const minPrice = searchParams.get('minPrice') || '';
-  const maxPrice = searchParams.get('maxPrice') || '';
-
-  // Memoize toggle function to prevent unnecessary re-renders
-  const toggle = useCallback((section) => {
-    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  }, []);
-
-  // Memoize filter update function
-  const updateFilter = useCallback((type, value) => {
-    const newParams = new URLSearchParams(searchParams);
-    const current = newParams.getAll(type);
-
-    if (current.includes(value)) {
-      newParams.delete(type);
-      current
-        .filter((item) => item !== value)
-        .forEach((val) => newParams.append(type, val));
-    } else {
-      newParams.append(type, value);
-    }
-    newParams.delete('page');
-    setSearchParams(newParams);
-    if (onFilterChange) onFilterChange();
-  }, [searchParams, setSearchParams, onFilterChange]);
-
-  // Memoize price update function
-  const updatePrice = useCallback((type, value) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (value) {
-      newParams.set(type, value);
-    } else {
-      newParams.delete(type);
-    }
-    setSearchParams(newParams);
-  }, [searchParams, setSearchParams]);
-
-  // Memoize clear all function
-  const clearAllFilters = useCallback(() => {
-    setSearchParams({});
-  }, [setSearchParams]);
-
+const FilterSidebar = memo(function FilterSidebar({ 
+  openSections,
+  toggle,
+  currentCategories,
+  currentSizes,
+  currentColors,
+  minPrice,
+  maxPrice,
+  updateFilter,
+  updatePrice,
+  clearAllFilters,
+  hasActiveFilters
+}) {
   return (
-    <aside className="filter-sidebar">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 'var(--space-4)',
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 'var(--text-lg)',
-            fontWeight: 'var(--font-semibold)',
-            fontFamily: 'var(--font-primary)',
-          }}
-        >
-          Filters
-        </h3>
-        {(currentCategories.length > 0 ||
-          currentSizes.length > 0 ||
-          currentColors.length > 0 ||
-          minPrice ||
-          maxPrice) && (
+    <aside className="myntra-filters">
+      <div className="myntra-filters__header">
+        <h3 className="myntra-filters__title">Filters</h3>
+        {hasActiveFilters && (
           <button
-            className="btn btn--ghost btn--sm"
+            className="myntra-filters__clear"
             onClick={clearAllFilters}
-            style={{ fontSize: 'var(--text-xs)', padding: '0' }}
           >
             Clear All
           </button>
@@ -313,130 +217,118 @@ const FilterSidebar = memo(function FilterSidebar({ onFilterChange }) {
       </div>
 
       {/* Category */}
-      <div className="filter-sidebar__section">
-        <button
-          className="filter-sidebar__title"
+      <div className="myntra-filter-section">
+        <div 
+          className="myntra-filter-section__header"
           onClick={() => toggle('category')}
         >
-          Category{' '}
-          <ChevronDown
-            size={16}
-            style={{
-              transform: openSections.category ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-            }}
+          <h4 className="myntra-filter-section__title">Category</h4>
+          <ChevronDown 
+            size={18} 
+            className={`myntra-filter-section__toggle ${openSections.category ? 'open' : ''}`}
           />
-        </button>
-        {openSections.category && (
-          <div className="filter-sidebar__options">
+        </div>
+        <div className={`myntra-filter-section__content ${openSections.category ? 'open' : ''}`}>
+          <div className="myntra-checkbox-group">
             {CATEGORIES.map((cat) => (
-              <label key={cat.id} className="checkbox">
+              <label key={cat.id} className="myntra-checkbox">
                 <input
                   type="checkbox"
-                  className="checkbox__input"
                   checked={currentCategories.includes(cat.slug)}
                   onChange={() => updateFilter('category', cat.slug)}
                 />
-                <span>{cat.name}</span>
+                <span className="myntra-checkbox__label">{cat.name}</span>
               </label>
             ))}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Price */}
-      <div className="filter-sidebar__section">
-        <button
-          className="filter-sidebar__title"
+      <div className="myntra-filter-section">
+        <div 
+          className="myntra-filter-section__header"
           onClick={() => toggle('price')}
         >
-          Price{' '}
-          <ChevronDown
-            size={16}
-            style={{
-              transform: openSections.price ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-            }}
+          <h4 className="myntra-filter-section__title">Price Range</h4>
+          <ChevronDown 
+            size={18} 
+            className={`myntra-filter-section__toggle ${openSections.price ? 'open' : ''}`}
           />
-        </button>
-        {openSections.price && (
-          <div className="price-range">
-            <input
-              type="number"
-              className="price-range__input"
-              placeholder="₹ Min"
-              value={minPrice}
-              onChange={(e) => updatePrice('minPrice', e.target.value)}
-            />
-            <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-            <input
-              type="number"
-              className="price-range__input"
-              placeholder="₹ Max"
-              value={maxPrice}
-              onChange={(e) => updatePrice('maxPrice', e.target.value)}
-            />
+        </div>
+        <div className={`myntra-filter-section__content ${openSections.price ? 'open' : ''}`}>
+          <div className="myntra-price-range">
+            <div className="myntra-price-range__inputs">
+              <input
+                type="number"
+                className="myntra-price-range__input"
+                placeholder="₹ Min"
+                value={minPrice}
+                onChange={(e) => updatePrice('minPrice', e.target.value)}
+                min="0"
+              />
+              <span className="myntra-price-range__separator">—</span>
+              <input
+                type="number"
+                className="myntra-price-range__input"
+                placeholder="₹ Max"
+                value={maxPrice}
+                onChange={(e) => updatePrice('maxPrice', e.target.value)}
+                min="0"
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Size */}
-      <div className="filter-sidebar__section">
-        <button
-          className="filter-sidebar__title"
+      <div className="myntra-filter-section">
+        <div 
+          className="myntra-filter-section__header"
           onClick={() => toggle('size')}
         >
-          Size{' '}
-          <ChevronDown
-            size={16}
-            style={{
-              transform: openSections.size ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-            }}
+          <h4 className="myntra-filter-section__title">Size</h4>
+          <ChevronDown 
+            size={18} 
+            className={`myntra-filter-section__toggle ${openSections.size ? 'open' : ''}`}
           />
-        </button>
-        {openSections.size && (
-          <div className="filter-sidebar__size-options">
+        </div>
+        <div className={`myntra-filter-section__content ${openSections.size ? 'open' : ''}`}>
+          <div className="myntra-checkbox-group">
             {sizes.map((s) => (
-              <button
-                key={s}
-                className={`filter-sidebar__size ${currentSizes.includes(s) ? 'filter-sidebar__size--active' : ''}`}
-                onClick={() => updateFilter('size', s)}
-              >
-                {s}
-              </button>
+              <label key={s} className="myntra-checkbox">
+                <input
+                  type="checkbox"
+                  checked={currentSizes.includes(s)}
+                  onChange={() => updateFilter('size', s)}
+                />
+                <span className="myntra-checkbox__label">{s}</span>
+              </label>
             ))}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Color */}
-      <div className="filter-sidebar__section">
-        <button
-          className="filter-sidebar__title"
+      <div className="myntra-filter-section">
+        <div 
+          className="myntra-filter-section__header"
           onClick={() => toggle('color')}
         >
-          Color{' '}
-          <ChevronDown
-            size={16}
-            style={{
-              transform: openSections.color ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-            }}
+          <h4 className="myntra-filter-section__title">Color</h4>
+          <ChevronDown 
+            size={18} 
+            className={`myntra-filter-section__toggle ${openSections.color ? 'open' : ''}`}
           />
-        </button>
-        {openSections.color && (
-          <div className="filter-sidebar__color-options">
+        </div>
+        <div className={`myntra-filter-section__content ${openSections.color ? 'open' : ''}`}>
+          <div className="myntra-color-swatches">
             {colorOptions.map((c) => (
               <button
                 key={c.name}
-                className={`filter-sidebar__color ${currentColors.includes(c.name) ? 'filter-sidebar__color--active' : ''}`}
+                className={`myntra-color-swatch ${currentColors.includes(c.name) ? 'selected' : ''}`}
                 style={{
                   backgroundColor: c.hex,
-                  border:
-                    c.hex === '#FFFFFF'
-                      ? '1px solid var(--color-border)'
-                      : 'none',
                 }}
                 title={c.name}
                 aria-label={c.name}
@@ -444,7 +336,7 @@ const FilterSidebar = memo(function FilterSidebar({ onFilterChange }) {
               />
             ))}
           </div>
-        )}
+        </div>
       </div>
     </aside>
   );
@@ -564,9 +456,66 @@ VirtualProductGrid.displayName = 'VirtualProductGrid';
 export default function ProductListing() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [openSections, setOpenSections] = useState({
+    category: true,
+    price: true,
+    size: true,
+    color: true,
+  });
 
   const currentPage = Number(searchParams.get('page')) || 1;
   const rawSearchQuery = searchParams.get('search')?.trim() || '';
+
+  // Get current filters
+  const currentCategories = searchParams.getAll('category');
+  const currentSizes = searchParams.getAll('size');
+  const currentColors = searchParams.getAll('color');
+  const minPrice = searchParams.get('minPrice') || '';
+  const maxPrice = searchParams.get('maxPrice') || '';
+
+  // Memoize toggle function
+  const toggle = useCallback((section) => {
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  // Memoize filter update function
+  const updateFilter = useCallback((type, value) => {
+    const newParams = new URLSearchParams(searchParams);
+    const current = newParams.getAll(type);
+
+    if (current.includes(value)) {
+      newParams.delete(type);
+      current
+        .filter((item) => item !== value)
+        .forEach((val) => newParams.append(type, val));
+    } else {
+      newParams.append(type, value);
+    }
+    newParams.delete('page');
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams]);
+
+  // Memoize price update function
+  const updatePrice = useCallback((type, value) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) {
+      newParams.set(type, value);
+    } else {
+      newParams.delete(type);
+    }
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams]);
+
+  // Memoize clear all function
+  const clearAllFilters = useCallback(() => {
+    setSearchParams({});
+  }, [setSearchParams]);
+
+  const hasActiveFilters = currentCategories.length > 0 ||
+    currentSizes.length > 0 ||
+    currentColors.length > 0 ||
+    minPrice ||
+    maxPrice;
 
   // Debounce search query to reduce API calls
   const searchQuery = useDebounce(rawSearchQuery, 300);
@@ -668,50 +617,90 @@ export default function ProductListing() {
   }
 
   return (
-    <div className="page">
+    <div className="myntra-products-page">
       <SEO
         title={seoTitle}
         description={seoDescription}
         keywords={`${selectedCategory || 'clothing'}, streetwear, fashion, online shopping, India`}
       />
-      <div className="container">
-        {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <Link to="/" className="breadcrumb__link">
+      
+      {/* Breadcrumb */}
+      <div className="myntra-breadcrumb">
+        <div className="myntra-breadcrumb__container">
+          <Link to="/" className="myntra-breadcrumb__link">
             Home
           </Link>
-          <span className="breadcrumb__separator">/</span>
-          <span className="breadcrumb__current">All Products</span>
+          <span>/</span>
+          <span className="myntra-breadcrumb__current">All Products</span>
         </div>
+      </div>
 
-        {/* Mobile Filter Toggle */}
-        <button
-          className="filter-toggle"
-          onClick={() => setMobileFilterOpen(true)}
-        >
-          <SlidersHorizontal size={16} /> Filters{' '}
-          {searchParams.toString() && products.length !== pagination.totalItems
-            ? '(Active)'
-            : ''}
-        </button>
+      {/* Mobile Filter Toggle */}
+      <button
+        className="filter-toggle"
+        onClick={() => setMobileFilterOpen(true)}
+        style={{ 
+          display: 'none',
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          padding: '12px 24px',
+          background: 'var(--myntra-primary)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '24px',
+          boxShadow: 'var(--myntra-shadow-lg)',
+          fontSize: 'var(--myntra-font-size-base)',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        <SlidersHorizontal size={16} /> Filters{' '}
+        {searchParams.toString() && products.length !== pagination.totalItems
+          ? '(Active)'
+          : ''}
+      </button>
 
-        <div className="plp">
-          <FilterSidebar />
+      <div className="myntra-products-layout">
+        <FilterSidebar 
+          openSections={openSections}
+          toggle={toggle}
+          currentCategories={currentCategories}
+          currentSizes={currentSizes}
+          currentColors={currentColors}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          updateFilter={updateFilter}
+          updatePrice={updatePrice}
+          clearAllFilters={clearAllFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
 
-          <div>
-            <div className="plp__header">
-              <p className="plp__count">
-                {pagination.totalItems} Product
-                {pagination.totalItems !== 1 ? 's' : ''} Found
-                {searchParams.get('search') &&
-                  ` for "${searchParams.get('search')}"`}
-              </p>
-              <div className="plp__sort">
-                <span className="plp__sort-label">Sort by:</span>
+        <div className="myntra-products-area">
+          <div className="myntra-products-topbar">
+            <div className="myntra-products-topbar__info">
+              <strong>{pagination.totalItems}</strong> Product
+              {pagination.totalItems !== 1 ? 's' : ''}
+              {searchParams.get('search') &&
+                ` for "${searchParams.get('search')}"`}
+            </div>
+            <div className="myntra-products-topbar__actions">
+              <div className="myntra-sort-dropdown">
                 <select
-                  className="plp__sort-select"
+                  className="myntra-sort-dropdown__button"
                   value={searchParams.get('sort') || 'recommended'}
                   onChange={handleSortChange}
+                  style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    paddingRight: '32px',
+                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23282C3F\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 12px center'
+                  }}
                 >
                   <option value="recommended">Recommended</option>
                   <option value="price-low">Price: Low to High</option>
@@ -721,190 +710,326 @@ export default function ProductListing() {
                 </select>
               </div>
             </div>
+          </div>
 
-            {isLoading && !data ? (
-              <div className="product-grid">
-                <ProductSkeleton count={12} />
+          {isLoading && !data ? (
+            <div className="myntra-products-grid">
+              <ProductSkeleton count={12} />
+            </div>
+          ) : isError ? (
+            <div
+              style={{
+                padding: '60px 0',
+                maxWidth: '600px',
+                margin: '0 auto',
+              }}
+            >
+              <ErrorMessage
+                title="Error loading products"
+                message={
+                  error?.message || 'Something went wrong. Please try again.'
+                }
+                onRetry={() => refetch()}
+              />
+            </div>
+          ) : products.length > 0 ? (
+            <>
+              {isFetching && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: '80px',
+                    right: '20px',
+                    background: 'var(--myntra-primary)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    zIndex: 1000,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  }}
+                >
+                  Loading...
+                </div>
+              )}
+              
+              {/* Use virtual scrolling for better performance with large lists */}
+              {USE_VIRTUAL_SCROLL && products.length > 20 ? (
+                <VirtualProductGrid products={products} isFetching={isFetching} />
+              ) : (
+                <div
+                  className="myntra-products-grid"
+                  style={{
+                    opacity: isFetching ? 0.6 : 1,
+                    transition: 'opacity 0.2s',
+                  }}
+                >
+                  {products.map((product, index) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      priority={index < 6}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="pagination" style={{ padding: 'var(--myntra-space-6)' }}>
+                  <button
+                    className="pagination__btn"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || isFetching}
+                    aria-label="Previous page"
+                  >
+                    &laquo;
+                  </button>
+
+                  {Array.from(
+                    { length: pagination.totalPages },
+                    (_, i) => i + 1
+                  ).map((page) => {
+                    const showPage =
+                      page === 1 ||
+                      page === pagination.totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1);
+
+                    if (!showPage) {
+                      if (
+                        page === currentPage - 2 ||
+                        page === currentPage + 2
+                      ) {
+                        return (
+                          <span key={page} className="pagination__ellipsis">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    }
+
+                    return (
+                      <button
+                        key={page}
+                        className={`pagination__btn ${page === currentPage ? 'pagination__btn--active' : ''}`}
+                        onClick={() => handlePageChange(page)}
+                        disabled={isFetching}
+                        aria-label={`Page ${page}`}
+                        aria-current={
+                          page === currentPage ? 'page' : undefined
+                        }
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    className="pagination__btn"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={
+                      currentPage === pagination.totalPages || isFetching
+                    }
+                    aria-label="Next page"
+                  >
+                    &raquo;
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="empty-products-state" style={{ padding: 'var(--myntra-space-8)' }}>
+              <div className="empty-products-state__icon">
+                <ShoppingBag size={64} strokeWidth={1.5} />
               </div>
-            ) : isError ? (
-              <div
-                style={{
-                  padding: '60px 0',
-                  maxWidth: '600px',
-                  margin: '0 auto',
-                }}
+              <h2 className="empty-products-state__title">No Products Found</h2>
+              <p className="empty-products-state__message">
+                Try adjusting your filters or search criteria.
+              </p>
+              <button
+                className="btn btn--primary empty-products-state__button"
+                onClick={() => setSearchParams({})}
               >
-                <ErrorMessage
-                  title="Error loading products"
-                  message={
-                    error?.message || 'Something went wrong. Please try again.'
-                  }
-                  onRetry={() => refetch()}
+                Clear All Filters
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Mobile Filter Overlay */}
+      {mobileFilterOpen && (
+        <>
+          <div
+            className="modal-overlay"
+            onClick={() => setMobileFilterOpen(false)}
+          />
+          <div
+            className="myntra-filters open"
+            onClick={(e) => e.stopPropagation()}
+            style={{ display: 'flex', flexDirection: 'column' }}
+          >
+            <div className="myntra-filters__header">
+              <h3 className="myntra-filters__title">Filters</h3>
+              <button
+                onClick={() => setMobileFilterOpen(false)}
+                aria-label="Close filters"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 'var(--myntra-space-2)',
+                  color: 'var(--myntra-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--myntra-bg-light)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Category */}
+            <div className="myntra-filter-section">
+              <div 
+                className="myntra-filter-section__header"
+                onClick={() => toggle('category')}
+              >
+                <h4 className="myntra-filter-section__title">Category</h4>
+                <ChevronDown 
+                  size={18} 
+                  className={`myntra-filter-section__toggle ${openSections.category ? 'open' : ''}`}
                 />
               </div>
-            ) : products.length > 0 ? (
-              <>
-                {isFetching && (
-                  <div
-                    style={{
-                      position: 'fixed',
-                      top: '80px',
-                      right: '20px',
-                      background: 'var(--color-primary)',
-                      color: 'white',
-                      padding: '8px 16px',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      zIndex: 1000,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    }}
-                  >
-                    Loading...
-                  </div>
-                )}
-                
-                {/* Use virtual scrolling for better performance with large lists */}
-                {USE_VIRTUAL_SCROLL && products.length > 20 ? (
-                  <VirtualProductGrid products={products} isFetching={isFetching} />
-                ) : (
-                  <div
-                    className="product-grid"
-                    style={{
-                      opacity: isFetching ? 0.6 : 1,
-                      transition: 'opacity 0.2s',
-                    }}
-                  >
-                    {products.map((product, index) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        priority={index < 6}
+              <div className={`myntra-filter-section__content ${openSections.category ? 'open' : ''}`}>
+                <div className="myntra-checkbox-group">
+                  {CATEGORIES.map((cat) => (
+                    <label key={cat.id} className="myntra-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={currentCategories.includes(cat.slug)}
+                        onChange={() => updateFilter('category', cat.slug)}
                       />
-                    ))}
-                  </div>
-                )}
-
-                {/* Pagination */}
-                {pagination.totalPages > 1 && (
-                  <div className="pagination">
-                    <button
-                      className="pagination__btn"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1 || isFetching}
-                      aria-label="Previous page"
-                    >
-                      &laquo;
-                    </button>
-
-                    {Array.from(
-                      { length: pagination.totalPages },
-                      (_, i) => i + 1
-                    ).map((page) => {
-                      const showPage =
-                        page === 1 ||
-                        page === pagination.totalPages ||
-                        (page >= currentPage - 1 && page <= currentPage + 1);
-
-                      if (!showPage) {
-                        if (
-                          page === currentPage - 2 ||
-                          page === currentPage + 2
-                        ) {
-                          return (
-                            <span key={page} className="pagination__ellipsis">
-                              ...
-                            </span>
-                          );
-                        }
-                        return null;
-                      }
-
-                      return (
-                        <button
-                          key={page}
-                          className={`pagination__btn ${page === currentPage ? 'pagination__btn--active' : ''}`}
-                          onClick={() => handlePageChange(page)}
-                          disabled={isFetching}
-                          aria-label={`Page ${page}`}
-                          aria-current={
-                            page === currentPage ? 'page' : undefined
-                          }
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      className="pagination__btn"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={
-                        currentPage === pagination.totalPages || isFetching
-                      }
-                      aria-label="Next page"
-                    >
-                      &raquo;
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="empty-products-state">
-                <div className="empty-products-state__icon">
-                  <ShoppingBag size={64} strokeWidth={1.5} />
+                      <span className="myntra-checkbox__label">{cat.name}</span>
+                    </label>
+                  ))}
                 </div>
-                <h2 className="empty-products-state__title">No Products Found</h2>
-                <p className="empty-products-state__message">
-                  Try adjusting your filters or search criteria.
-                </p>
+              </div>
+            </div>
+
+            {/* Price */}
+            <div className="myntra-filter-section">
+              <div 
+                className="myntra-filter-section__header"
+                onClick={() => toggle('price')}
+              >
+                <h4 className="myntra-filter-section__title">Price Range</h4>
+                <ChevronDown 
+                  size={18} 
+                  className={`myntra-filter-section__toggle ${openSections.price ? 'open' : ''}`}
+                />
+              </div>
+              <div className={`myntra-filter-section__content ${openSections.price ? 'open' : ''}`}>
+                <div className="myntra-price-range">
+                  <div className="myntra-price-range__inputs">
+                    <input
+                      type="number"
+                      className="myntra-price-range__input"
+                      placeholder="₹ Min"
+                      value={minPrice}
+                      onChange={(e) => updatePrice('minPrice', e.target.value)}
+                      min="0"
+                    />
+                    <span className="myntra-price-range__separator">—</span>
+                    <input
+                      type="number"
+                      className="myntra-price-range__input"
+                      placeholder="₹ Max"
+                      value={maxPrice}
+                      onChange={(e) => updatePrice('maxPrice', e.target.value)}
+                      min="0"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Size */}
+            <div className="myntra-filter-section">
+              <div 
+                className="myntra-filter-section__header"
+                onClick={() => toggle('size')}
+              >
+                <h4 className="myntra-filter-section__title">Size</h4>
+                <ChevronDown 
+                  size={18} 
+                  className={`myntra-filter-section__toggle ${openSections.size ? 'open' : ''}`}
+                />
+              </div>
+              <div className={`myntra-filter-section__content ${openSections.size ? 'open' : ''}`}>
+                <div className="myntra-checkbox-group">
+                  {sizes.map((s) => (
+                    <label key={s} className="myntra-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={currentSizes.includes(s)}
+                        onChange={() => updateFilter('size', s)}
+                      />
+                      <span className="myntra-checkbox__label">{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Color */}
+            <div className="myntra-filter-section">
+              <div 
+                className="myntra-filter-section__header"
+                onClick={() => toggle('color')}
+              >
+                <h4 className="myntra-filter-section__title">Color</h4>
+                <ChevronDown 
+                  size={18} 
+                  className={`myntra-filter-section__toggle ${openSections.color ? 'open' : ''}`}
+                />
+              </div>
+              <div className={`myntra-filter-section__content ${openSections.color ? 'open' : ''}`}>
+                <div className="myntra-color-swatches">
+                  {colorOptions.map((c) => (
+                    <button
+                      key={c.name}
+                      className={`myntra-color-swatch ${currentColors.includes(c.name) ? 'selected' : ''}`}
+                      style={{
+                        backgroundColor: c.hex,
+                      }}
+                      title={c.name}
+                      aria-label={c.name}
+                      onClick={() => updateFilter('color', c.name)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {hasActiveFilters && (
+              <div style={{ padding: 'var(--myntra-space-4)', borderTop: '1px solid var(--myntra-border)' }}>
                 <button
-                  className="btn btn--primary empty-products-state__button"
-                  onClick={() => setSearchParams({})}
+                  className="myntra-filters__clear"
+                  onClick={clearAllFilters}
+                  style={{ width: '100%' }}
                 >
                   Clear All Filters
                 </button>
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Mobile Filter Overlay */}
-      {mobileFilterOpen && (
-        <div
-          className="modal-overlay"
-          onClick={() => setMobileFilterOpen(false)}
-        >
-          <div
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: '340px',
-              height: '100vh',
-              borderRadius: 0,
-              position: 'fixed',
-              left: 0,
-              top: 0,
-            }}
-          >
-            <div className="modal__header">
-              <h3 className="modal__title">Filters</h3>
-              <button
-                onClick={() => setMobileFilterOpen(false)}
-                aria-label="Close"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal__body">
-              <FilterSidebar
-                onFilterChange={() =>
-                  setTimeout(() => setMobileFilterOpen(false), 300)
-                }
-              />
-            </div>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );

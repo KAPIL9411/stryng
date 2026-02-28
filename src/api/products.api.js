@@ -32,94 +32,134 @@ import {
 
 /**
  * Fetch all products with filters and pagination
- * @param {Object} options - Query options
+ * @param {number} page - Page number
+ * @param {number} pageSize - Items per page
+ * @param {Object} filters - Filter options
  * @returns {Promise<Object>} { products, pagination }
  */
-export const fetchProducts = async (options = {}) => {
+export const fetchProducts = async (page = 1, pageSize = 24, filters = {}) => {
   try {
     const {
-      page = 1,
-      pageSize = 24,
-      category = null,
+      category = [],
+      sizes = [],
+      colors = [],
       search = null,
-      sort = 'newest',
+      sort = 'recommended',
       minPrice = null,
       maxPrice = null,
-      isNew = null,
-      isTrending = null,
-    } = options;
+    } = filters;
 
-    const whereClause = [];
-    
-    // Apply filters
-    if (category) {
-      whereClause.push(['category', '==', category]);
-    }
-    if (isNew !== null) {
-      whereClause.push(['is_new', '==', isNew]);
-    }
-    if (isTrending !== null) {
-      whereClause.push(['is_trending', '==', isTrending]);
-    }
-    if (minPrice !== null) {
-      whereClause.push(['price', '>=', minPrice]);
-    }
-    if (maxPrice !== null) {
-      whereClause.push(['price', '<=', maxPrice]);
+    console.log('🔍 Fetching products with filters:', { page, pageSize, filters });
+
+    // Get all products first (Firestore has limitations with complex queries)
+    const allProducts = await getDocuments(COLLECTIONS.PRODUCTS, {
+      orderBy: [['created_at', 'desc']],
+    });
+
+    console.log('📦 Total products from DB:', allProducts.length);
+
+    let filteredProducts = allProducts;
+
+    // Apply category filter (array of categories)
+    if (category && category.length > 0) {
+      filteredProducts = filteredProducts.filter((p) =>
+        category.includes(p.category)
+      );
+      console.log('📂 After category filter:', filteredProducts.length);
     }
 
-    // Apply sorting
-    const orderByClause = [];
-    switch (sort) {
-      case 'price-low':
-        orderByClause.push(['price', 'asc']);
-        break;
-      case 'price-high':
-        orderByClause.push(['price', 'desc']);
-        break;
-      case 'newest':
-        orderByClause.push(['created_at', 'desc']);
-        break;
-      case 'popularity':
-        orderByClause.push(['reviews_count', 'desc']);
-        break;
-      default:
-        orderByClause.push(['created_at', 'desc']);
+    // Apply size filter (array of sizes)
+    if (sizes && sizes.length > 0) {
+      filteredProducts = filteredProducts.filter((p) =>
+        p.sizes && p.sizes.some((size) => sizes.includes(size))
+      );
+      console.log('📏 After size filter:', filteredProducts.length);
     }
 
-    // Get paginated results
-    const { documents: products, hasMore } = await getPaginatedDocuments(
-      COLLECTIONS.PRODUCTS,
-      {
-        pageSize,
-        where: whereClause,
-        orderBy: orderByClause,
-      }
-    );
+    // Apply color filter (array of colors)
+    if (colors && colors.length > 0) {
+      filteredProducts = filteredProducts.filter((p) =>
+        p.colors && p.colors.some((color) => colors.includes(color.name))
+      );
+      console.log('🎨 After color filter:', filteredProducts.length);
+    }
 
-    // Client-side search filter (Firestore doesn't support full-text search)
-    let filteredProducts = products;
+    // Apply price range filter
+    if (minPrice !== null && minPrice !== undefined && minPrice !== '') {
+      const min = Number(minPrice);
+      filteredProducts = filteredProducts.filter((p) => p.price >= min);
+      console.log('💰 After min price filter:', filteredProducts.length);
+    }
+    if (maxPrice !== null && maxPrice !== undefined && maxPrice !== '') {
+      const max = Number(maxPrice);
+      filteredProducts = filteredProducts.filter((p) => p.price <= max);
+      console.log('💰 After max price filter:', filteredProducts.length);
+    }
+
+    // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredProducts = products.filter(
+      filteredProducts = filteredProducts.filter(
         (p) =>
           p.name?.toLowerCase().includes(searchLower) ||
           p.description?.toLowerCase().includes(searchLower) ||
           p.brand?.toLowerCase().includes(searchLower)
       );
+      console.log('🔎 After search filter:', filteredProducts.length);
     }
 
+    // Apply sorting
+    switch (sort) {
+      case 'price-low':
+        filteredProducts.sort((a, b) => a.price - b.price);
+        break;
+      case 'price-high':
+        filteredProducts.sort((a, b) => b.price - a.price);
+        break;
+      case 'newest':
+        filteredProducts.sort((a, b) => {
+          const aTime = a.created_at?.toMillis?.() || 0;
+          const bTime = b.created_at?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        break;
+      case 'popularity':
+        filteredProducts.sort((a, b) => (b.reviews_count || 0) - (a.reviews_count || 0));
+        break;
+      default:
+        // Recommended - keep current order
+        break;
+    }
+
+    // Calculate pagination
+    const totalItems = filteredProducts.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+    console.log('📄 Pagination:', { page, totalPages, totalItems, returning: paginatedProducts.length });
+
     return {
-      products: filteredProducts,
+      products: paginatedProducts,
       pagination: {
         currentPage: page,
-        totalItems: filteredProducts.length,
-        hasNext: hasMore,
+        totalPages,
+        totalItems,
+        hasNext: page < totalPages,
       },
     };
   } catch (error) {
-    console.error('Error fetching products:', error);
-    return { products: [], pagination: { currentPage: 1, totalItems: 0, hasNext: false } };
+    console.error('❌ Error fetching products:', error);
+    return { 
+      products: [], 
+      pagination: { 
+        currentPage: 1, 
+        totalPages: 1, 
+        totalItems: 0, 
+        hasNext: false 
+      } 
+    };
   }
 };
 

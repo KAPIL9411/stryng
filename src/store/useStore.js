@@ -180,6 +180,28 @@ const useStore = create(
         return wishlist.some((item) => item.id === productId);
       },
 
+      toggleWishlist: (product) => {
+        const { wishlist, user } = get();
+
+        if (!user) {
+          window.dispatchEvent(new CustomEvent('requireAuth', { 
+            detail: { redirectTo: '/login' } 
+          }));
+          return;
+        }
+
+        const isInWishlist = wishlist.some((item) => item.id === product.id);
+        
+        if (isInWishlist) {
+          set({ wishlist: wishlist.filter((item) => item.id !== product.id) });
+          get().showToast('Removed from wishlist', 'success');
+        } else {
+          set({ wishlist: [...wishlist, product] });
+          trackAddToWishlist(product);
+          get().showToast('Added to wishlist', 'success');
+        }
+      },
+
       // ============================================================================
       // USER STATE & AUTH ACTIONS
       // ============================================================================
@@ -405,11 +427,23 @@ const useStore = create(
       
       // Products
       createProduct: async (productData) => {
-        return await productsAPI.createProduct(productData);
+        try {
+          const productId = await productsAPI.createProduct(productData);
+          return { success: true, productId };
+        } catch (error) {
+          console.error('Error creating product:', error);
+          return { success: false, error: error.message };
+        }
       },
 
       updateProduct: async (productId, productData) => {
-        await productsAPI.updateProduct(productId, productData);
+        try {
+          await productsAPI.updateProduct(productId, productData);
+          return { success: true };
+        } catch (error) {
+          console.error('Error updating product:', error);
+          return { success: false, error: error.message };
+        }
       },
 
       deleteProduct: async (productId) => {

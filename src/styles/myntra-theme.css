@@ -1,0 +1,880 @@
+/* ============================================================================
+   MYNTRA-INSPIRED THEME
+   Modern e-commerce design with clean aesthetics
+   ============================================================================ */
+
+:root {
+  /* Myntra Color Palette */
+  --myntra-primary: #FF3F6C;
+  --myntra-primary-dark: #E6365F;
+  --myntra-secondary: #282C3F;
+  --myntra-text: #282C3F;
+  --myntra-text-light: #535766;
+  --myntra-text-muted: #94969F;
+  --myntra-border: #E9E9EB;
+  --myntra-bg: #FFFFFF;
+  --myntra-bg-light: #F5F5F6;
+  --myntra-success: #03A685;
+  --myntra-discount: #FF905A;
+  --myntra-rating: #FF905A;
+  --myntra-wishlist: #FF3F6C;
+  
+  /* Shadows */
+  --myntra-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --myntra-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --myntra-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  
+  /* Typography */
+  --myntra-font: 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --myntra-font-size-xs: 10px;
+  --myntra-font-size-sm: 12px;
+  --myntra-font-size-base: 14px;
+  --myntra-font-size-lg: 16px;
+  --myntra-font-size-xl: 18px;
+  --myntra-font-size-2xl: 24px;
+  
+  /* Spacing */
+  --myntra-space-1: 4px;
+  --myntra-space-2: 8px;
+  --myntra-space-3: 12px;
+  --myntra-space-4: 16px;
+  --myntra-space-5: 20px;
+  --myntra-space-6: 24px;
+  --myntra-space-8: 32px;
+  
+  /* Border Radius */
+  --myntra-radius-sm: 2px;
+  --myntra-radius-md: 4px;
+  --myntra-radius-lg: 8px;
+}
+
+/* ============================================================================
+   PRODUCT LISTING PAGE - MYNTRA STYLE
+   ============================================================================ */
+
+.myntra-products-page {
+  background: var(--myntra-bg-light);
+  min-height: 100vh;
+  font-family: var(--myntra-font);
+}
+
+/* Breadcrumb */
+.myntra-breadcrumb {
+  background: var(--myntra-bg);
+  padding: var(--myntra-space-3) 0;
+  border-bottom: 1px solid var(--myntra-border);
+}
+
+.myntra-breadcrumb__container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--myntra-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--myntra-space-2);
+  font-size: var(--myntra-font-size-sm);
+  color: var(--myntra-text-muted);
+}
+
+.myntra-breadcrumb__link {
+  color: var(--myntra-text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.myntra-breadcrumb__link:hover {
+  color: var(--myntra-primary);
+}
+
+.myntra-breadcrumb__current {
+  color: var(--myntra-text);
+  font-weight: 600;
+}
+
+/* Main Layout */
+.myntra-products-layout {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--myntra-space-6);
+  padding: var(--myntra-space-4);
+  align-items: start;
+}
+
+/* Filters Sidebar - Professional Design */
+.myntra-filters {
+  background: var(--myntra-bg);
+  border: 1px solid var(--myntra-border);
+  border-radius: var(--myntra-radius-lg);
+  position: sticky;
+  top: 90px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.myntra-filters::-webkit-scrollbar {
+  width: 6px;
+}
+
+.myntra-filters::-webkit-scrollbar-track {
+  background: var(--myntra-bg-light);
+  border-radius: 3px;
+}
+
+.myntra-filters::-webkit-scrollbar-thumb {
+  background: var(--myntra-border);
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.myntra-filters::-webkit-scrollbar-thumb:hover {
+  background: var(--myntra-text-muted);
+}
+
+.myntra-filters__header {
+  padding: var(--myntra-space-5) var(--myntra-space-4);
+  border-bottom: 2px solid var(--myntra-bg-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: var(--myntra-bg);
+  z-index: 10;
+}
+
+.myntra-filters__title {
+  font-size: var(--myntra-font-size-xl);
+  font-weight: 700;
+  color: var(--myntra-text);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.myntra-filters__clear {
+  background: none;
+  border: 1px solid var(--myntra-primary);
+  color: var(--myntra-primary);
+  font-size: var(--myntra-font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--myntra-space-2) var(--myntra-space-3);
+  border-radius: var(--myntra-radius-md);
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.myntra-filters__clear:hover {
+  background: var(--myntra-primary);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 63, 108, 0.3);
+}
+
+.myntra-filters__clear:active {
+  transform: translateY(0);
+}
+
+.myntra-filter-section {
+  padding: var(--myntra-space-5) var(--myntra-space-4);
+  border-bottom: 1px solid var(--myntra-bg-light);
+  transition: background 0.2s;
+}
+
+.myntra-filter-section:last-child {
+  border-bottom: none;
+}
+
+.myntra-filter-section:hover {
+  background: rgba(245, 245, 246, 0.5);
+}
+
+.myntra-filter-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: var(--myntra-space-3);
+}
+
+.myntra-filter-section__title {
+  font-size: var(--myntra-font-size-base);
+  font-weight: 700;
+  color: var(--myntra-text);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-size: 13px;
+}
+
+.myntra-filter-section__toggle {
+  color: var(--myntra-text-muted);
+  transition: transform 0.3s ease, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.myntra-filter-section__toggle.open {
+  transform: rotate(180deg);
+  color: var(--myntra-primary);
+}
+
+.myntra-filter-section__content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.myntra-filter-section__content.open {
+  max-height: 800px;
+  overflow: visible;
+}
+
+/* Checkbox Filters - Enhanced Design */
+.myntra-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--myntra-space-3);
+}
+
+.myntra-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--myntra-space-3);
+  cursor: pointer;
+  padding: var(--myntra-space-2);
+  border-radius: var(--myntra-radius-sm);
+  transition: all 0.2s;
+  position: relative;
+}
+
+.myntra-checkbox:hover {
+  background: rgba(255, 63, 108, 0.05);
+  padding-left: var(--myntra-space-3);
+}
+
+.myntra-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--myntra-border);
+  border-radius: var(--myntra-radius-sm);
+  cursor: pointer;
+  accent-color: var(--myntra-primary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.myntra-checkbox input[type="checkbox"]:hover {
+  border-color: var(--myntra-primary);
+}
+
+.myntra-checkbox input[type="checkbox"]:checked {
+  background: var(--myntra-primary);
+  border-color: var(--myntra-primary);
+}
+
+.myntra-checkbox__label {
+  font-size: var(--myntra-font-size-base);
+  color: var(--myntra-text);
+  cursor: pointer;
+  flex: 1;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.myntra-checkbox:hover .myntra-checkbox__label {
+  color: var(--myntra-primary);
+}
+
+.myntra-checkbox__count {
+  font-size: var(--myntra-font-size-xs);
+  color: var(--myntra-text-muted);
+  background: var(--myntra-bg-light);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+/* Color Swatches - Enhanced */
+.myntra-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: var(--myntra-space-3);
+}
+
+.myntra-color-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--myntra-border);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.myntra-color-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1;
+}
+
+.myntra-color-swatch.selected {
+  border-color: var(--myntra-primary);
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(255, 63, 108, 0.2);
+  transform: scale(1.1);
+}
+
+.myntra-color-swatch.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Price Range - Enhanced */
+.myntra-price-range {
+  padding: var(--myntra-space-3) 0;
+  min-height: 60px;
+}
+
+.myntra-price-range__inputs {
+  display: flex;
+  gap: var(--myntra-space-3);
+  align-items: center;
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.myntra-price-range__input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100px;
+  padding: var(--myntra-space-3);
+  border: 2px solid var(--myntra-border);
+  border-radius: var(--myntra-radius-md);
+  font-size: var(--myntra-font-size-sm);
+  text-align: center;
+  font-weight: 600;
+  color: var(--myntra-text);
+  transition: all 0.2s;
+  background: var(--myntra-bg-light);
+}
+
+.myntra-price-range__input:focus {
+  outline: none;
+  border-color: var(--myntra-primary);
+  background: var(--myntra-bg);
+  box-shadow: 0 0 0 3px rgba(255, 63, 108, 0.1);
+}
+
+.myntra-price-range__input::placeholder {
+  color: var(--myntra-text-muted);
+  font-weight: 500;
+}
+
+.myntra-price-range__separator {
+  color: var(--myntra-text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 0 var(--myntra-space-1);
+}
+
+/* Products Area */
+.myntra-products-area {
+  background: var(--myntra-bg);
+  border-radius: var(--myntra-radius-md);
+  box-shadow: var(--myntra-shadow-sm);
+}
+
+/* Top Bar */
+.myntra-products-topbar {
+  padding: var(--myntra-space-4);
+  border-bottom: 1px solid var(--myntra-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--myntra-space-3);
+}
+
+.myntra-products-topbar__info {
+  font-size: var(--myntra-font-size-base);
+  color: var(--myntra-text);
+}
+
+.myntra-products-topbar__info strong {
+  font-weight: 600;
+}
+
+.myntra-products-topbar__actions {
+  display: flex;
+  gap: var(--myntra-space-3);
+  align-items: center;
+}
+
+.myntra-sort-dropdown {
+  position: relative;
+}
+
+.myntra-sort-dropdown__button {
+  display: flex;
+  align-items: center;
+  gap: var(--myntra-space-2);
+  padding: var(--myntra-space-2) var(--myntra-space-3);
+  border: 1px solid var(--myntra-border);
+  border-radius: var(--myntra-radius-sm);
+  background: var(--myntra-bg);
+  font-size: var(--myntra-font-size-sm);
+  font-weight: 600;
+  color: var(--myntra-text);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.myntra-sort-dropdown__button:hover {
+  border-color: var(--myntra-text);
+}
+
+.myntra-sort-dropdown__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--myntra-bg);
+  border: 1px solid var(--myntra-border);
+  border-radius: var(--myntra-radius-md);
+  box-shadow: var(--myntra-shadow-lg);
+  min-width: 200px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.myntra-sort-dropdown__item {
+  padding: var(--myntra-space-3) var(--myntra-space-4);
+  font-size: var(--myntra-font-size-sm);
+  color: var(--myntra-text);
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+.myntra-sort-dropdown__item:hover {
+  background: var(--myntra-bg-light);
+}
+
+.myntra-sort-dropdown__item.active {
+  background: rgba(255, 63, 108, 0.1);
+  color: var(--myntra-primary);
+  font-weight: 600;
+}
+
+/* Product Grid */
+.myntra-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--myntra-space-4);
+  padding: var(--myntra-space-4);
+}
+
+/* Product Card - Myntra Style */
+.myntra-product-card {
+  background: var(--myntra-bg);
+  border-radius: var(--myntra-radius-md);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.myntra-product-card:hover {
+  box-shadow: var(--myntra-shadow-lg);
+  transform: translateY(-4px);
+}
+
+.myntra-product-card__image-wrapper {
+  position: relative;
+  aspect-ratio: 3/4;
+  overflow: hidden;
+  background: var(--myntra-bg-light);
+}
+
+.myntra-product-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.myntra-product-card:hover .myntra-product-card__image {
+  transform: scale(1.05);
+}
+
+.myntra-product-card__wishlist {
+  position: absolute;
+  top: var(--myntra-space-2);
+  right: var(--myntra-space-2);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--myntra-bg);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+  box-shadow: var(--myntra-shadow-sm);
+}
+
+.myntra-product-card__wishlist:hover {
+  transform: scale(1.1);
+  box-shadow: var(--myntra-shadow-md);
+}
+
+.myntra-product-card__wishlist.active {
+  background: var(--myntra-wishlist);
+  color: white;
+}
+
+.myntra-product-card__badges {
+  position: absolute;
+  bottom: var(--myntra-space-2);
+  left: var(--myntra-space-2);
+  display: flex;
+  gap: var(--myntra-space-1);
+  flex-wrap: wrap;
+}
+
+.myntra-badge {
+  padding: var(--myntra-space-1) var(--myntra-space-2);
+  border-radius: var(--myntra-radius-sm);
+  font-size: var(--myntra-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.myntra-badge--discount {
+  background: var(--myntra-discount);
+  color: white;
+}
+
+.myntra-badge--new {
+  background: var(--myntra-success);
+  color: white;
+}
+
+.myntra-badge--trending {
+  background: var(--myntra-primary);
+  color: white;
+}
+
+.myntra-badge--out-of-stock {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+}
+
+.myntra-product-card__info {
+  padding: var(--myntra-space-3);
+}
+
+.myntra-product-card__brand {
+  font-size: var(--myntra-font-size-base);
+  font-weight: 600;
+  color: var(--myntra-text);
+  margin: 0 0 var(--myntra-space-1) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.myntra-product-card__name {
+  font-size: var(--myntra-font-size-sm);
+  color: var(--myntra-text-light);
+  margin: 0 0 var(--myntra-space-2) 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+.myntra-product-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: var(--myntra-space-2);
+  margin-bottom: var(--myntra-space-2);
+  flex-wrap: wrap;
+}
+
+.myntra-product-card__price-current {
+  font-size: var(--myntra-font-size-xl);
+  font-weight: 700;
+  color: var(--myntra-text);
+  letter-spacing: -0.02em;
+}
+
+.myntra-product-card__price-original {
+  font-size: var(--myntra-font-size-base);
+  color: var(--myntra-text-muted);
+  text-decoration: line-through;
+  font-weight: 500;
+  position: relative;
+}
+
+.myntra-product-card__price-original::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1.5px;
+  background: var(--myntra-text-muted);
+  transform: translateY(-50%);
+}
+
+.myntra-product-card__price-discount {
+  font-size: var(--myntra-font-size-sm);
+  color: var(--myntra-discount);
+  font-weight: 700;
+  background: rgba(255, 144, 90, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.myntra-product-card__rating {
+  display: flex;
+  align-items: center;
+  gap: var(--myntra-space-1);
+  font-size: var(--myntra-font-size-sm);
+}
+
+.myntra-product-card__rating-value {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px var(--myntra-space-1);
+  background: var(--myntra-success);
+  color: white;
+  border-radius: var(--myntra-radius-sm);
+  font-weight: 600;
+}
+
+.myntra-product-card__rating-count {
+  color: var(--myntra-text-muted);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .myntra-products-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .myntra-filters {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 320px;
+    max-width: 85vw;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    max-height: 100vh;
+    border-radius: 0;
+    border: none;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+  }
+  
+  .myntra-filters.open {
+    left: 0;
+  }
+  
+  .myntra-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--myntra-space-3);
+  }
+  
+  .filter-toggle {
+    display: flex !important;
+  }
+  
+  .myntra-products-area {
+    border-radius: 0;
+  }
+  
+  .myntra-breadcrumb {
+    padding: var(--myntra-space-2) 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .myntra-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--myntra-space-2);
+    padding: var(--myntra-space-3);
+  }
+  
+  .myntra-product-card__info {
+    padding: var(--myntra-space-2);
+  }
+  
+  .myntra-breadcrumb {
+    display: none;
+  }
+  
+  .myntra-products-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--myntra-space-3);
+    padding: var(--myntra-space-3);
+  }
+  
+  .myntra-products-topbar__info {
+    text-align: center;
+    font-size: var(--myntra-font-size-sm);
+  }
+  
+  .myntra-products-topbar__actions {
+    justify-content: center;
+  }
+  
+  .myntra-product-card__brand {
+    font-size: 12px;
+  }
+  
+  .myntra-product-card__name {
+    font-size: 12px;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .myntra-product-card__price {
+    gap: var(--myntra-space-1);
+  }
+  
+  .myntra-product-card__price-current {
+    font-size: var(--myntra-font-size-lg);
+  }
+  
+  .myntra-product-card__price-original {
+    font-size: 13px;
+  }
+  
+  .myntra-product-card__price-discount {
+    font-size: 11px;
+    padding: 1px 4px;
+  }
+  
+  .myntra-product-card__wishlist {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .myntra-filters {
+    width: 280px;
+  }
+  
+  .filter-toggle {
+    bottom: 16px;
+    padding: 10px 20px;
+    font-size: var(--myntra-font-size-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .myntra-products-page {
+    padding-bottom: 80px;
+  }
+  
+  .myntra-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--myntra-space-2);
+    padding: var(--myntra-space-2);
+  }
+  
+  .myntra-product-card {
+    border-radius: var(--myntra-radius-sm);
+  }
+  
+  .myntra-product-card__info {
+    padding: var(--myntra-space-2);
+  }
+  
+  .myntra-products-topbar {
+    padding: var(--myntra-space-2);
+  }
+  
+  .myntra-sort-dropdown__button {
+    font-size: 12px;
+    padding: var(--myntra-space-2);
+  }
+  
+  .myntra-filters__header {
+    padding: var(--myntra-space-4) var(--myntra-space-3);
+  }
+  
+  .myntra-filter-section {
+    padding: var(--myntra-space-4) var(--myntra-space-3);
+  }
+  
+  .myntra-color-swatches {
+    grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+    gap: var(--myntra-space-2);
+  }
+  
+  .myntra-color-swatch {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .myntra-price-range__input {
+    padding: var(--myntra-space-2);
+    font-size: 12px;
+  }
+  
+  .myntra-price-range__separator {
+    font-size: 12px;
+  }
+}
+
+/* Modal Overlay for Mobile Filters */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
