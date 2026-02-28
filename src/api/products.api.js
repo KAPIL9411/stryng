@@ -98,13 +98,36 @@ export const fetchProducts = async (page = 1, pageSize = 24, filters = {}) => {
 
     // Apply search filter
     if (search) {
-      const searchLower = search.toLowerCase();
-      filteredProducts = filteredProducts.filter(
-        (p) =>
-          p.name?.toLowerCase().includes(searchLower) ||
-          p.description?.toLowerCase().includes(searchLower) ||
-          p.brand?.toLowerCase().includes(searchLower)
-      );
+      const searchLower = search.toLowerCase().trim();
+      // Normalize search term: remove hyphens, extra spaces for better matching
+      const searchNormalized = searchLower.replace(/[-\s]+/g, '');
+      console.log('🔎 Searching for:', searchLower, '| Normalized:', searchNormalized);
+      
+      filteredProducts = filteredProducts.filter((p) => {
+        // Get product fields
+        const name = p.name?.toLowerCase() || '';
+        const desc = p.description?.toLowerCase() || '';
+        const brand = p.brand?.toLowerCase() || '';
+        const category = p.category?.toLowerCase() || '';
+        
+        // Normalize product fields for better matching
+        const nameNormalized = name.replace(/[-\s]+/g, '');
+        const categoryNormalized = category.replace(/[-\s]+/g, '');
+        
+        // Check both original and normalized versions
+        const nameMatch = name.includes(searchLower) || nameNormalized.includes(searchNormalized);
+        const descMatch = desc.includes(searchLower);
+        const brandMatch = brand.includes(searchLower);
+        const categoryMatch = category.includes(searchLower) || categoryNormalized.includes(searchNormalized);
+        
+        const matches = nameMatch || descMatch || brandMatch || categoryMatch;
+        
+        if (matches) {
+          console.log('✅ Match found:', p.name, '| Category:', p.category);
+        }
+        
+        return matches;
+      });
       console.log('🔎 After search filter:', filteredProducts.length);
     }
 
@@ -311,14 +334,27 @@ export const searchProducts = async (searchTerm, limitResults = 20) => {
     });
     
     const searchLower = searchTerm.toLowerCase();
+    const searchNormalized = searchLower.replace(/[-\s]+/g, '');
+    
     return allProducts
-      .filter(
-        (p) =>
-          p.name?.toLowerCase().includes(searchLower) ||
-          p.description?.toLowerCase().includes(searchLower) ||
-          p.brand?.toLowerCase().includes(searchLower) ||
-          p.category?.toLowerCase().includes(searchLower)
-      )
+      .filter((p) => {
+        const name = p.name?.toLowerCase() || '';
+        const desc = p.description?.toLowerCase() || '';
+        const brand = p.brand?.toLowerCase() || '';
+        const category = p.category?.toLowerCase() || '';
+        
+        const nameNormalized = name.replace(/[-\s]+/g, '');
+        const categoryNormalized = category.replace(/[-\s]+/g, '');
+        
+        return (
+          name.includes(searchLower) ||
+          nameNormalized.includes(searchNormalized) ||
+          desc.includes(searchLower) ||
+          brand.includes(searchLower) ||
+          category.includes(searchLower) ||
+          categoryNormalized.includes(searchNormalized)
+        );
+      })
       .slice(0, limitResults);
   } catch (error) {
     console.error('Error searching products:', error);
@@ -413,6 +449,7 @@ export async function getAutocompleteSuggestions(searchQuery, limit = 8) {
   
   try {
     const query = searchQuery.toLowerCase().trim();
+    const queryNormalized = query.replace(/[-\s]+/g, '');
     
     // Get all products (with caching this should be fast)
     const productsRef = collection(db, 'products');
@@ -428,9 +465,14 @@ export async function getAutocompleteSuggestions(searchQuery, limit = 8) {
       const category = data.category || '';
       const nameLower = name.toLowerCase();
       const brandLower = brand.toLowerCase();
+      const categoryLower = category.toLowerCase();
+      
+      // Normalize for better matching
+      const nameNormalized = nameLower.replace(/[-\s]+/g, '');
+      const categoryNormalized = categoryLower.replace(/[-\s]+/g, '');
       
       // Check if product name starts with query
-      if (nameLower.startsWith(query)) {
+      if (nameLower.startsWith(query) || nameNormalized.startsWith(queryNormalized)) {
         const key = `product:${name}`;
         if (!seen.has(key)) {
           suggestions.push({
@@ -443,7 +485,7 @@ export async function getAutocompleteSuggestions(searchQuery, limit = 8) {
         }
       }
       // Check if product name contains query (lower priority)
-      else if (nameLower.includes(query)) {
+      else if (nameLower.includes(query) || nameNormalized.includes(queryNormalized)) {
         const key = `product:${name}`;
         if (!seen.has(key)) {
           suggestions.push({
@@ -471,7 +513,7 @@ export async function getAutocompleteSuggestions(searchQuery, limit = 8) {
       }
       
       // Check if category matches
-      if (category.toLowerCase().startsWith(query)) {
+      if (categoryLower.startsWith(query) || categoryNormalized.startsWith(queryNormalized)) {
         const key = `category:${category}`;
         if (!seen.has(key)) {
           suggestions.push({

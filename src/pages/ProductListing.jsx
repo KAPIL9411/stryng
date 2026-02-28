@@ -466,6 +466,8 @@ export default function ProductListing() {
   const currentPage = Number(searchParams.get('page')) || 1;
   const rawSearchQuery = searchParams.get('search')?.trim() || '';
 
+  console.log('🔍 ProductListing - Raw search query:', rawSearchQuery);
+
   // Get current filters
   const currentCategories = searchParams.getAll('category');
   const currentSizes = searchParams.getAll('size');
