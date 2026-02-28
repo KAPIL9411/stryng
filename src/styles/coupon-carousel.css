@@ -38,7 +38,6 @@
 
 /* Green discount badge section */
 .coupon-sticker__badge {
-  background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
   width: 190px;
   padding: 12px 16px;
   position: relative;
@@ -47,6 +46,7 @@
   justify-content: center;
   clip-path: polygon(0 0, 100% 0, 95% 100%, 0 100%);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: background 0.5s ease;
 }
 
 .coupon-sticker__badge::before {

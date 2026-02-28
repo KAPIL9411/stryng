@@ -95,11 +95,25 @@ const CouponCarousel = memo(function CouponCarousel() {
     }
   };
 
+  // Color schemes for different coupons
+  const colorSchemes = [
+    { name: 'green', gradient: 'linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%)' },
+    { name: 'blue', gradient: 'linear-gradient(135deg, #1976D2 0%, #0D47A1 100%)' },
+    { name: 'purple', gradient: 'linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%)' },
+    { name: 'orange', gradient: 'linear-gradient(135deg, #F57C00 0%, #E65100 100%)' },
+    { name: 'red', gradient: 'linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%)' },
+  ];
+
+  const getCurrentColor = () => {
+    return colorSchemes[currentSlide % colorSchemes.length];
+  };
+
   if (isLoading || coupons.length === 0) {
     return null;
   }
 
   const currentCoupon = coupons[currentSlide];
+  const currentColor = getCurrentColor();
 
   return (
     <div className="coupon-sticker-container" ref={containerRef}>
@@ -109,8 +123,11 @@ const CouponCarousel = memo(function CouponCarousel() {
         onMouseEnter={handleStickerMouseEnter}
         onMouseLeave={handleStickerMouseLeave}
       >
-        {/* Red discount badge */}
-        <div className="coupon-sticker__badge">
+        {/* Discount badge with dynamic color */}
+        <div 
+          className="coupon-sticker__badge"
+          style={{ background: currentColor.gradient }}
+        >
           <div className="coupon-sticker__badge-label">SPECIAL OFFER</div>
           <div className="coupon-sticker__badge-title">DISCOUNT</div>
           <div className="coupon-sticker__badge-subtitle">WARRANTY LOW PRICE</div>
