@@ -132,8 +132,8 @@ export default defineConfig({
     },
     // Optimize chunk size
     chunkSizeWarningLimit: 500,
-    // Enable CSS code splitting
-    cssCodeSplit: true,
+    // Disable CSS code splitting to prevent loading issues on Vercel
+    cssCodeSplit: false,
     // Source maps for production debugging (optional, can be disabled for smaller builds)
     sourcemap: false
   }
