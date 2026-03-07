@@ -354,12 +354,25 @@ export default function Checkout() {
 
   const copyUPIId = useCallback(() => {
     navigator.clipboard.writeText(MERCHANT_VPA);
-    // Could add a toast notification here
-  }, []);
+    showToast('UPI ID copied to clipboard!', 'success');
+  }, [showToast]);
 
-  // UPI Payment Link
+  // Handle UPI payment - Opens device's UPI app chooser
+  const handleUPIPayment = useCallback((e) => {
+    e.preventDefault();
+    
+    // For mobile devices, directly open the UPI link
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.location.href = upiLink;
+    } else {
+      // For desktop, show a message or open in new tab
+      showToast('Please scan the QR code or use mobile device for UPI payment', 'info');
+    }
+  }, [upiLink, showToast]);
+
+  // UPI Payment Link - Generic format that works with all UPI apps
   const upiLink = useMemo(
-    () => `upi://pay?pa=${MERCHANT_VPA}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=Order%20Payment`,
+    () => `upi://pay?pa=${MERCHANT_VPA}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent('Order Payment - Stryng Clothing')}`,
     [total]
   );
 
@@ -650,13 +663,14 @@ export default function Checkout() {
                           <span>Amount to pay</span>
                           <strong>{formatPrice(total)}</strong>
                         </div>
-                        <a
-                          href={upiLink}
+                        <button
+                          onClick={handleUPIPayment}
                           className="btn-open-upi"
+                          type="button"
                         >
                           <ExternalLink size={18} />
                           Open UPI App
-                        </a>
+                        </button>
                       </div>
 
                       {/* Transaction ID Input */}
