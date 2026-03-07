@@ -40,11 +40,13 @@ export default function Register() {
     const loadProductImages = async () => {
       try {
         const result = await fetchProducts(1, 50); // Fetch first 50 products
-        const products = result.products || [];
+        
+        // Ensure we have a valid products array
+        const products = Array.isArray(result?.products) ? result.products : [];
         
         // Get all product images from the database
         const images = products
-          .filter(product => product.images && product.images.length > 0)
+          .filter(product => product.images && Array.isArray(product.images) && product.images.length > 0)
           .flatMap(product => product.images)
           .slice(0, 20); // Limit to 20 images for performance
         
