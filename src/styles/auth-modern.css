@@ -534,6 +534,7 @@
     padding: 0;
     align-items: flex-end;
     animation: slideUpFade 0.6s ease-out;
+    max-height: 85vh;
   }
 
   @keyframes slideUpFade {
@@ -548,22 +549,86 @@
   }
   
   .auth-form-container {
-    padding: 2rem 1rem;
+    padding: 0;
+    width: 100%;
   }
 
   .auth-form-card {
     height: auto;
-    padding: 1.75rem 1.5rem;
-    border-radius: 20px 20px 0 0;
+    max-height: 85vh;
+    padding: 2rem 1.5rem;
+    border-radius: 24px 24px 0 0;
     box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+    overflow-y: auto;
+  }
+
+  .auth-logo {
+    margin-bottom: 1.5rem;
+  }
+
+  .auth-logo img {
+    height: 40px;
+  }
+
+  .auth-header {
+    margin-bottom: 1.5rem;
   }
 
   .auth-title {
-    font-size: 1.375rem;
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
   }
 
   .auth-subtitle {
+    font-size: 0.875rem;
+  }
+
+  .auth-form-modern {
+    gap: 1rem;
+  }
+
+  .form-group-modern {
+    margin-bottom: 0;
+  }
+
+  .form-label-modern {
     font-size: 0.8125rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .form-input-modern {
+    padding: 0.75rem 2.75rem;
+    font-size: 0.875rem;
+  }
+
+  .form-input-icon {
+    left: 0.875rem;
+  }
+
+  .form-input-action {
+    right: 0.875rem;
+  }
+
+  .btn-auth-primary,
+  .btn-google-modern {
+    padding: 0.875rem;
+    font-size: 0.9375rem;
+  }
+
+  .auth-divider-modern {
+    margin: 1.25rem 0;
+  }
+
+  .auth-footer-modern {
+    margin-top: 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .auth-back-button {
+    top: 1.5rem;
+    left: 1.5rem;
+    width: 36px;
+    height: 36px;
   }
 }
 
@@ -575,22 +640,110 @@
   }
 
   .masonry-item--tall {
-    height: 300px;
+    height: 280px;
   }
 
   .masonry-item--medium {
-    height: 220px;
+    height: 200px;
   }
 
   .masonry-item--short {
-    height: 180px;
+    height: 160px;
   }
 
-  .auth-form-container {
-    padding: 1.5rem 1rem;
+  .auth-form-overlay {
+    max-height: 90vh;
   }
 
   .auth-form-card {
-    padding: 1.5rem;
+    max-height: 90vh;
+    padding: 1.5rem 1.25rem;
+  }
+
+  .auth-logo {
+    margin-bottom: 1.25rem;
+  }
+
+  .auth-logo img {
+    height: 36px;
+  }
+
+  .auth-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .auth-title {
+    font-size: 1.375rem;
+  }
+
+  .auth-subtitle {
+    font-size: 0.8125rem;
+  }
+
+  .auth-form-modern {
+    gap: 0.875rem;
+  }
+
+  .form-label-modern {
+    font-size: 0.75rem;
+  }
+
+  .form-input-modern {
+    padding: 0.7rem 2.5rem;
+    font-size: 0.8125rem;
+    border-radius: 10px;
+  }
+
+  .form-input-icon {
+    left: 0.75rem;
+  }
+
+  .form-input-action {
+    right: 0.75rem;
+  }
+
+  .btn-auth-primary,
+  .btn-google-modern {
+    padding: 0.8rem;
+    font-size: 0.875rem;
+    border-radius: 10px;
+  }
+
+  .auth-divider-modern {
+    margin: 1rem 0;
+    font-size: 0.8125rem;
+  }
+
+  .auth-footer-modern {
+    margin-top: 1rem;
+    font-size: 0.8125rem;
+  }
+
+  .auth-back-button {
+    top: 1rem;
+    left: 1rem;
+    width: 32px;
+    height: 32px;
+  }
+
+  .auth-back-button svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .auth-error-modern,
+  .auth-info-modern {
+    padding: 0.875rem;
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
+  }
+
+  .form-checkbox-modern {
+    font-size: 0.8125rem;
+  }
+
+  .form-checkbox-modern input {
+    width: 16px;
+    height: 16px;
   }
 }
